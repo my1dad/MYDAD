@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Eye, FileText, Paperclip, Upload, X } from "lucide-react";
 import { useFilesOptional } from "../../context/FilesContext";
+import { getStorageMode, saveAttachmentToBin } from "../../lib/storageAdapter";
 
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
@@ -94,6 +95,17 @@ export default function AttachmentInput({
       }
 
       const entry = createAttachmentFromFile(file, dataUrl);
+
+      if (dataUrl && getStorageMode() !== "local") {
+        try {
+          const binPath = await saveAttachmentToBin(entry.id, entry.name, dataUrl);
+          if (binPath) entry.binPath = binPath;
+        } catch {
+          setError(`Could not save "${file.name}" to workspace bin.`);
+          continue;
+        }
+      }
+
       next.push(entry);
       added.push(entry);
     }

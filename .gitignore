@@ -1,5 +1,19 @@
 node_modules
 dist
 dist-ssr
+dist-electron
+release
+mac
+mac-arm64
+dmg-staging
+*.dmg
+*.blockmap
 *.local
 .DS_Store
+.vercel
+
+# Workspace data (keep folder structure via .gitkeep)
+bins/**/*
+!bins/**/
+!bins/**/.gitkeep
+!bins/README.md

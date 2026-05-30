@@ -8,6 +8,7 @@ import {
   Send,
   Video,
 } from "lucide-react";
+import { resolveAssetUrl } from "../../lib/assetUrl";
 import { MESSAGE_FILTERS, MOCK_CONVERSATIONS } from "../../data/messagesData";
 
 function cn(...classes) {
@@ -24,7 +25,7 @@ function ConversationAvatar({ conversation, size = "md" }) {
   if (conversation.type === "direct" && conversation.avatarUrl) {
     return (
       <img
-        src={conversation.avatarUrl}
+        src={resolveAssetUrl(conversation.avatarUrl)}
         alt={conversation.name}
         className={cn("shrink-0 rounded-full object-cover ring-2 ring-white", sizes[size])}
       />

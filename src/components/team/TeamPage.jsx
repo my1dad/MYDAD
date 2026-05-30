@@ -7,13 +7,15 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import { resolveAssetUrl } from "../../lib/assetUrl";
 import {
-  TEAM_MEMBERS,
   TEAM_ROLE_FILTERS,
   TEAM_STATUS_STYLES,
   getWorkloadTone,
 } from "../../data/teamData";
 import { filterActiveProjects, getProjectStageColor } from "../../lib/projectUtils";
+import { useTeam } from "../../context/TeamContext";
+import NewTeamMemberOnboarding from "./NewTeamMemberOnboarding";
 
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
@@ -53,7 +55,7 @@ function MemberAvatar({ member, size = "md" }) {
   if (member.avatarUrl) {
     return (
       <img
-        src={member.avatarUrl}
+        src={resolveAssetUrl(member.avatarUrl)}
         alt={member.name}
         className={cn("shrink-0 rounded-full object-cover ring-2 ring-white", sizes[size])}
       />
@@ -95,19 +97,21 @@ function buildMemberProjectMap(projects, members) {
 }
 
 export default function TeamPage({ projects = [] }) {
+  const { members } = useTeam();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   const projectMap = useMemo(
-    () => buildMemberProjectMap(projects, TEAM_MEMBERS),
-    [projects]
+    () => buildMemberProjectMap(projects, members),
+    [projects, members]
   );
 
   const stats = useMemo(() => {
-    const onProjects = TEAM_MEMBERS.filter((m) => (projectMap.get(m.id)?.length ?? 0) > 0).length;
-    const avgWorkload = Math.round(
-      TEAM_MEMBERS.reduce((sum, m) => sum + m.workload, 0) / TEAM_MEMBERS.length
-    );
+    const onProjects = members.filter((m) => (projectMap.get(m.id)?.length ?? 0) > 0).length;
+    const avgWorkload = members.length
+      ? Math.round(members.reduce((sum, m) => sum + m.workload, 0) / members.length)
+      : 0;
     const owners = new Set(
       filterActiveProjects(projects)
         .map((p) => p.team?.projectOwner)
@@ -115,26 +119,30 @@ export default function TeamPage({ projects = [] }) {
     );
 
     return {
-      total: TEAM_MEMBERS.length,
+      total: members.length,
       onProjects,
       avgWorkload,
       owners: owners.size,
     };
-  }, [projects, projectMap]);
+  }, [projects, projectMap, members]);
 
   const filteredMembers = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return TEAM_MEMBERS.filter((member) => {
+    return members.filter((member) => {
       if (roleFilter !== "all" && member.department !== roleFilter) return false;
       if (!query) return true;
       const haystack = `${member.name} ${member.role} ${member.email}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [search, roleFilter]);
+  }, [search, roleFilter, members]);
 
   return (
     <div className="mx-auto max-w-[1600px]">
+      <NewTeamMemberOnboarding
+        open={onboardingOpen}
+        onClose={() => setOnboardingOpen(false)}
+      />
       <div className="mb-6 overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-emerald-50/40 p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -146,13 +154,23 @@ export default function TeamPage({ projects = [] }) {
               People, roles, workload, and project assignments across your portfolio.
             </p>
           </div>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
-          >
-            <UserPlus className="h-4 w-4" />
-            Invite Member
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOnboardingOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
+            >
+              <UserPlus className="h-4 w-4" />
+              Add Member
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+            >
+              <UserPlus className="h-4 w-4" />
+              Invite Member
+            </button>
+          </div>
         </div>
       </div>
 

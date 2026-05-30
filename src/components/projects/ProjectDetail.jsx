@@ -20,6 +20,7 @@ const PRIORITY_STYLES = {
 
 const TYPE_LABELS = {
   web_app: "Web App",
+  web_slash_app: "Web/App",
   mobile_app: "Mobile App",
   integration: "Integration",
   platform: "Platform",

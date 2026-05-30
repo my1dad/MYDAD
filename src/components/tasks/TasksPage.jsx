@@ -12,6 +12,7 @@ import {
   Trash2,
   User,
 } from "lucide-react";
+import { resolveAssetUrl } from "../../lib/assetUrl";
 import { PRIORITY_BADGE_STYLES, TASK_STATUS_FILTERS } from "../../data/tasksData";
 import { useTasks } from "../../context/TasksContext";
 import RoadmapProgressBar from "../roadmap/RoadmapProgressBar";
@@ -65,7 +66,7 @@ function AssigneeAvatar({ assignee }) {
   if (assignee.avatarUrl) {
     return (
       <img
-        src={assignee.avatarUrl}
+        src={resolveAssetUrl(assignee.avatarUrl)}
         alt={assignee.name}
         title={assignee.name}
         className="h-8 w-8 shrink-0 rounded-full object-cover ring-2 ring-white"

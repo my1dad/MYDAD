@@ -45,6 +45,7 @@ import {
 } from "recharts";
 import { LoadingProvider } from "./context/LoadingContext";
 import { CalendarEventsProvider, useCalendarEvents } from "./context/CalendarEventsContext";
+import { TeamProvider } from "./context/TeamContext";
 import { FilesProvider } from "./context/FilesContext";
 import { TasksProvider, useTasks } from "./context/TasksContext";
 import { WorkspaceSettingsProvider } from "./context/WorkspaceSettingsContext";
@@ -68,6 +69,7 @@ import ProjectsPage from "./components/projects/ProjectsPage";
 import CompletedProjectsPage from "./components/projects/CompletedProjectsPage";
 import ProjectTaskChecklist from "./components/projects/ProjectTaskChecklist";
 import RoadmapProgressBar from "./components/roadmap/RoadmapProgressBar";
+import { LOGO_URL, PROFILE_ENIS_URL } from "./lib/assetUrl";
 import { clearOnboardingDraft, loadProjectBin, saveProjectBin } from "./lib/projectStorage";
 import { readPageFromHash, writePageToHash } from "./lib/appNavigation";
 import {
@@ -125,53 +127,11 @@ function calcProjectProgress(phasePercents) {
   );
 }
 
-const roadmapProjects = [
-  {
-    id: "crm",
-    name: "CRM System",
-    icon: Users,
-    color: "#6366f1",
-    progress: calcProjectProgress([100, 60, 0, 0]),
-  },
-  {
-    id: "inventory",
-    name: "Inventory Management",
-    icon: Boxes,
-    color: "#3b82f6",
-    progress: calcProjectProgress([100, 75, 0, 0]),
-  },
-  {
-    id: "leads",
-    name: "Lead Automation",
-    icon: Zap,
-    color: "#8b5cf6",
-    progress: calcProjectProgress([100, 45, 0, 0]),
-  },
-  {
-    id: "analytics",
-    name: "Analytics Dashboard",
-    icon: BarChart3,
-    color: "#10b981",
-    progress: calcProjectProgress([90, 40, 0, 0]),
-  },
-  {
-    id: "mobile",
-    name: "Mobile App",
-    icon: Smartphone,
-    color: "#f59e0b",
-    progress: calcProjectProgress([70, 25, 0, 0]),
-  },
-  {
-    id: "finance",
-    name: "Finance Integration",
-    icon: Wallet,
-    color: "#06b6d4",
-    progress: calcProjectProgress([55, 10, 0, 0]),
-  },
-];
+const roadmapProjects = [];
 
 const PROJECT_TYPE_ICONS = {
   web_app: Users,
+  web_slash_app: Layers,
   mobile_app: Smartphone,
   integration: Wallet,
   platform: Boxes,
@@ -190,22 +150,7 @@ function projectToRoadmapRow(project) {
   };
 }
 
-const seedProjects = () =>
-  roadmapProjects.map((p) => ({
-    id: p.id,
-    projectName: p.name,
-    projectType: "web_app",
-    clientType: "internal",
-    description: `Active development on ${p.name}.`,
-    priority: p.progress >= 40 ? "high" : "medium",
-    targetLaunchDate: "2024-12-15",
-    progress: p.progress,
-    color: p.color,
-    team: { projectOwner: "Enis" },
-    phases: {},
-    kpis: { riskLevel: "medium" },
-    createdAt: "2024-01-10T00:00:00.000Z",
-  }));
+const seedProjects = () => [];
 
 const PHASE_INFO_COLORS = {
   foundation: "#4f46e5",
@@ -351,13 +296,13 @@ function Card({ children, className, title, titleClassName, action, subtitle, co
 const CURRENT_USER = {
   name: "Enis",
   role: "Product Manager",
-  avatarUrl: "/profile-enis.png",
+  avatarUrl: PROFILE_ENIS_URL,
 };
 
 function BrandLogo({ className }) {
   return (
     <img
-      src="/over-drive-logo.png"
+      src={LOGO_URL}
       alt="Over Drive"
       className={cn("w-auto max-w-full object-contain object-left", className)}
     />
@@ -528,14 +473,20 @@ function DateTimeDisplay() {
   );
 }
 
-function Header({ onOpenOnboarding }) {
+function Header({ onOpenOnboarding, isBlankWorkspace }) {
   return (
     <header className="shrink-0 flex flex-col gap-4 border-b border-slate-200 bg-white px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
       <div>
         <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
           Welcome back, {CURRENT_USER.name}!
         </h1>
-        <DateTimeDisplay />
+        {isBlankWorkspace ? (
+          <p className="mt-0.5 text-sm text-slate-500">
+            Your workspace is empty — add a project to get started.
+          </p>
+        ) : (
+          <DateTimeDisplay />
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <button
@@ -886,9 +837,48 @@ function DashboardPage({
   onViewFullCalendar,
   onAddTask,
   onOpenFileManager,
+  onOpenOnboarding,
 }) {
+  const isBlank = filterActiveProjects(projects).length === 0;
+
   return (
     <div className="mx-auto max-w-[1600px] space-y-4">
+      {isBlank && (
+        <div className="rounded-2xl border border-dashed border-indigo-200 bg-gradient-to-br from-indigo-50/80 via-white to-sky-50/60 p-6 sm:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="max-w-xl">
+              <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">
+                Blank workspace
+              </p>
+              <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                Your dashboard is ready
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                No demo projects, tasks, or calendar events — start fresh by creating your first
+                project, then add tasks and milestones as you go.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={onOpenOnboarding}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+              >
+                <Plus className="h-4 w-4" />
+                Create first project
+              </button>
+              <button
+                type="button"
+                onClick={onAddTask}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                <CheckSquare className="h-4 w-4" />
+                Add a task
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <GanttChart
         projects={projects}
         onUpdateProject={onUpdateProject}
@@ -1570,6 +1560,26 @@ function TeamWorkload({ summary }) {
         ? { label: "Moderate load", color: "text-amber-600", dot: "bg-amber-500" }
         : { label: "Light load", color: "text-slate-500", dot: "bg-slate-400" };
 
+  if (summary.total === 0) {
+    return (
+      <DashboardWidget
+        icon={Users}
+        title="Team Workload"
+        subtitle="Add projects to track capacity"
+        accent="amber"
+        scrollable={false}
+      >
+        <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-4 text-center">
+          <Users className="mb-2 h-7 w-7 text-slate-300" />
+          <p className="text-xs font-semibold text-slate-600">No workload yet</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+            Team capacity appears once you have active projects
+          </p>
+        </div>
+      </DashboardWidget>
+    );
+  }
+
   return (
     <DashboardWidget
       icon={Users}
@@ -1791,7 +1801,16 @@ function TaskList({ onViewAllTasks, onAddTask }) {
       </div>
 
       <ul className="max-h-[260px] space-y-0.5 overflow-y-auto">
-        {filteredTasks.map((task) => {
+        {filteredTasks.length === 0 ? (
+          <li className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-10 text-center">
+            <CheckSquare className="mb-2 h-7 w-7 text-slate-300" />
+            <p className="text-sm font-semibold text-slate-600">No tasks yet</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Create a task or add tasks inside a project
+            </p>
+          </li>
+        ) : (
+        filteredTasks.map((task) => {
           const isDone = completedIds.has(task.id);
           return (
             <li
@@ -1858,7 +1877,8 @@ function TaskList({ onViewAllTasks, onAddTask }) {
               </div>
             </li>
           );
-        })}
+        })
+        )}
       </ul>
 
       <button
@@ -1890,6 +1910,7 @@ export default function App() {
   );
 
   const summary = useMemo(() => computeProjectSummary(projects), [projects]);
+  const isBlankWorkspace = filterActiveProjects(projects).length === 0;
 
   useEffect(() => {
     saveProjectBin(projects);
@@ -2060,6 +2081,7 @@ export default function App() {
   return (
     <LoadingProvider activePage={activePage}>
     <WorkspaceSettingsProvider>
+    <TeamProvider>
     <TasksProvider>
     <FilesProvider projects={projects} onProjectsChange={setProjects}>
     <CalendarEventsProvider>
@@ -2073,7 +2095,9 @@ export default function App() {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <MobileHeader />
-        {activePage === "dashboard" && <Header onOpenOnboarding={openOnboarding} />}
+        {activePage === "dashboard" && (
+          <Header onOpenOnboarding={openOnboarding} isBlankWorkspace={isBlankWorkspace} />
+        )}
 
         <main
           className={cn(
@@ -2100,6 +2124,7 @@ export default function App() {
               onViewFullCalendar={() => handleNavigate("calendar")}
               onAddTask={handleAddTask}
               onOpenFileManager={() => handleNavigate("file-manager")}
+              onOpenOnboarding={openOnboarding}
             />
           ) : activePage === "roadmap" ? (
             <RoadmapPage projects={projects} onUpdateProject={handleUpdateProject} />
@@ -2167,6 +2192,7 @@ export default function App() {
     </CalendarEventsProvider>
     </FilesProvider>
     </TasksProvider>
+    </TeamProvider>
     </WorkspaceSettingsProvider>
     </LoadingProvider>
   );

@@ -1,8 +1,10 @@
+import { PROFILE_ENIS_URL } from "../lib/assetUrl";
+
 export const USER_PROFILE = {
   name: "Enis",
   role: "Product Manager",
   email: "enis@overdrive.os",
-  avatarUrl: "/profile-enis.png",
+  avatarUrl: PROFILE_ENIS_URL,
   timezone: "America/New_York",
 };
 

@@ -21,13 +21,13 @@ import PreTasksDisplay from "./PreTasksDisplay";
 import { onboardingFieldVariant, onboardingShell } from "../onboarding/onboardingTheme";
 import {
   PRIORITY_BADGE_STYLES,
-  TASK_ASSIGNEES,
   TASK_PRIORITY_OPTIONS,
   TASK_STATUS_OPTIONS,
   findTaskAssigneeId,
   formatTaskDueLabel,
 } from "../../data/tasksData";
 import { filterActiveProjects, getProjectStageColor } from "../../lib/projectUtils";
+import { useTeam } from "../../context/TeamContext";
 
 const FIELD = onboardingFieldVariant;
 
@@ -125,6 +125,7 @@ export default function AddTaskModal({
   projects = [],
 }) {
   const isEdit = mode === "edit";
+  const { assignees } = useTeam();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(initialForm);
   const [preTaskInput, setPreTaskInput] = useState("");
@@ -142,7 +143,7 @@ export default function AddTaskModal({
   );
 
   const selectedProject = projectOptions.find((p) => p.id === form.projectId);
-  const selectedAssignee = TASK_ASSIGNEES.find((m) => m.id === form.assigneeId) ?? TASK_ASSIGNEES[0];
+  const selectedAssignee = assignees.find((m) => m.id === form.assigneeId) ?? assignees[0];
 
   useEffect(() => {
     if (!open) return;
@@ -156,7 +157,7 @@ export default function AddTaskModal({
         dueDate: editingTask.dueDateIso ?? "",
         dueTime: editingTask.dueTime ?? "",
         dueTimeSelected: Boolean(editingTask.dueTime?.trim()),
-        assigneeId: findTaskAssigneeId(editingTask.assignee),
+        assigneeId: findTaskAssigneeId(editingTask.assignee, assignees),
         preTasks: editingTask.preTasks?.length
           ? [...editingTask.preTasks]
           : editingTask.preTask
@@ -175,7 +176,7 @@ export default function AddTaskModal({
     setTimePickerOpen(false);
     setPreviewAttachment(null);
     setStep(1);
-  }, [open, isEdit, editingTask]);
+  }, [open, isEdit, editingTask, assignees]);
 
   useEffect(() => {
     if (!open || !isEdit || !editingTask?.project) return;
@@ -515,7 +516,7 @@ export default function AddTaskModal({
                 value={form.assigneeId}
                 onChange={(e) => update("assigneeId", e.target.value)}
               >
-                {TASK_ASSIGNEES.map((member) => (
+                {assignees.map((member) => (
                   <option key={member.id} value={member.id}>
                     {member.name}
                   </option>

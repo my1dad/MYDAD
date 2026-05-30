@@ -1,10 +1,7 @@
+import { PROFILE_ENIS_URL, resolveAssetUrl } from "../lib/assetUrl";
+
 export const TASK_ASSIGNEES = [
-  { id: "enis", name: "Enis", initials: "E", color: "#6366f1", avatarUrl: "/profile-enis.png" },
-  { id: "david", name: "David Kim", initials: "DK", color: "#06b6d4" },
-  { id: "elena", name: "Elena Rossi", initials: "ER", color: "#f59e0b" },
-  { id: "james", name: "James Wu", initials: "JW", color: "#10b981" },
-  { id: "marcus", name: "Marcus Lee", initials: "ML", color: "#3b82f6" },
-  { id: "sarah", name: "Sarah Chen", initials: "SC", color: "#10b981" },
+  { id: "enis", name: "Enis", initials: "E", color: "#6366f1", avatarUrl: PROFILE_ENIS_URL },
 ];
 
 export const TASK_PRIORITY_OPTIONS = [
@@ -68,13 +65,13 @@ function resolveAssignee(fields, fallback) {
     name: assignee.name,
     initials: assignee.initials,
     color: assignee.color,
-    ...(assignee.avatarUrl ? { avatarUrl: assignee.avatarUrl } : {}),
+    ...(assignee.avatarUrl ? { avatarUrl: resolveAssetUrl(assignee.avatarUrl) } : {}),
   };
 }
 
-export function findTaskAssigneeId(assignee) {
-  if (!assignee?.name) return "enis";
-  return TASK_ASSIGNEES.find((m) => m.name === assignee.name)?.id ?? "enis";
+export function findTaskAssigneeId(assignee, assignees = TASK_ASSIGNEES) {
+  if (!assignee?.name) return assignees[0]?.id ?? "enis";
+  return assignees.find((m) => m.name === assignee.name)?.id ?? assignees[0]?.id ?? "enis";
 }
 
 export function createTask(fields) {
@@ -144,7 +141,7 @@ export const MOCK_TASKS = [
     dueDate: "May 15, 2024",
     priority: "high",
     status: "todo",
-    assignee: { name: "Enis", initials: "E", color: "#6366f1", avatarUrl: "/profile-enis.png" },
+    assignee: { name: "Enis", initials: "E", color: "#6366f1", avatarUrl: PROFILE_ENIS_URL },
     completed: false,
   },
   {
@@ -155,7 +152,7 @@ export const MOCK_TASKS = [
     dueDate: "May 18, 2024",
     priority: "medium",
     status: "done",
-    assignee: { name: "David Kim", initials: "DK", color: "#06b6d4" },
+    assignee: { name: "Enis", initials: "E", color: "#6366f1", avatarUrl: PROFILE_ENIS_URL },
     completed: true,
   },
   {
@@ -166,7 +163,7 @@ export const MOCK_TASKS = [
     dueDate: "May 22, 2024",
     priority: "low",
     status: "todo",
-    assignee: { name: "Elena Rossi", initials: "ER", color: "#f59e0b" },
+    assignee: { name: "Enis", initials: "E", color: "#6366f1", avatarUrl: PROFILE_ENIS_URL },
     completed: false,
   },
   {
@@ -177,7 +174,7 @@ export const MOCK_TASKS = [
     dueDate: "May 25, 2024",
     priority: "high",
     status: "in_progress",
-    assignee: { name: "Enis", initials: "E", color: "#6366f1", avatarUrl: "/profile-enis.png" },
+    assignee: { name: "Enis", initials: "E", color: "#6366f1", avatarUrl: PROFILE_ENIS_URL },
     completed: false,
   },
   {
@@ -188,7 +185,7 @@ export const MOCK_TASKS = [
     dueDate: "May 28, 2024",
     priority: "medium",
     status: "todo",
-    assignee: { name: "James Wu", initials: "JW", color: "#10b981" },
+    assignee: { name: "Enis", initials: "E", color: "#6366f1", avatarUrl: PROFILE_ENIS_URL },
     completed: false,
   },
   {
@@ -199,7 +196,7 @@ export const MOCK_TASKS = [
     dueDate: "May 30, 2024",
     priority: "high",
     status: "in_progress",
-    assignee: { name: "Marcus Lee", initials: "ML", color: "#3b82f6" },
+    assignee: { name: "Enis", initials: "E", color: "#6366f1", avatarUrl: PROFILE_ENIS_URL },
     completed: false,
   },
   {
@@ -210,7 +207,7 @@ export const MOCK_TASKS = [
     dueDate: "Jun 2, 2024",
     priority: "medium",
     status: "todo",
-    assignee: { name: "Enis", initials: "E", color: "#8b5cf6", avatarUrl: "/profile-enis.png" },
+    assignee: { name: "Enis", initials: "E", color: "#8b5cf6", avatarUrl: PROFILE_ENIS_URL },
     completed: false,
   },
   {
@@ -221,7 +218,7 @@ export const MOCK_TASKS = [
     dueDate: "Jun 5, 2024",
     priority: "low",
     status: "done",
-    assignee: { name: "Sarah Chen", initials: "SC", color: "#10b981" },
+    assignee: { name: "Enis", initials: "E", color: "#6366f1", avatarUrl: PROFILE_ENIS_URL },
     completed: true,
   },
 ];

@@ -1,17 +1,17 @@
+import { isCurrentWorkspaceVersion, WORKSPACE_VERSION } from "./workspaceConstants";
+import { readBinPayload, writeBinPayload } from "./storageAdapter";
+
 const STORAGE_KEY = "over-drive-os-project-bin";
 const DRAFT_KEY = "over-drive-os-onboarding-draft";
 
 export function loadProjectBin(fallbackProjects) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const data = JSON.parse(raw);
-      if (Array.isArray(data.projects)) {
-        return {
-          projects: data.projects,
-          savedAt: data.savedAt ?? null,
-        };
-      }
+    const data = readBinPayload(STORAGE_KEY);
+    if (data && isCurrentWorkspaceVersion(data) && Array.isArray(data.projects)) {
+      return {
+        projects: data.projects,
+        savedAt: data.savedAt ?? null,
+      };
     }
   } catch (err) {
     console.warn("Could not load project bin:", err);
@@ -25,11 +25,11 @@ export function loadProjectBin(fallbackProjects) {
 export function saveProjectBin(projects) {
   try {
     const bin = {
-      version: 1,
+      version: WORKSPACE_VERSION,
       savedAt: new Date().toISOString(),
       projects,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(bin));
+    writeBinPayload(STORAGE_KEY, bin);
     return bin;
   } catch (err) {
     console.warn("Could not save project bin:", err);
@@ -38,7 +38,7 @@ export function saveProjectBin(projects) {
 }
 
 export function clearProjectBin() {
-  localStorage.removeItem(STORAGE_KEY);
+  writeBinPayload(STORAGE_KEY, null);
 }
 
 export function exportProjectBin(projects) {
@@ -58,8 +58,8 @@ export function exportProjectBin(projects) {
 
 export function loadOnboardingDraft() {
   try {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    if (raw) return JSON.parse(raw);
+    const data = readBinPayload(DRAFT_KEY);
+    if (data) return data;
   } catch (err) {
     console.warn("Could not load onboarding draft:", err);
   }
@@ -68,15 +68,15 @@ export function loadOnboardingDraft() {
 
 export function saveOnboardingDraft(draft) {
   try {
-    localStorage.setItem(
-      DRAFT_KEY,
-      JSON.stringify({ ...draft, savedAt: new Date().toISOString() })
-    );
+    writeBinPayload(DRAFT_KEY, {
+      ...draft,
+      savedAt: new Date().toISOString(),
+    });
   } catch (err) {
     console.warn("Could not save onboarding draft:", err);
   }
 }
 
 export function clearOnboardingDraft() {
-  localStorage.removeItem(DRAFT_KEY);
+  writeBinPayload(DRAFT_KEY, null);
 }

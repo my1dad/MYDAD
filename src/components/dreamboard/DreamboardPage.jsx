@@ -28,6 +28,7 @@ import {
   Type,
   Underline,
 } from "lucide-react";
+import { LOGO_URL } from "../../lib/assetUrl";
 import {
   createDreamboardPdfBlob,
   downloadDreamboardPdf,
@@ -3969,7 +3970,7 @@ export default function DreamboardPage() {
           aria-hidden="true"
         >
           <img
-            src="/over-drive-logo.png"
+            src={LOGO_URL}
             alt=""
             draggable={false}
             className="max-w-[720px] select-none opacity-[0.05]"

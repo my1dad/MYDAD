@@ -16,10 +16,20 @@ import Textarea from "../ui/Textarea";
 import TagInput from "../ui/TagInput";
 import PhaseCard from "./PhaseCard";
 import PhaseThumbnailCard from "./PhaseThumbnailCard";
+import UiUxTemplateForm from "./UiUxTemplateForm";
 import {
   clearOnboardingDraft,
 } from "../../lib/projectStorage";
 import { emptyPhase, getNextProjectId, normalizePhase, projectToForm } from "../../lib/projectUtils";
+import {
+  buildDescriptionFromUiUxTemplate,
+  buildPhasesFromUiUxTemplate,
+} from "../../lib/uiUxTemplateGenerator";
+import {
+  emptyUiUxTemplateAnswers,
+  PROJECT_TEMPLATE_MODES,
+} from "../../data/uiUxRoadmapTemplate";
+import { useTeam } from "../../context/TeamContext";
 import { onboardingFieldVariant, onboardingShell } from "./onboardingTheme";
 
 const FIELD = onboardingFieldVariant;
@@ -39,14 +49,14 @@ const PHASE_DEFS = [
   { id: "scale", title: "Scale & Optimization" },
 ];
 
-const TEAM_MEMBERS = [
-  { id: "sarah", name: "Sarah Chen", role: "Product Designer" },
-  { id: "marcus", name: "Marcus Lee", role: "Backend Engineer" },
-  { id: "aisha", name: "Aisha Patel", role: "Frontend Engineer" },
-  { id: "james", name: "James Wu", role: "Data Analyst" },
-  { id: "elena", name: "Elena Rossi", role: "Mobile Developer" },
-  { id: "david", name: "David Kim", role: "DevOps Engineer" },
-];
+const PROJECT_TYPE_LABELS = {
+  web_app: "Web Application",
+  web_slash_app: "Web/App",
+  mobile_app: "Mobile App",
+  integration: "Integration",
+  platform: "Platform",
+  internal_tool: "Internal Tool",
+};
 
 const emptyPhaseData = () => emptyPhase();
 
@@ -114,15 +124,30 @@ function ReviewRow({ label, value }) {
 
 export default function NewProjectOnboarding({ open, onClose, onSubmit, editingProject, projects = [] }) {
   const isEditing = Boolean(editingProject);
+  const { members } = useTeam();
+  const optionalTeamMembers = useMemo(
+    () => members.filter((member) => member.id !== "enis"),
+    [members]
+  );
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(initialForm);
   const [selectedPhaseId, setSelectedPhaseId] = useState("foundation");
+  const [templateMode, setTemplateMode] = useState("blank");
+  const [templateAnswers, setTemplateAnswers] = useState(emptyUiUxTemplateAnswers);
+  const [activeTemplatePhaseId, setActiveTemplatePhaseId] = useState("foundation");
+  const [generateError, setGenerateError] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setForm(initialForm());
       setStep(1);
       setSelectedPhaseId("foundation");
+      setTemplateMode("blank");
+      setTemplateAnswers(emptyUiUxTemplateAnswers());
+      setActiveTemplatePhaseId("foundation");
+      setGenerateError("");
+      setIsGenerating(false);
       return;
     }
 
@@ -157,12 +182,18 @@ export default function NewProjectOnboarding({ open, onClose, onSubmit, editingP
 
   const allPhasesHaveTasks = phasesMissingTasks.length === 0;
 
-  const canGoNext = step !== 2 || selectedPhaseHasTask;
+  const templateGenerated = allPhasesHaveTasks;
+
+  const canGoNext =
+    (step !== 2 || selectedPhaseHasTask) &&
+    (step !== 1 || templateMode === "blank" || templateGenerated);
 
   const nextStepHint =
-    step === 2 && !selectedPhaseHasTask
-      ? `Add at least one task to ${selectedPhase.title} to continue`
-      : null;
+    step === 1 && templateMode === "ui_ux" && !templateGenerated
+      ? "Fill out the template and click Generate, or switch back to Blank"
+      : step === 2 && !selectedPhaseHasTask
+        ? `Add at least one task to ${selectedPhase.title} to continue`
+        : null;
 
   const nextButtonLabel =
     step === 2 && selectedPhaseHasTask && !allPhasesHaveTasks ? "Next Phase" : "Next";
@@ -223,7 +254,7 @@ export default function NewProjectOnboarding({ open, onClose, onSubmit, editingP
       team: {
         ...form.team,
         teamMembers: form.team.teamMembers.map(
-          (id) => TEAM_MEMBERS.find((m) => m.id === id)
+          (id) => members.find((m) => m.id === id)
         ),
       },
       kpis: form.kpis,
@@ -268,6 +299,61 @@ export default function NewProjectOnboarding({ open, onClose, onSubmit, editingP
   };
   const back = () => setStep((s) => Math.max(s - 1, 1));
 
+  const handleTemplateModeChange = (mode) => {
+    setTemplateMode(mode);
+    setGenerateError("");
+
+    if (mode === "blank") {
+      setTemplateAnswers(emptyUiUxTemplateAnswers());
+      setForm((f) => ({
+        ...f,
+        phases: {
+          foundation: emptyPhaseData(),
+          core: emptyPhaseData(),
+          integrations: emptyPhaseData(),
+          scale: emptyPhaseData(),
+        },
+      }));
+      return;
+    }
+
+    setActiveTemplatePhaseId("foundation");
+    setTemplateAnswers(emptyUiUxTemplateAnswers());
+  };
+
+  const handleTemplateAnswerChange = (questionId, value) => {
+    setTemplateAnswers((prev) => ({ ...prev, [questionId]: value }));
+    setGenerateError("");
+  };
+
+  const handleGenerateFromTemplate = () => {
+    if (!foundation.projectName.trim()) {
+      setGenerateError("Enter a project name before generating.");
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerateError("");
+
+    const generatedPhases = buildPhasesFromUiUxTemplate(templateAnswers);
+    const description = buildDescriptionFromUiUxTemplate(
+      templateAnswers,
+      foundation.projectName
+    );
+
+    setForm((f) => ({
+      ...f,
+      foundation: {
+        ...f.foundation,
+        description: description || f.foundation.description,
+      },
+      phases: generatedPhases,
+    }));
+    setSelectedPhaseId("foundation");
+    setStep(2);
+    setIsGenerating(false);
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <button
@@ -279,7 +365,8 @@ export default function NewProjectOnboarding({ open, onClose, onSubmit, editingP
 
       <div
         className={cn(
-          "relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border",
+          "relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-2xl border",
+          step === 1 && templateMode === "ui_ux" ? "max-w-5xl" : "max-w-4xl",
           onboardingShell.panel
         )}
       >
@@ -356,14 +443,32 @@ export default function NewProjectOnboarding({ open, onClose, onSubmit, editingP
           {/* Step 1 */}
           {step === 1 && (
             <div className="space-y-4">
-              <Input
-                variant={FIELD}
-                label="Project Name"
-                id="projectName"
-                placeholder="e.g. CRM System"
-                value={foundation.projectName}
-                onChange={(e) => updateFoundation("projectName", e.target.value)}
-              />
+              <div className={cn("grid gap-4", !isEditing ? "grid-cols-2" : "grid-cols-1")}>
+                <Input
+                  variant={FIELD}
+                  label="Project Name"
+                  id="projectName"
+                  placeholder="e.g. CRM System"
+                  value={foundation.projectName}
+                  onChange={(e) => updateFoundation("projectName", e.target.value)}
+                />
+
+                {!isEditing && (
+                  <Select
+                    variant={FIELD}
+                    label="Project Template"
+                    id="projectTemplate"
+                    value={templateMode}
+                    onChange={(e) => handleTemplateModeChange(e.target.value)}
+                  >
+                    {PROJECT_TEMPLATE_MODES.map((mode) => (
+                      <option key={mode.id} value={mode.id}>
+                        {mode.label}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </div>
 
               <div className="space-y-1.5">
                 <span className="block text-xs font-semibold text-slate-900">Client / Internal</span>
@@ -404,6 +509,7 @@ export default function NewProjectOnboarding({ open, onClose, onSubmit, editingP
                   onChange={(e) => updateFoundation("projectType", e.target.value)}
                 >
                   <option value="web_app">Web Application</option>
+                  <option value="web_slash_app">Web/App</option>
                   <option value="mobile_app">Mobile App</option>
                   <option value="integration">Integration</option>
                   <option value="platform">Platform</option>
@@ -411,37 +517,82 @@ export default function NewProjectOnboarding({ open, onClose, onSubmit, editingP
                 </Select>
               </div>
 
-              <Textarea
-                variant={FIELD}
-                label="Description"
-                id="description"
-                placeholder="Brief overview of the project goals..."
-                value={foundation.description}
-                onChange={(e) => updateFoundation("description", e.target.value)}
-              />
+              {templateMode === "blank" ? (
+                <>
+                  <Textarea
+                    variant={FIELD}
+                    label="Description"
+                    id="description"
+                    placeholder="Brief overview of the project goals..."
+                    value={foundation.description}
+                    onChange={(e) => updateFoundation("description", e.target.value)}
+                  />
 
-              <div className="grid grid-cols-2 gap-4">
-                <Select
-                  variant={FIELD}
-                  label="Priority"
-                  id="priority"
-                  value={foundation.priority}
-                  onChange={(e) => updateFoundation("priority", e.target.value)}
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="critical">Critical</option>
-                </Select>
-                <Input
-                  variant={FIELD}
-                  label="Target Launch Date"
-                  id="targetLaunchDate"
-                  type="date"
-                  value={foundation.targetLaunchDate}
-                  onChange={(e) => updateFoundation("targetLaunchDate", e.target.value)}
-                />
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Select
+                      variant={FIELD}
+                      label="Priority"
+                      id="priority"
+                      value={foundation.priority}
+                      onChange={(e) => updateFoundation("priority", e.target.value)}
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </Select>
+                    <Input
+                      variant={FIELD}
+                      label="Target Launch Date"
+                      id="targetLaunchDate"
+                      type="date"
+                      value={foundation.targetLaunchDate}
+                      onChange={(e) => updateFoundation("targetLaunchDate", e.target.value)}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Select
+                      variant={FIELD}
+                      label="Priority"
+                      id="priority"
+                      value={foundation.priority}
+                      onChange={(e) => updateFoundation("priority", e.target.value)}
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </Select>
+                    <Input
+                      variant={FIELD}
+                      label="Target Launch Date"
+                      id="targetLaunchDate"
+                      type="date"
+                      value={foundation.targetLaunchDate}
+                      onChange={(e) => updateFoundation("targetLaunchDate", e.target.value)}
+                    />
+                  </div>
+
+                  {nextStepHint && (
+                    <p className="rounded-xl border border-amber-400 bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-950">
+                      {nextStepHint}
+                    </p>
+                  )}
+
+                  <UiUxTemplateForm
+                    answers={templateAnswers}
+                    onAnswerChange={handleTemplateAnswerChange}
+                    activePhaseId={activeTemplatePhaseId}
+                    onPhaseChange={setActiveTemplatePhaseId}
+                    onGenerate={handleGenerateFromTemplate}
+                    generateError={generateError}
+                    isGenerating={isGenerating}
+                  />
+                </>
+              )}
             </div>
           )}
 
@@ -500,10 +651,11 @@ export default function NewProjectOnboarding({ open, onClose, onSubmit, editingP
                 onChange={(e) => updateTeam("projectOwner", e.target.value)}
               />
 
+              {optionalTeamMembers.length > 0 && (
               <div className="space-y-2">
                 <span className="block text-xs font-semibold text-slate-900">Team Members</span>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {TEAM_MEMBERS.map((member) => (
+                  {optionalTeamMembers.map((member) => (
                     <label
                       key={member.id}
                       className={cn(
@@ -527,6 +679,7 @@ export default function NewProjectOnboarding({ open, onClose, onSubmit, editingP
                   ))}
                 </div>
               </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <Select
@@ -628,7 +781,10 @@ export default function NewProjectOnboarding({ open, onClose, onSubmit, editingP
               <ReviewSection title="Project Foundation">
                 <ReviewRow label="Project ID" value={foundation.projectId} />
                 <ReviewRow label="Name" value={foundation.projectName} />
-                <ReviewRow label="Type" value={foundation.projectType.replace("_", " ")} />
+                <ReviewRow
+                  label="Type"
+                  value={PROJECT_TYPE_LABELS[foundation.projectType] ?? foundation.projectType}
+                />
                 <ReviewRow label="Category" value={foundation.clientType} />
                 <ReviewRow label="Priority" value={foundation.priority} />
                 <ReviewRow label="Launch Date" value={foundation.targetLaunchDate} />

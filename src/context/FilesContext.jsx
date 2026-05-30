@@ -9,7 +9,7 @@ import {
 } from "react";
 import { createPortfolioFile, PORTFOLIO_BIN_FOLDER_ID } from "../data/filesData";
 import { removeAttachmentFromProject } from "../lib/fileRemoval";
-import { loadFileBin, saveFileBin } from "../lib/filesStorage";
+import { loadFileBin, loadFileBinHydrated, saveFileBin } from "../lib/filesStorage";
 import { ensurePhases, PHASE_DEFS } from "../lib/projectUtils";
 import { useTasks } from "./TasksContext";
 
@@ -77,6 +77,18 @@ export function FilesProvider({ children, projects = [], onProjectsChange }) {
     return Array.isArray(loaded) ? loaded : [];
   });
   const didInitialSync = useRef(false);
+  const didHydrate = useRef(false);
+
+  useEffect(() => {
+    if (didHydrate.current) return;
+    didHydrate.current = true;
+    loadFileBinHydrated()
+      .then(({ files: hydrated }) => {
+        if (!Array.isArray(hydrated) || hydrated.length === 0) return;
+        setFiles((prev) => mergeFilesIntoBin(prev, hydrated));
+      })
+      .catch((err) => console.warn("Could not hydrate file bin:", err));
+  }, []);
 
   useEffect(() => {
     saveFileBin(files);

@@ -2,12 +2,38 @@
   "name": "over-drive-os",
   "private": true,
   "version": "1.0.0",
+  "description": "Over Drive OS — project roadmap dashboard",
+  "author": "Over Drive",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --host --port 5173",
     "dev:open": "vite --host --port 5173 --open",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "npm run build && electron-builder --mac dmg"
+  },
+  "build": {
+    "appId": "os.overdrive.app",
+    "productName": "Over Drive OS",
+    "directories": {
+      "output": "."
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "bins/**/.gitkeep",
+      "bins/README.md"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg"],
+      "identity": null
+    },
+    "dmg": {
+      "title": "Over Drive OS"
+    }
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -25,8 +51,12 @@
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.5.0",
+    "concurrently": "^9.2.1",
+    "electron": "^35.7.5",
+    "electron-builder": "^26.0.12",
     "tailwindcss": "^4.1.8",
     "typescript": "~5.8.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "wait-on": "^8.0.5"
   }
 }

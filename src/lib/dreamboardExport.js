@@ -13,6 +13,8 @@ import {
   syncArrowConnections,
   toLocalWireRoute,
 } from "./dreamboardShapes";
+import { readBinPayload, writeBinPayload } from "./storageAdapter";
+import { LOGO_URL } from "./assetUrl";
 
 const EXPORT_PADDING = 20;
 const EXPORT_PIXEL_RATIO = 2;
@@ -574,13 +576,9 @@ function drawShapeItem(ctx, item, exportBounds) {
 
 async function loadWatermark() {
   try {
-    return await loadImage(`${window.location.origin}/over-drive-logo.png`);
+    return await loadImage(LOGO_URL);
   } catch {
-    try {
-      return await loadImage("/over-drive-logo.png");
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 
@@ -717,12 +715,9 @@ function getNextExportSequence() {
   let sequence = 0;
 
   try {
-    const raw = localStorage.getItem(EXPORT_SEQ_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed?.date === today && Number.isFinite(parsed.seq)) {
-        sequence = parsed.seq;
-      }
+    const parsed = readBinPayload(EXPORT_SEQ_STORAGE_KEY);
+    if (parsed?.date === today && Number.isFinite(parsed.seq)) {
+      sequence = parsed.seq;
     }
   } catch {
     // Ignore storage read errors and start from 1.
@@ -731,10 +726,7 @@ function getNextExportSequence() {
   const nextSequence = sequence + 1;
 
   try {
-    localStorage.setItem(
-      EXPORT_SEQ_STORAGE_KEY,
-      JSON.stringify({ date: today, seq: nextSequence })
-    );
+    writeBinPayload(EXPORT_SEQ_STORAGE_KEY, { date: today, seq: nextSequence });
   } catch {
     // Ignore storage write errors.
   }

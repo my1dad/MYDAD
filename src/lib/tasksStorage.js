@@ -1,28 +1,27 @@
-import { MOCK_TASKS } from "../data/tasksData";
+import { isCurrentWorkspaceVersion, WORKSPACE_VERSION } from "./workspaceConstants";
+import { readBinPayload, writeBinPayload } from "./storageAdapter";
 
 const STORAGE_KEY = "over-drive-os-tasks";
 
 export function loadTasks() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const data = JSON.parse(raw);
-      if (Array.isArray(data.tasks)) {
-        return data.tasks;
-      }
+    const data = readBinPayload(STORAGE_KEY);
+    if (data && isCurrentWorkspaceVersion(data) && Array.isArray(data.tasks)) {
+      return data.tasks;
     }
   } catch (err) {
     console.warn("Could not load tasks:", err);
   }
-  return [...MOCK_TASKS];
+  return [];
 }
 
 export function saveTasks(tasks) {
   try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ version: 1, savedAt: new Date().toISOString(), tasks })
-    );
+    writeBinPayload(STORAGE_KEY, {
+      version: WORKSPACE_VERSION,
+      savedAt: new Date().toISOString(),
+      tasks,
+    });
   } catch (err) {
     console.warn("Could not save tasks:", err);
   }

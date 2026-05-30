@@ -1,16 +1,15 @@
+import { readBinPayload, writeBinPayload } from "./storageAdapter";
+
 const STORAGE_KEY = "over-drive-os-dreamboard";
 
 export function loadDreamboard() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const data = JSON.parse(raw);
-      if (Array.isArray(data.items)) {
-        return {
-          items: data.items,
-          savedAt: data.savedAt ?? null,
-        };
-      }
+    const data = readBinPayload(STORAGE_KEY);
+    if (data && Array.isArray(data.items)) {
+      return {
+        items: data.items,
+        savedAt: data.savedAt ?? null,
+      };
     }
   } catch (err) {
     console.warn("Could not load dreamboard:", err);
@@ -25,7 +24,7 @@ export function saveDreamboard(items) {
       savedAt: new Date().toISOString(),
       items,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    writeBinPayload(STORAGE_KEY, payload);
     return payload;
   } catch (err) {
     console.warn("Could not save dreamboard:", err);
