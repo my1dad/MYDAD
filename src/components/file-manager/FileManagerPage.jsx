@@ -11,6 +11,7 @@ import {
 import AttachmentInput, { canPreviewAttachment } from "../ui/AttachmentInput";
 import { useFiles } from "../../context/FilesContext";
 import { formatFileSourceLabel } from "../../data/filesData";
+import { logFileDownloaded } from "../../lib/workspaceActivityLog";
 import TaskAttachmentPreviewModal from "../tasks/TaskAttachmentPreview";
 
 function cn(...classes) {
@@ -160,6 +161,7 @@ export default function FileManagerPage() {
                           <a
                             href={file.dataUrl}
                             download={file.name}
+                            onClick={() => logFileDownloaded(file, formatFileSourceLabel(file))}
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-white"
                           >
                             <Download className="h-3.5 w-3.5" />

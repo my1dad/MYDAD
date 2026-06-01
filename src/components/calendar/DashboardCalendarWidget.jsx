@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import { useCalendarEvents } from "../../context/CalendarEventsContext";
+import { filterCalendarEventsByStatus } from "../../data/calendarData";
 import PortfolioMonthCalendar, { useCalendarSelection } from "./PortfolioMonthCalendar";
 import { useAddCalendarEventModal } from "./useAddCalendarEventModal";
 
@@ -8,7 +10,11 @@ export default function DashboardCalendarWidget({
   className,
 }) {
   const { events, addEvent } = useCalendarEvents();
-  const { viewDate, setViewDate, selectedDay, setSelectedDay } = useCalendarSelection(events);
+  const activeEvents = useMemo(
+    () => filterCalendarEventsByStatus(events, "active"),
+    [events]
+  );
+  const { viewDate, setViewDate, selectedDay, setSelectedDay } = useCalendarSelection(activeEvents);
 
   const { openForDay, modal } = useAddCalendarEventModal({
     events,
@@ -21,7 +27,7 @@ export default function DashboardCalendarWidget({
     <>
       {modal}
       <PortfolioMonthCalendar
-        events={events}
+        events={activeEvents}
         compact
         className={className}
         viewDate={viewDate}

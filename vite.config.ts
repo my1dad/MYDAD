@@ -17,6 +17,8 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, "index.html"),
         roadmap: path.resolve(__dirname, "roadmap.html"),
+        preloaderDev: path.resolve(__dirname, "preloader-dev.html"),
+        freshReset: path.resolve(__dirname, "fresh-reset.html"),
       },
     },
   },

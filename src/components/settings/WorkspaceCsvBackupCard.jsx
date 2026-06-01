@@ -1,28 +1,35 @@
 import { useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
+import { useLoadingOptional } from "../../context/LoadingContext";
 import { useRoadmapAuth } from "../../context/RoadmapAuthContext";
 import { exportWorkspaceCsv, importWorkspaceCsv } from "../../lib/workspaceCsvExportImport";
 
 export default function WorkspaceCsvBackupCard() {
   const { profile, updateProfile } = useRoadmapAuth();
+  const loading = useLoadingOptional();
   const fileInputRef = useRef(null);
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const actionBusy = Boolean(loading?.isLoading);
+
   const handleExport = async () => {
-    setExporting(true);
     setError("");
     setMessage("");
 
-    try {
+    const runExport = async () => {
       await exportWorkspaceCsv(profile);
       setMessage("Workspace exported to CSV.");
+    };
+
+    try {
+      if (loading?.runWithLoading) {
+        await loading.runWithLoading(runExport, "Exporting workspace");
+      } else {
+        await runExport();
+      }
     } catch (err) {
       setError(err?.message ?? "Could not export workspace.");
-    } finally {
-      setExporting(false);
     }
   };
 
@@ -36,11 +43,10 @@ export default function WorkspaceCsvBackupCard() {
     );
     if (!confirmed) return;
 
-    setImporting(true);
     setError("");
     setMessage("");
 
-    try {
+    const runImport = async () => {
       const csvText = await file.text();
       const result = await importWorkspaceCsv(csvText, { updateProfile });
       setMessage(
@@ -51,9 +57,16 @@ export default function WorkspaceCsvBackupCard() {
         window.location.replace(`${base}#/dashboard`);
         window.location.reload();
       }, 900);
+    };
+
+    try {
+      if (loading?.runWithLoading) {
+        await loading.runWithLoading(runImport, "Importing workspace");
+      } else {
+        await runImport();
+      }
     } catch (err) {
       setError(err?.message ?? "Could not import workspace.");
-      setImporting(false);
     }
   };
 
@@ -95,11 +108,11 @@ export default function WorkspaceCsvBackupCard() {
           <button
             type="button"
             onClick={handleExport}
-            disabled={exporting || importing || !profile}
+            disabled={actionBusy || !profile}
             className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-4 w-4" />
-            {exporting ? "Exporting…" : "Export CSV"}
+            Export CSV
           </button>
 
           <input
@@ -112,11 +125,11 @@ export default function WorkspaceCsvBackupCard() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={exporting || importing || !profile}
+            disabled={actionBusy || !profile}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Upload className="h-4 w-4" />
-            {importing ? "Importing…" : "Import CSV"}
+            Import CSV
           </button>
         </div>
       </div>

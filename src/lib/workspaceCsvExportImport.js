@@ -5,6 +5,7 @@ import { loadFileBinHydrated } from "./filesStorage";
 import { parseCsv, rowToCsv, downloadTextFile } from "./csvUtils";
 import { getActiveProfileId, readBinPayload, writeBinPayloadImmediate } from "./storageAdapter";
 import { WORKSPACE_VERSION } from "./workspaceConstants";
+import { logWorkspaceActivity } from "./workspaceActivityLog";
 
 const EXPORT_FORMAT_VERSION = "1";
 
@@ -116,7 +117,13 @@ export async function exportWorkspaceCsv(profile) {
   const csv = rows.map(rowToCsv).join("\n");
   const username = profile?.username?.trim() || "workspace";
   const date = new Date().toISOString().slice(0, 10);
-  downloadTextFile(csv, `overdrive-${username}-${date}.csv`);
+  const filename = `overdrive-${username}-${date}.csv`;
+  downloadTextFile(csv, filename);
+  logWorkspaceActivity({
+    type: "file_exported",
+    message: filename,
+    meta: "Workspace backup",
+  });
 }
 
 function groupImportRows(rows) {

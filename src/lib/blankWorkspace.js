@@ -1,12 +1,8 @@
 import { WORKSPACE_BIN_IDS } from "./binCatalog";
 import { createEmptyWorkspaceBins, getEmptyWorkspaceBinIds, getScopedLocalStorageKey } from "./profileWorkspaceScope";
 import { isCurrentWorkspaceVersion, LEGACY_LOCAL_STORAGE_KEYS, WORKSPACE_VERSION } from "./workspaceConstants";
-import {
-  getActiveProfileId,
-  readBinPayload,
-  resetWorkspaceBinsOnDisk,
-  writeBinPayloadImmediate,
-} from "./storageAdapter";
+import { getActiveProfileId, readBinPayload, resetWorkspaceBinsOnDisk, writeBinPayloadImmediate } from "./storageAdapter";
+import { clearWorkspaceActivityLog } from "./workspaceActivityLog";
 
 const MIGRATION_BIN_ID = "over-drive-os-workspace-migration";
 
@@ -53,6 +49,7 @@ export async function resetActiveProfileWorkspace() {
 
   await resetWorkspaceBinsOnDisk();
   clearProfileScopedLocalStorage(profileId);
+  clearWorkspaceActivityLog(profileId);
   await seedEmptyProfileWorkspace({ force: true });
 
   await writeBinPayloadImmediate(MIGRATION_BIN_ID, {

@@ -182,7 +182,7 @@ export default function TeamPage({ projects = [], onUpdateProject }) {
     if (member.isCurrentUser) return;
 
     const confirmed = window.confirm(
-      `Remove ${member.name} from the team? They will no longer appear in assignments.`
+      `Remove ${member.name} from the team? They will move to Deleted items in Settings.`
     );
     if (!confirmed) return;
 

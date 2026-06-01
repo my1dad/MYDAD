@@ -4,6 +4,7 @@ export const SETTINGS_SECTIONS = [
   { id: "tags", label: "Event tags" },
   { id: "appearance", label: "Appearance" },
   { id: "workspace", label: "Workspace" },
+  { id: "deleted", label: "Deleted items" },
   { id: "backup", label: "Backup" },
   { id: "account", label: "Account" },
 ];

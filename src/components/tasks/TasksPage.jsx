@@ -27,6 +27,7 @@ import {
   isCalendarEventTask,
   taskUpdateToCalendarEventFields,
 } from "../../lib/calendarTasksSync";
+import { archiveDeletedItem } from "../../lib/deletedItemsStorage";
 import RoadmapProgressBar from "../roadmap/RoadmapProgressBar";
 import AddTaskModal from "./AddTaskModal";
 import TaskDetailModal from "./TaskDetailModal";
@@ -98,8 +99,50 @@ function AssigneeAvatar({ assignee }) {
   );
 }
 
-function TaskHeatProgressBar({ stats }) {
-  const completion = stats.total === 0 ? 0 : Math.round((stats.done / stats.total) * 100);
+function taskMatchesFilterScope(task, filter, currentUser) {
+  const isDone = isTaskComplete(task);
+  if (filter === "events") return isCalendarEventTask(task);
+  if (filter === "mine") return isTaskAssignedToUser(task, currentUser);
+  if (filter === "done") return isDone;
+  if (filter === "todo") return !isDone && task.status === "todo";
+  if (filter === "in_progress") return !isDone && task.status === "in_progress";
+  return true;
+}
+
+function taskMatchesProjectAndSearch(task, projectFilter, query) {
+  if (projectFilter !== "all" && task.project !== projectFilter) return false;
+  if (!query) return true;
+  const haystack = `${task.title} ${task.project} ${task.assignee?.name ?? ""}`.toLowerCase();
+  return haystack.includes(query);
+}
+
+function TaskHeatProgressBar({ stats, listEmpty, activeFilter }) {
+  const completion =
+    listEmpty || stats.total === 0
+      ? 0
+      : Math.round((stats.done / stats.total) * 100);
+
+  let statusLine = `${stats.done} of ${stats.total} tasks complete`;
+
+  if (stats.total === 0) {
+    statusLine =
+      activeFilter === "all" ? "No tasks yet" : "No tasks in this filter";
+  } else if (stats.open === 0) {
+    statusLine =
+      activeFilter === "all" || activeFilter === "mine" || activeFilter === "events"
+        ? "All tasks complete — you're caught up"
+        : `All ${stats.total} tasks complete`;
+  } else if (listEmpty) {
+    if (activeFilter === "todo") {
+      statusLine = "No to do tasks remaining";
+    } else if (activeFilter === "in_progress") {
+      statusLine = "No in progress tasks remaining";
+    } else if (activeFilter === "done") {
+      statusLine = "No completed tasks yet";
+    } else if (activeFilter === "events") {
+      statusLine = "No calendar events in this view";
+    }
+  }
 
   return (
     <div className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -108,13 +151,11 @@ function TaskHeatProgressBar({ stats }) {
           <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
             Task completion
           </p>
-          <p className="mt-0.5 text-sm font-semibold text-slate-800">
-            {stats.done} of {stats.total} tasks complete
-          </p>
+          <p className="mt-0.5 text-sm font-semibold text-slate-800">{statusLine}</p>
         </div>
         <RoadmapProgressBar
           progress={completion}
-          color="#7c3aed"
+          color={completion >= 100 ? "#10b981" : "#7c3aed"}
           variant="heatmap"
           heightClass="h-10"
           showBadge
@@ -159,6 +200,7 @@ export default function TasksPage({
       inProgress: open.filter((t) => t.status === "in_progress").length,
       done: tasks.filter(isTaskComplete).length,
       mine: tasks.filter((task) => isTaskAssignedToUser(task, currentUser)).length,
+      events: tasks.filter(isCalendarEventTask).length,
     };
   }, [tasks, currentUser]);
 
@@ -168,20 +210,32 @@ export default function TasksPage({
     return tasks.filter((task) => {
       const isDone = isTaskComplete(task);
 
-      if (projectFilter !== "all" && task.project !== projectFilter) return false;
-
-      if (query) {
-        const haystack = `${task.title} ${task.project} ${task.assignee.name}`.toLowerCase();
-        if (!haystack.includes(query)) return false;
-      }
+      if (!taskMatchesProjectAndSearch(task, projectFilter, query)) return false;
 
       if (filter === "all") return !isDone;
       if (filter === "mine") return isTaskAssignedToUser(task, currentUser) && !isDone;
+      if (filter === "events") return isCalendarEventTask(task);
       if (filter === "done") return isDone;
       if (filter === "todo") return !isDone && task.status === "todo";
       if (filter === "in_progress") return !isDone && task.status === "in_progress";
       return true;
     });
+  }, [tasks, filter, projectFilter, search, currentUser]);
+
+  const progressStats = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const scoped = tasks.filter(
+      (task) =>
+        taskMatchesProjectAndSearch(task, projectFilter, query) &&
+        taskMatchesFilterScope(task, filter, currentUser)
+    );
+    const done = scoped.filter(isTaskComplete).length;
+    const total = scoped.length;
+    return {
+      total,
+      done,
+      open: total - done,
+    };
   }, [tasks, filter, projectFilter, search, currentUser]);
 
   const detailTaskLive = useMemo(
@@ -200,6 +254,11 @@ export default function TasksPage({
       return;
     }
 
+    if (isCalendarEventTask(task)) {
+      updateEvent(task.calendarEventId, { completed: !isDone });
+      return;
+    }
+
     updateTask(id, {
       completed: !isDone,
       status: !isDone ? "done" : task.status === "done" ? "todo" : task.status,
@@ -210,6 +269,12 @@ export default function TasksPage({
     const isDone = isTaskComplete(task);
     if (!isDone && !canCompleteTask(task)) return;
 
+    if (isCalendarEventTask(task)) {
+      updateEvent(task.calendarEventId, { completed: !isDone });
+      if (!isDone) setDetailTask(null);
+      return;
+    }
+
     updateTask(task.id, {
       completed: !isDone,
       status: !isDone ? "done" : task.status === "done" ? "todo" : task.status,
@@ -219,10 +284,11 @@ export default function TasksPage({
   };
 
   const handleDeleteTask = (task) => {
+    archiveDeletedItem("task", task);
     if (isCalendarEventTask(task)) {
-      deleteEvent(task.calendarEventId);
+      deleteEvent(task.calendarEventId, { skipArchive: true });
     }
-    deleteTask(task.id);
+    deleteTask(task.id, { archive: false, snapshot: task });
     if (detailTask?.id === task.id) setDetailTask(null);
   };
 
@@ -341,7 +407,11 @@ export default function TasksPage({
         />
       </div>
 
-      <TaskHeatProgressBar stats={stats} />
+      <TaskHeatProgressBar
+        stats={progressStats}
+        listEmpty={filteredTasks.length === 0}
+        activeFilter={filter}
+      />
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 p-4 sm:p-5">
@@ -500,6 +570,11 @@ export default function TasksPage({
                         >
                           {task.title}
                         </p>
+                        {isCalendarEventTask(task) ? (
+                          <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700 ring-1 ring-sky-200/80">
+                            Event
+                          </span>
+                        ) : null}
                         <TaskDreamboardIcon task={task} />
                         {task.attachments?.length > 0 ? (
                           <Paperclip
@@ -510,6 +585,11 @@ export default function TasksPage({
                         ) : null}
                       </div>
                       <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium text-slate-500 md:hidden">
+                        {isCalendarEventTask(task) ? (
+                          <span className="rounded-full bg-sky-100 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-sky-700">
+                            Event
+                          </span>
+                        ) : null}
                         <span>{task.project}</span>
                         <span aria-hidden>·</span>
                         <TaskDueDisplay task={task} compact />

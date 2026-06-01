@@ -9,6 +9,8 @@ import {
   updateTeamMember,
 } from "../data/teamData";
 import { loadTeamMembers, saveTeamMembers } from "../lib/teamStorage";
+import { archiveDeletedItem } from "../lib/deletedItemsStorage";
+import { logWorkspaceActivity } from "../lib/workspaceActivityLog";
 import { useRoadmapAuth } from "./RoadmapAuthContext";
 
 const TeamContext = createContext(null);
@@ -46,6 +48,13 @@ export function TeamProvider({ children }) {
         created = createTeamMember(fields, prev);
         return [...prev, created];
       });
+      if (created) {
+        logWorkspaceActivity({
+          type: "team_member_added",
+          message: created.name || created.email || "Team member",
+          meta: created.role || "",
+        });
+      }
       return created;
     },
     [profile, isAdmin]
@@ -65,6 +74,13 @@ export function TeamProvider({ children }) {
         next[index] = updated;
         return next;
       });
+      if (updated) {
+        logWorkspaceActivity({
+          type: "team_member_edited",
+          message: updated.name || updated.email || "Team member",
+          meta: updated.role || "",
+        });
+      }
       return updated;
     },
     [profile]
@@ -74,14 +90,42 @@ export function TeamProvider({ children }) {
     (memberId) => {
       if (!profile) return false;
 
+      let deleted = null;
       let removed = false;
+
       setMembers((prev) => {
         const member = prev.find((item) => item.id === memberId);
         if (!member || member.isCurrentUser) return prev;
+        deleted = member;
         removed = true;
         return prev.filter((item) => item.id !== memberId);
       });
+
+      if (deleted) {
+        archiveDeletedItem("member", deleted);
+        logWorkspaceActivity({
+          type: "team_member_deleted",
+          message: deleted.name || deleted.email || "Team member",
+          meta: deleted.role || "",
+        });
+      }
+
       return removed;
+    },
+    [profile]
+  );
+
+  const restoreMember = useCallback(
+    (snapshot) => {
+      if (!profile || !snapshot?.id || snapshot.isCurrentUser) return false;
+
+      let restored = false;
+      setMembers((prev) => {
+        if (prev.some((item) => item.id === snapshot.id)) return prev;
+        restored = true;
+        return [...prev, snapshot];
+      });
+      return restored;
     },
     [profile]
   );
@@ -106,13 +150,14 @@ export function TeamProvider({ children }) {
       addMember,
       updateMember,
       deleteMember,
+      restoreMember,
       canAddMembers: Boolean(profile),
       canLinkProfileMembers: isAdmin,
       currentUserMember,
       currentUserMemberId,
       currentUserAssignee,
     }),
-    [members, assignees, addMember, updateMember, deleteMember, profile, isAdmin, currentUserMember, currentUserMemberId, currentUserAssignee]
+    [members, assignees, addMember, updateMember, deleteMember, restoreMember, profile, isAdmin, currentUserMember, currentUserMemberId, currentUserAssignee]
   );
 
   return <TeamContext.Provider value={value}>{children}</TeamContext.Provider>;

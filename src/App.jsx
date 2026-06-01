@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   BarChart3,
-  Bell,
   Boxes,
   Calendar,
   CalendarDays,
@@ -10,6 +9,7 @@ import {
   CheckCircle2,
   CheckSquare,
   ChevronDown,
+  ChevronRight,
   Clock,
   Cpu,
   ExternalLink,
@@ -41,12 +41,16 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { LoadingProvider } from "./context/LoadingContext";
+import DashboardPreloaderOverlay from "./components/ui/DashboardPreloaderOverlay";
 import { useRoadmapAuth } from "./context/RoadmapAuthContext";
 import { getRoadmapProfileFullName, getRoadmapProfileRole } from "./data/roadmapProfileStorage";
 import RoadmapProfileAvatar from "./components/roadmap/RoadmapProfileAvatar";
 import { CalendarEventsProvider, useCalendarEvents } from "./context/CalendarEventsContext";
+import { DeletedItemsProvider } from "./context/DeletedItemsContext";
 import CalendarTasksSync from "./components/tasks/CalendarTasksSync";
 import DashboardHeaderSearch from "./components/search/DashboardHeaderSearch";
+import DashboardAlertsButton from "./components/dashboard/DashboardAlertsButton";
+import RecentActivityCard from "./components/dashboard/RecentActivityCard";
 import { TeamProvider } from "./context/TeamContext";
 import { FilesProvider } from "./context/FilesContext";
 import { TasksProvider, useTasks } from "./context/TasksContext";
@@ -66,7 +70,9 @@ import FileManagerPage from "./components/file-manager/FileManagerPage";
 import DreamboardPage from "./components/dreamboard/DreamboardPage";
 import TaskDueDisplay from "./components/tasks/TaskDueDisplay";
 import TaskDreamboardIcon from "./components/tasks/TaskDreamboardIcon";
-import { TASK_STATUS_FILTERS, canCompleteTask, getTaskPreTasks, isTaskComplete } from "./data/tasksData";
+import AddTaskModal from "./components/tasks/AddTaskModal";
+import TaskDetailModal from "./components/tasks/TaskDetailModal";
+import { TASK_STATUS_FILTERS, canCompleteTask, getPreTaskToggleUpdates, getTaskPreTasks, isTaskComplete } from "./data/tasksData";
 import { useSyncedTeamWorkload } from "./hooks/useSyncedTeamWorkload";
 import ProjectProgressModal from "./components/projects/ProjectProgressModal";
 import ProjectsPage from "./components/projects/ProjectsPage";
@@ -100,6 +106,12 @@ import {
   normalizeProject,
   PHASE_DEFS,
 } from "./lib/projectUtils";
+import { logWorkspaceActivity } from "./lib/workspaceActivityLog";
+import { archiveDeletedItem } from "./lib/deletedItemsStorage";
+import {
+  isCalendarEventTask,
+  taskUpdateToCalendarEventFields,
+} from "./lib/calendarTasksSync";
 
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
@@ -118,6 +130,7 @@ const navItems = [
   { id: "messages", label: "Messages", icon: MessageSquare },
   { id: "file-manager", label: "File Manager", icon: FolderOpen },
   { id: "dreamboard", label: "Dreamboard", icon: Sparkles },
+  { id: "settings", label: "Settings", icon: Settings },
 ];
 
 const phases = [
@@ -335,28 +348,31 @@ function BrandLogo({ className }) {
 function ProfileMenu({ onNavigate, onLogout, user }) {
   const { profile } = useRoadmapAuth();
   const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
+  const triggerRef = useRef(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
 
   const workspaceLabel = profile?.workspaceName?.trim() || "Workspace name";
 
-  const handleSelect = (section) => {
-    onNavigate("settings", { section });
-    setOpen(false);
+  const openMenu = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.top, left: rect.right });
+    }
+    setOpen(true);
   };
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onPointerDown = (event) => {
-      if (!menuRef.current?.contains(event.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [open]);
-
   return (
-    <div ref={menuRef} className="relative">
+    <div
+      ref={triggerRef}
+      className="relative"
+      onMouseEnter={openMenu}
+      onMouseLeave={() => setOpen(false)}
+    >
       {open && (
-        <div className="absolute bottom-full left-0 right-0 z-20 pb-1">
+        <div
+          className="fixed z-[100] min-w-[10.5rem] pl-1"
+          style={{ top: menuPos.top, left: menuPos.left }}
+        >
           <div
             role="menu"
             className="overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
@@ -376,15 +392,6 @@ function ProfileMenu({ onNavigate, onLogout, user }) {
             <button
               type="button"
               role="menuitem"
-              onClick={() => handleSelect("profile")}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              <Settings className="h-4 w-4 shrink-0 text-slate-500" />
-              Settings
-            </button>
-            <button
-              type="button"
-              role="menuitem"
               onClick={() => {
                 setOpen(false);
                 onLogout?.();
@@ -397,11 +404,9 @@ function ProfileMenu({ onNavigate, onLogout, user }) {
         </div>
       )}
 
-      <button
-        type="button"
+      <div
         aria-expanded={open}
         aria-haspopup="menu"
-        onClick={() => setOpen((value) => !value)}
         className="w-full rounded-lg border border-slate-200 p-3 text-left transition hover:border-slate-300 hover:bg-slate-50/80"
       >
         <div className="flex items-start gap-3">
@@ -425,15 +430,15 @@ function ProfileMenu({ onNavigate, onLogout, user }) {
             ) : null}
             <p className="mt-0.5 truncate text-[11px] text-slate-500">{workspaceLabel}</p>
           </div>
-          <ChevronDown
+          <ChevronRight
             aria-hidden
             className={cn(
               "mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform",
-              open && "rotate-180"
+              open && "translate-x-0.5 text-slate-600"
             )}
           />
         </div>
-      </button>
+      </div>
     </div>
   );
 }
@@ -445,7 +450,7 @@ function Sidebar({ activePage, onNavigate, onLogout, user }) {
         <BrandLogo className="h-[12rem] w-full" />
       </div>
 
-      <nav className="flex flex-col gap-0.5">
+      <nav className="flex flex-1 flex-col gap-0.5">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activePage === item.id;
@@ -497,6 +502,18 @@ function Sidebar({ activePage, onNavigate, onLogout, user }) {
           </button>
         </div>
       </nav>
+
+      <p className="mt-auto w-full px-3 pt-4 text-center text-[11px] text-slate-400">
+        Powered by:{" "}
+        <a
+          href="https://source-57x6rrvbz-over-drive0s-projects.vercel.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-indigo-600 transition-colors hover:text-indigo-700 hover:underline"
+        >
+          overdriveOS
+        </a>
+      </p>
     </aside>
   );
 }
@@ -555,15 +572,7 @@ function Header({ onOpenOnboarding, userName, projects, onNavigate }) {
       </div>
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <DashboardHeaderSearch projects={projects} onNavigate={onNavigate} />
-        <button
-          type="button"
-          aria-label="Notifications"
-          disabled
-          title="Notifications coming soon"
-          className="relative flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 text-slate-400 opacity-60"
-        >
-          <Bell className="h-4 w-4" />
-        </button>
+        <DashboardAlertsButton onNavigate={onNavigate} />
         <button
           type="button"
           onClick={onOpenOnboarding}
@@ -1159,7 +1168,7 @@ function DashboardPage({
             "min-h-0 overflow-hidden lg:col-start-1 lg:row-start-1"
           )}
         >
-          <TaskList onViewAllTasks={onViewAllTasks} onAddTask={onAddTask} />
+          <TaskList projects={projects} onViewAllTasks={onViewAllTasks} onAddTask={onAddTask} />
         </div>
         <div
           className={cn(
@@ -1182,6 +1191,8 @@ function DashboardPage({
           />
         </div>
       </div>
+
+      <RecentActivityCard />
     </div>
   );
 }
@@ -1980,27 +1991,10 @@ function UpcomingMilestones({ projects }) {
                 <CalendarDays className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0 flex-1 pt-0.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-semibold text-slate-800">{m.title}</p>
-                    <p className="truncate text-[10px] text-slate-500">
-                      {m.eventTypeLabel ? `${m.eventTypeLabel} · ${m.projectName}` : m.projectName}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <span
-                      className={cn(
-                        "inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold",
-                        m.daysAway <= 3
-                          ? "bg-violet-100 text-violet-700"
-                          : "bg-slate-100 text-slate-600"
-                      )}
-                    >
-                      {m.daysAway === 0 ? "Today" : `${m.daysAway}d`}
-                    </span>
-                  </div>
-                </div>
-                <p className="mt-1 text-[10px] font-medium text-slate-400">{m.dateLabel}</p>
+                <p className="truncate text-xs font-semibold text-slate-800">{m.title}</p>
+                <p className="truncate text-[10px] text-slate-500">
+                  {m.eventTypeLabel ? `${m.eventTypeLabel} · ${m.projectName}` : m.projectName}
+                </p>
               </div>
             </li>
           ))}
@@ -2016,14 +2010,22 @@ function UpcomingMilestones({ projects }) {
 const DASHBOARD_TASK_GRID =
   "grid-cols-[18px_minmax(0,1.45fr)_minmax(0,0.95fr)_minmax(0,0.85fr)]";
 
-function TaskList({ onViewAllTasks, onAddTask }) {
-  const { tasks, updateTask } = useTasks();
+function TaskList({ projects, onViewAllTasks, onAddTask }) {
+  const { tasks, updateTask, deleteTask } = useTasks();
+  const { deleteEvent, updateEvent } = useCalendarEvents();
   const currentUser = useCurrentUser();
   const [filter, setFilter] = useState("all");
+  const [detailTask, setDetailTask] = useState(null);
+  const [editingTask, setEditingTask] = useState(null);
 
   const myTasks = useMemo(
     () => tasks.filter((task) => isTaskAssignedToUser(task, currentUser)),
     [tasks, currentUser]
+  );
+
+  const detailTaskLive = useMemo(
+    () => (detailTask ? tasks.find((task) => task.id === detailTask.id) ?? detailTask : null),
+    [tasks, detailTask]
   );
 
   const filterCounts = useMemo(() => {
@@ -2033,6 +2035,7 @@ function TaskList({ onViewAllTasks, onAddTask }) {
       todo: open.filter((task) => task.status === "todo").length,
       in_progress: open.filter((task) => task.status === "in_progress").length,
       done: myTasks.filter(isTaskComplete).length,
+      events: myTasks.filter(isCalendarEventTask).length,
     };
   }, [myTasks]);
 
@@ -2046,19 +2049,26 @@ function TaskList({ onViewAllTasks, onAddTask }) {
       const isDone = isTaskComplete(task);
       if (filter === "all") return !isDone;
       if (filter === "done") return isDone;
+      if (filter === "events") return isCalendarEventTask(task);
       if (filter === "todo") return !isDone && task.status === "todo";
       if (filter === "in_progress") return !isDone && task.status === "in_progress";
       return true;
     });
   }, [myTasks, filter]);
 
-  const toggleTask = (id) => {
+  const toggleTask = (id, e) => {
+    e?.stopPropagation();
     const task = myTasks.find((item) => item.id === id);
     if (!task) return;
 
     const isDone = isTaskComplete(task);
     if (!isDone && !canCompleteTask(task)) {
-      onViewAllTasks?.();
+      setDetailTask(task);
+      return;
+    }
+
+    if (isCalendarEventTask(task)) {
+      updateEvent(task.calendarEventId, { completed: !isDone });
       return;
     }
 
@@ -2068,8 +2078,81 @@ function TaskList({ onViewAllTasks, onAddTask }) {
     });
   };
 
+  const handleToggleComplete = (task) => {
+    const isDone = isTaskComplete(task);
+    if (!isDone && !canCompleteTask(task)) return;
+
+    if (isCalendarEventTask(task)) {
+      updateEvent(task.calendarEventId, { completed: !isDone });
+      if (!isDone) setDetailTask(null);
+      return;
+    }
+
+    updateTask(task.id, {
+      completed: !isDone,
+      status: !isDone ? "done" : task.status === "done" ? "todo" : task.status,
+    });
+
+    if (!isDone) setDetailTask(null);
+  };
+
+  const handleDeleteTask = (task) => {
+    archiveDeletedItem("task", task);
+    if (isCalendarEventTask(task)) {
+      deleteEvent(task.calendarEventId, { skipArchive: true });
+    }
+    deleteTask(task.id, { archive: false, snapshot: task });
+    if (detailTask?.id === task.id) setDetailTask(null);
+  };
+
+  const handleEditTask = (task) => {
+    setEditingTask(task);
+  };
+
   return (
-    <Card
+    <>
+      <AddTaskModal
+        open={Boolean(editingTask)}
+        mode="edit"
+        editingTask={editingTask}
+        onClose={() => setEditingTask(null)}
+        onSubmit={(fields) => {
+          if (editingTask) {
+            updateTask(editingTask.id, fields);
+            const calendarFields = taskUpdateToCalendarEventFields(fields, editingTask);
+            if (calendarFields) {
+              updateEvent(editingTask.calendarEventId, calendarFields);
+            }
+          }
+          setEditingTask(null);
+        }}
+        projects={projects}
+      />
+
+      <TaskDetailModal
+        task={detailTaskLive}
+        open={Boolean(detailTaskLive)}
+        isDone={detailTaskLive ? isTaskComplete(detailTaskLive) : false}
+        onClose={() => setDetailTask(null)}
+        onEdit={handleEditTask}
+        onDelete={handleDeleteTask}
+        onAttachmentsChange={(attachments) => {
+          if (!detailTaskLive) return;
+          const updated = updateTask(detailTaskLive.id, { attachments });
+          if (updated) setDetailTask(updated);
+        }}
+        onPreTaskToggle={(preTaskId) => {
+          if (!detailTaskLive) return;
+          const updated = updateTask(
+            detailTaskLive.id,
+            getPreTaskToggleUpdates(detailTaskLive, preTaskId)
+          );
+          if (updated) setDetailTask(updated);
+        }}
+        onToggleComplete={handleToggleComplete}
+      />
+
+      <Card
       compact
       title="My Tasks"
       action={
@@ -2155,18 +2238,27 @@ function TaskList({ onViewAllTasks, onAddTask }) {
           return (
             <li
               key={task.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetailTask(task)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setDetailTask(task);
+                }
+              }}
               className={cn(
-                "grid items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-slate-50",
+                "grid cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-slate-50",
                 DASHBOARD_TASK_GRID,
                 isDone && "opacity-70"
               )}
             >
               <button
                 type="button"
-                onClick={() => toggleTask(task.id)}
+                onClick={(e) => toggleTask(task.id, e)}
                 title={
                   !isDone && hasPreTasks && !canComplete
-                    ? "Complete pre-tasks on the Tasks page first"
+                    ? "Complete all pre-tasks first — opens task details"
                     : isDone
                       ? "Mark incomplete"
                       : "Mark complete"
@@ -2232,6 +2324,7 @@ function TaskList({ onViewAllTasks, onAddTask }) {
         )}
       </ul>
     </Card>
+    </>
   );
 }
 
@@ -2299,8 +2392,24 @@ export default function App({ onLogout }) {
   const handleDeleteProject = (projectId) => {
     const project = projects.find((p) => p.id === projectId);
     const name = project?.projectName ?? "this project";
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete "${name}"? It will move to Deleted items in Settings.`)) return;
+    if (project) archiveDeletedItem("project", project);
+    logWorkspaceActivity({
+      type: "project_deleted",
+      message: name,
+    });
     setProjects((prev) => prev.filter((p) => p.id !== projectId));
+  };
+
+  const handleRestoreProject = (project) => {
+    const normalized = normalizeProject(project);
+    let restored = false;
+    setProjects((prev) => {
+      if (prev.some((p) => p.id === normalized.id)) return prev;
+      restored = true;
+      return [...prev, normalized];
+    });
+    return restored;
   };
 
   const handleAddTask = () => {
@@ -2407,13 +2516,15 @@ export default function App({ onLogout }) {
   };
 
   const handleProjectCreated = (project) => {
-    setProjects((prev) => [
-      normalizeProject({
-        ...project,
-        color: project.color ?? generateProjectStageColor(prev.map((p) => p.color)),
-      }),
-      ...prev,
-    ]);
+    const normalized = normalizeProject({
+      ...project,
+      color: project.color ?? generateProjectStageColor(projects.map((p) => p.color)),
+    });
+    logWorkspaceActivity({
+      type: "project_created",
+      message: normalized.projectName ?? normalized.name ?? "Project",
+    });
+    setProjects((prev) => [normalized, ...prev]);
     setActivePage("dashboard");
   };
 
@@ -2428,14 +2539,32 @@ export default function App({ onLogout }) {
   };
 
   const handleUpdateProject = (updated) => {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === updated.id ? normalizeProject(updated) : p))
-    );
+    const normalized = normalizeProject(updated);
+    setProjects((prev) => {
+      const previous = prev.find((project) => project.id === normalized.id);
+      const wasComplete = previous ? isProjectComplete(previous) : false;
+      const isNowComplete = isProjectComplete(normalized);
+
+      if (!wasComplete && isNowComplete) {
+        logWorkspaceActivity({
+          type: "project_completed",
+          message: normalized.projectName ?? normalized.name ?? "Project",
+        });
+      } else {
+        logWorkspaceActivity({
+          type: "project_edited",
+          message: normalized.projectName ?? normalized.name ?? "Project",
+        });
+      }
+
+      return prev.map((p) => (p.id === normalized.id ? normalized : p));
+    });
   };
 
   return (
     <LoadingProvider activePage={activePage}>
     <WorkspaceSettingsProvider>
+    <DeletedItemsProvider>
     <TeamProvider>
     <TasksProvider>
     <FilesProvider projects={projects} onProjectsChange={setProjects}>
@@ -2443,6 +2572,7 @@ export default function App({ onLogout }) {
     <CalendarTasksSync />
     <div className="app-viewport-shell">
       <div className="app-dashboard-card">
+    <DashboardPreloaderOverlay />
     <div className="flex h-full overflow-hidden bg-slate-50">
       <Sidebar
         activePage={activePage === "completed-projects" ? "projects" : activePage}
@@ -2501,11 +2631,16 @@ export default function App({ onLogout }) {
           ) : activePage === "dreamboard" ? (
             <DreamboardPage />
           ) : activePage === "settings" ? (
-            <SettingsPage key={settingsSection} initialSection={settingsSection} />
+            <SettingsPage
+              key={settingsSection}
+              initialSection={settingsSection}
+              restoreProject={handleRestoreProject}
+              updateProjects={setProjects}
+            />
           ) : activePage === "account" ? (
             <RoadmapAccountContent />
           ) : activePage === "systems" ? (
-            <SystemsPage />
+            <SystemsPage projects={projects} />
           ) : activePage === "completed-projects" ? (
             <CompletedProjectsPage
               projects={projects}
@@ -2550,6 +2685,7 @@ export default function App({ onLogout }) {
     </FilesProvider>
     </TasksProvider>
     </TeamProvider>
+    </DeletedItemsProvider>
     </WorkspaceSettingsProvider>
     </LoadingProvider>
   );

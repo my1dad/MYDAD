@@ -11,11 +11,11 @@ import {
 } from "lucide-react";
 import {
   CONNECTED_SYSTEMS,
-  SYSTEM_ACTIVITY,
   SYSTEM_CATEGORY_FILTERS,
   SYSTEM_STATUS_FILTERS,
   SYSTEM_STATUS_STYLES,
 } from "../../data/systemsData";
+import RecentActivityCard from "../dashboard/RecentActivityCard";
 import AdminProfilesCard from "./AdminProfilesCard";
 
 function cn(...classes) {
@@ -53,13 +53,7 @@ const CATEGORY_ICONS = {
   automation: Zap,
 };
 
-const ACTIVITY_LEVEL_STYLES = {
-  info: "border-slate-200 bg-slate-50",
-  warn: "border-amber-200 bg-amber-50/60",
-  error: "border-red-200 bg-red-50/60",
-};
-
-export default function SystemsPage() {
+export default function SystemsPage({ projects = [] }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -285,38 +279,11 @@ export default function SystemsPage() {
         </div>
       )}
 
-      <section className="mb-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h3 className="text-sm font-semibold text-slate-900">Recent activity</h3>
-          <p className="mt-0.5 text-xs text-slate-500">Latest events across connected systems</p>
-        </div>
-        {SYSTEM_ACTIVITY.length === 0 ? (
-          <div className="px-5 py-10 text-center text-sm text-slate-500">No recent activity.</div>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {SYSTEM_ACTIVITY.map((event) => (
-              <li
-                key={event.id}
-                className={cn(
-                  "flex flex-col gap-1 border-l-4 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between",
-                  event.level === "warn"
-                    ? "border-l-amber-400"
-                    : event.level === "error"
-                      ? "border-l-red-400"
-                      : "border-l-sky-400",
-                  ACTIVITY_LEVEL_STYLES[event.level]
-                )}
-              >
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-800">{event.system}</p>
-                  <p className="mt-0.5 text-sm text-slate-600">{event.message}</p>
-                </div>
-                <span className="shrink-0 text-xs text-slate-400">{event.time}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <RecentActivityCard
+        className="mb-8"
+        maxListHeight="max-h-[320px]"
+        subtitle="Projects, files, tasks, events, profile, and team changes"
+      />
 
       <AdminProfilesCard />
     </div>

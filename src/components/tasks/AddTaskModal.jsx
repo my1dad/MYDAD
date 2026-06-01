@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import EventTimePickerOverlay, { formatCurrentTimeLabel } from "../calendar/EventTimePickerOverlay";
 import AttachmentInput from "../ui/AttachmentInput";
+import AlertOptionField from "../ui/AlertOptionField";
 import Input from "../ui/Input";
 import Select from "../ui/Select";
 import Textarea from "../ui/Textarea";
@@ -117,6 +118,7 @@ const initialForm = (defaultAssigneeId = "") => ({
   assigneeId: defaultAssigneeId,
   preTasks: [],
   attachments: [],
+  alertEnabled: false,
 });
 
 export default function AddTaskModal({
@@ -164,6 +166,7 @@ export default function AddTaskModal({
         assigneeId: findTaskAssigneeId(editingTask.assignee, assignees),
         preTasks: getTaskPreTasks(editingTask).map((item) => item.title),
         attachments: editingTask.attachments?.length ? [...editingTask.attachments] : [],
+        alertEnabled: Boolean(editingTask.alertEnabled),
       });
       setPreTaskInput("");
       setTimePickerOpen(false);
@@ -223,6 +226,7 @@ export default function AddTaskModal({
       assignee: selectedAssignee,
       preTasks: form.preTasks,
       attachments: form.attachments,
+      alertEnabled: form.alertEnabled,
     });
     onClose();
   };
@@ -510,6 +514,11 @@ export default function AddTaskModal({
                   </option>
                 ))}
               </Select>
+
+              <AlertOptionField
+                enabled={form.alertEnabled}
+                onChange={(value) => update("alertEnabled", value)}
+              />
             </div>
           )}
 
@@ -550,6 +559,7 @@ export default function AddTaskModal({
                   label="Status"
                   value={TASK_STATUS_OPTIONS.find((s) => s.id === form.status)?.label}
                 />
+                <ReviewRow label="Alert" value={form.alertEnabled ? "On — not a risk flag" : "Off"} />
               </ReviewSection>
             </div>
           )}

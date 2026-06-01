@@ -1051,7 +1051,7 @@ function getNoteCurlProfile(noteId) {
   };
 }
 
-function DreamboardShareMenu({ onExportPdf, isExporting }) {
+function DreamboardShareMenu({ onExportPdf, exportBusy = false }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -1089,13 +1089,13 @@ function DreamboardShareMenu({ onExportPdf, isExporting }) {
         type="button"
         aria-expanded={open}
         aria-haspopup="menu"
-        disabled={isExporting}
+        disabled={exportBusy}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={() => setOpen((prev) => !prev)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-[11px] font-semibold text-slate-700 shadow-sm backdrop-blur-sm transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-800 disabled:cursor-wait disabled:opacity-70"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-[11px] font-semibold text-slate-700 shadow-sm backdrop-blur-sm transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-800 disabled:cursor-not-allowed disabled:opacity-70"
       >
         <Share2 className="h-3.5 w-3.5" />
-        {isExporting ? "Exporting..." : "Share"}
+        Share
         <ChevronDown
           className={cn("h-3 w-3 text-slate-400 transition-transform", open && "rotate-180")}
         />
@@ -1114,9 +1114,9 @@ function DreamboardShareMenu({ onExportPdf, isExporting }) {
           <button
             type="button"
             role="menuitem"
-            disabled={isExporting}
+            disabled={exportBusy}
             onClick={handleExportPdf}
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-violet-50 hover:text-violet-800 disabled:cursor-wait disabled:opacity-60"
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-violet-50 hover:text-violet-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <FileDown className="h-3.5 w-3.5 shrink-0 text-slate-500" />
             Export as PDF
@@ -1960,7 +1960,6 @@ export default function DreamboardPage() {
   const [isMarqueeSelecting, setIsMarqueeSelecting] = useState(false);
   const [selectionBoxVisual, setSelectionBoxVisual] = useState(null);
   const [itemContextMenu, setItemContextMenu] = useState(null);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [viewport, setViewport] = useState({ scale: 1, x: 0, y: 0 });
   const [panState, setPanState] = useState(null);
   const nextZRef = useRef(
@@ -2980,7 +2979,7 @@ export default function DreamboardPage() {
   );
 
   const handleExportPdf = useCallback(async () => {
-    if (!viewportRef.current || !canvasRef.current || isExportingPdf) return;
+    if (!viewportRef.current || !canvasRef.current || loading?.isLoading) return;
 
     const exportPdf = async () => {
       const filename = getDreamboardExportFilename();
@@ -2990,7 +2989,6 @@ export default function DreamboardPage() {
         requestAnimationFrame(() => requestAnimationFrame(resolve));
       });
 
-      setIsExportingPdf(true);
       try {
         const items = mergeLiveItemContent(itemsRef.current, canvasRef.current);
         const blob = await createDreamboardPdfBlob({
@@ -3021,8 +3019,6 @@ export default function DreamboardPage() {
           return;
         }
         window.alert("Could not export the whiteboard. Please try again.");
-      } finally {
-        setIsExportingPdf(false);
       }
     };
 
@@ -3032,7 +3028,7 @@ export default function DreamboardPage() {
     }
 
     await exportPdf();
-  }, [commitTextEdit, isExportingPdf, loading, viewport]);
+  }, [commitTextEdit, loading, viewport]);
 
   const activateStickyNoteTool = useCallback(() => {
     commitTextEdit();
@@ -3968,7 +3964,7 @@ export default function DreamboardPage() {
         ) : null}
 
         <div data-dreamboard-chrome className="pointer-events-none absolute top-3 right-3 z-20">
-          <DreamboardShareMenu onExportPdf={handleExportPdf} isExporting={isExportingPdf} />
+          <DreamboardShareMenu onExportPdf={handleExportPdf} exportBusy={Boolean(loading?.isLoading)} />
         </div>
 
         <div

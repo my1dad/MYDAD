@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Pencil, Trash2, User, Users, X } from "lucide-react";
 import { useRoadmapAuth } from "../../context/RoadmapAuthContext";
+import { useLoadingOptional } from "../../context/LoadingContext";
 import { useTeam } from "../../context/TeamContext";
 import { getRoadmapProfileFullName } from "../../data/roadmapProfileStorage";
 import {
@@ -152,11 +153,11 @@ export default function AdminProfilesCard() {
   const { profile: activeProfile, isAdmin, listProfiles, adminUpdateProfile, adminDeleteProfile } =
     useRoadmapAuth();
   const { deleteMember } = useTeam();
+  const loading = useLoadingOptional();
   const [profiles, setProfiles] = useState([]);
   const [editingProfile, setEditingProfile] = useState(null);
   const [editError, setEditError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
-  const [deletingProfileId, setDeletingProfileId] = useState(null);
 
   const refreshProfiles = useCallback(() => {
     setProfiles(listProfiles());
@@ -189,10 +190,9 @@ export default function AdminProfilesCard() {
     );
     if (!confirmed) return;
 
-    setDeletingProfileId(target.id);
     setActionMessage("");
 
-    try {
+    const runDelete = async () => {
       const remainingProfileIds = listProfiles()
         .filter((item) => item.id !== target.id)
         .map((item) => item.id);
@@ -211,12 +211,20 @@ export default function AdminProfilesCard() {
         `Deleted profile "${target.username}" and removed their team entries from all workspaces.`
       );
       refreshProfiles();
+    };
+
+    try {
+      if (loading?.runWithLoading) {
+        await loading.runWithLoading(runDelete, "Deleting profile");
+      } else {
+        await runDelete();
+      }
     } catch (err) {
       window.alert(err?.message ?? "Could not fully delete that profile.");
-    } finally {
-      setDeletingProfileId(null);
     }
   };
+
+  const actionBusy = Boolean(loading?.isLoading);
 
   return (
     <>
@@ -309,7 +317,7 @@ export default function AdminProfilesCard() {
                           <button
                             type="button"
                             title={isSelf ? "Cannot delete active admin session" : "Delete profile"}
-                            disabled={isSelf || deletingProfileId === item.id}
+                            disabled={isSelf || actionBusy}
                             onClick={() => handleDelete(item)}
                             className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
                           >

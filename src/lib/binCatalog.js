@@ -16,6 +16,7 @@ export const WORKSPACE_BINS = [
   { id: "over-drive-os-file-bin", path: "files/file-bin.json", label: "File index" },
   { id: "over-drive-os-dreamboard", path: "dreamboard/items.json", label: "Dreamboard" },
   { id: "over-drive-os-workspace-settings", path: "settings/workspace.json", label: "Settings" },
+  { id: "over-drive-os-deleted-items", path: "settings/deleted-items.json", label: "Deleted items" },
   { id: "over-drive-os-onboarding-draft", path: "drafts/onboarding.json", label: "Project draft" },
   { id: "over-drive-os-workspace-migration", path: "settings/migration.json", label: "Migration" },
   { id: "over-drive-os-dreamboard-export-seq", path: "dreamboard/export-seq.json", label: "Export sequence" },

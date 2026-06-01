@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Download, Eye, FileText, X } from "lucide-react";
 import { canPreviewAttachment } from "../ui/AttachmentInput";
 import { lockBodyScroll } from "../../lib/modalBodyLock";
+import { logFileDownloaded } from "../../lib/workspaceActivityLog";
 
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
@@ -137,6 +138,7 @@ export function TaskAttachmentPreviewList({ attachments = [], onPreview, variant
                 <a
                   href={file.dataUrl}
                   download={file.name}
+                  onClick={() => logFileDownloaded(file)}
                   className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   <Download className="h-3.5 w-3.5" />
@@ -199,6 +201,7 @@ export default function TaskAttachmentPreviewModal({ attachment, open, onClose }
                 <a
                   href={attachment.dataUrl}
                   download={attachment.name}
+                  onClick={() => logFileDownloaded(attachment)}
                   className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   <Download className="h-3.5 w-3.5" />

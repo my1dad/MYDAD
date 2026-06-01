@@ -146,4 +146,3 @@ export const SYSTEM_STATUS_STYLES = {
 };
 
 /** @type {{ id: string; system: string; message: string; time: string; level: "info" | "warn" | "error" }[]} */
-export const SYSTEM_ACTIVITY = [];

@@ -44,6 +44,22 @@ export const CALENDAR_TYPE_FILTERS = [
   { id: "meeting", label: "Meetings" },
 ];
 
+export const CALENDAR_STATUS_FILTERS = [
+  { id: "active", label: "Active" },
+  { id: "completed", label: "Completed" },
+];
+
+export function isEventComplete(event) {
+  return Boolean(event?.completed);
+}
+
+export function filterCalendarEventsByStatus(events, statusFilter = "active") {
+  if (statusFilter === "completed") {
+    return events.filter(isEventComplete);
+  }
+  return events.filter((event) => !isEventComplete(event));
+}
+
 /** @typedef {"milestone" | "deadline" | "event" | "meeting"} CalendarEventType */
 
 /**
@@ -77,7 +93,7 @@ export function getEventPreTasks(event) {
 export function normalizeCalendarEvent(event) {
   const preTasks = getEventPreTasks(event);
   const { preTask: _legacyPreTask, ...rest } = event;
-  return { ...rest, preTasks };
+  return { ...rest, preTasks, completed: Boolean(event.completed) };
 }
 
 function resolveEventPreTasks(existing, fields) {
@@ -280,6 +296,8 @@ export function createCalendarEvent(fields) {
     tags: Array.isArray(fields.tags) ? fields.tags.filter(Boolean) : [],
     projectId: fields.projectId ?? null,
     preTasks: resolveEventPreTasks({}, fields),
+    alertEnabled: Boolean(fields.alertEnabled),
+    completed: Boolean(fields.completed),
   };
 }
 
@@ -299,6 +317,12 @@ export function mergeCalendarEvent(existing, fields) {
       fields.preTasks !== undefined || fields.preTask !== undefined
         ? resolveEventPreTasks(existing, fields)
         : getEventPreTasks(existing),
+    alertEnabled:
+      fields.alertEnabled !== undefined
+        ? Boolean(fields.alertEnabled)
+        : Boolean(existing.alertEnabled),
+    completed:
+      fields.completed !== undefined ? Boolean(fields.completed) : Boolean(existing.completed),
   };
 }
 

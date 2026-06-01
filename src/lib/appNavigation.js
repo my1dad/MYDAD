@@ -23,6 +23,8 @@ const VALID_SETTINGS_SECTIONS = new Set([
   "tags",
   "appearance",
   "workspace",
+  "deleted",
+  "backup",
   "account",
 ]);
 

@@ -37,6 +37,7 @@ export function createEmptyWorkspaceBins() {
     "over-drive-os-file-bin": versioned({ files: [] }),
     "over-drive-os-dreamboard": { version: 1, savedAt, items: [] },
     "over-drive-os-workspace-settings": versioned({ eventTags: [...DEFAULT_EVENT_TAGS] }),
+    "over-drive-os-deleted-items": versioned({ items: [] }),
     "over-drive-os-onboarding-draft": null,
     "over-drive-os-workspace-migration": {
       version: WORKSPACE_VERSION,

@@ -156,12 +156,6 @@ function PhaseTaskRow({
               <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
             </button>
           )}
-          {controlMode === "waiting" && (
-            <span
-              className="h-9 w-9 rounded-lg border border-dashed border-slate-300/80 bg-slate-200/40"
-              aria-hidden
-            />
-          )}
         </div>
 
         <span

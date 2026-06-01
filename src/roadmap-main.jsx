@@ -5,6 +5,7 @@ import './index.css'
 import './roadmap-auth.css'
 import RoadmapApp from './RoadmapApp.jsx'
 import StorageBootstrap from './components/StorageBootstrap.jsx'
+import { AppPreloaderOverlay } from './components/ui/AppPreloader.jsx'
 
 class ErrorBoundary extends Component {
   state = { error: null }
@@ -28,23 +29,6 @@ class ErrorBoundary extends Component {
   }
 }
 
-function LoadingShell() {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: 'system-ui, sans-serif',
-        color: '#64748b',
-      }}
-    >
-      Loading workspace…
-    </div>
-  )
-}
-
 function bootstrap() {
   const rootEl = document.getElementById('root')
   if (!rootEl) {
@@ -58,7 +42,7 @@ function bootstrap() {
   createRoot(rootEl).render(
     <StrictMode>
       <ErrorBoundary>
-        <StorageBootstrap fallback={<LoadingShell />}>
+        <StorageBootstrap fallback={<AppPreloaderOverlay label="Loading OverDrive" />}>
           <HashRouter>
             <RoadmapApp />
           </HashRouter>

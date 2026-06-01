@@ -1,4 +1,4 @@
-import { EVENT_TYPE_COLORS, EVENT_TYPE_LABELS } from "../data/calendarData";
+import { EVENT_TYPE_COLORS, EVENT_TYPE_LABELS, isEventComplete } from "../data/calendarData";
 
 export const PHASE_DEFS = [
   { id: "foundation", title: "Foundation", shortLabel: "Foundation" },
@@ -809,13 +809,7 @@ export function getTaskRowControlMode(task, tasks, index, activeTaskId = null) {
 
   if (hasRunningTimer || isActiveTask) return "complete";
 
-  const nextIndex = tasks.findIndex((item) => !item.completed);
-  const isNext = index === nextIndex;
-  const hasPriorTime = !!task.startedAt || (task.elapsedMs ?? 0) > 0;
-
-  if (isNext || hasPriorTime) return "play";
-
-  return "waiting";
+  return "play";
 }
 
 function resumePhaseActiveTask(phase, now = Date.now()) {
@@ -891,7 +885,9 @@ export function startProjectPhaseTask(project, phaseId, taskId, now = Date.now()
   const task = tasks[taskIndex];
   if (!task || task.completed) return normalizeProject(project);
   if (phase.status === "on_hold") return normalizeProject(project);
-  if (getTaskRowControlMode(task, tasks, taskIndex) !== "play") return normalizeProject(project);
+  if (getTaskRowControlMode(task, tasks, taskIndex, phase.activeTaskId) !== "play") {
+    return normalizeProject(project);
+  }
 
   if (phaseClockRunning(phase)) {
     phase = pausePhaseTimer(phase, now);
@@ -1754,7 +1750,7 @@ export function getUpcomingMilestones(
   const items = [];
 
   for (const event of calendarEvents) {
-    if (!event.date) continue;
+    if (!event.date || isEventComplete(event)) continue;
     const eventType = event.type ?? "event";
     items.push({
       id: `cal-${event.id}`,

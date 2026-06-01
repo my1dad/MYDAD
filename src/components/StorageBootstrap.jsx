@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getRoadmapSessionId } from "../data/roadmapProfileStorage";
 import { ensureBlankWorkspace } from "../lib/blankWorkspace";
+import { resetDeletedItemsMemoryCache } from "../lib/deletedItemsStorage";
 import { initBinStorage } from "../lib/storageAdapter";
 
 const INIT_TIMEOUT_MS = 8000;
@@ -17,6 +18,7 @@ export default function StorageBootstrap({ children, fallback = null }) {
           (async () => {
             const profileId = getRoadmapSessionId();
             await initBinStorage(profileId);
+            resetDeletedItemsMemoryCache();
             if (profileId) await ensureBlankWorkspace();
           })(),
           new Promise((_, reject) => {

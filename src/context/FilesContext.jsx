@@ -7,10 +7,16 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortfolioFile, PORTFOLIO_BIN_FOLDER_ID } from "../data/filesData";
+import {
+  createPortfolioFile,
+  formatFileSourceLabel,
+  PORTFOLIO_BIN_FOLDER_ID,
+} from "../data/filesData";
 import { removeAttachmentFromProject } from "../lib/fileRemoval";
+import { archiveDeletedItem } from "../lib/deletedItemsStorage";
 import { loadFileBin, loadFileBinHydrated, saveFileBin } from "../lib/filesStorage";
 import { ensurePhases, PHASE_DEFS } from "../lib/projectUtils";
+import { logWorkspaceActivity } from "../lib/workspaceActivityLog";
 import { useTasks } from "./TasksContext";
 
 const FilesContext = createContext(null);
@@ -97,12 +103,41 @@ export function FilesProvider({ children, projects = [], onProjectsChange }) {
   const registerFiles = useCallback((attachments, source = {}) => {
     if (!Array.isArray(attachments) || !attachments.length) return;
     const entries = attachments.map((att) => createPortfolioFile(att, source));
-    setFiles((prev) => mergeFilesIntoBin(prev, entries));
+    let newFiles = [];
+
+    setFiles((prev) => {
+      const existingIds = new Set(prev.map((file) => file.id));
+      newFiles = entries.filter((file) => !existingIds.has(file.id));
+      return mergeFilesIntoBin(prev, entries);
+    });
+
+    for (const file of newFiles) {
+      logWorkspaceActivity({
+        type: "file_uploaded",
+        message: file.name || "Untitled file",
+        meta: formatFileSourceLabel(file),
+      });
+    }
   }, []);
 
   const deleteFileEverywhere = useCallback(
     (fileId) => {
-      setFiles((prev) => prev.filter((f) => f.id !== fileId));
+      let deleted = null;
+
+      setFiles((prev) => {
+        deleted = prev.find((item) => item.id === fileId) ?? null;
+        return prev.filter((item) => item.id !== fileId);
+      });
+
+      if (deleted) {
+        archiveDeletedItem("file", deleted);
+        logWorkspaceActivity({
+          type: "file_deleted",
+          message: deleted.name || "Untitled file",
+          meta: formatFileSourceLabel(deleted),
+        });
+      }
+
       removeAttachmentByFileId(fileId);
       onProjectsChange?.((prevProjects) =>
         (prevProjects ?? []).map((project) => removeAttachmentFromProject(project, fileId))
@@ -112,6 +147,18 @@ export function FilesProvider({ children, projects = [], onProjectsChange }) {
   );
 
   const removeFile = deleteFileEverywhere;
+
+  const restoreFileToBin = useCallback((snapshot) => {
+    if (!snapshot?.id) return false;
+
+    let restored = false;
+    setFiles((prev) => {
+      if (prev.some((item) => item.id === snapshot.id)) return prev;
+      restored = true;
+      return mergeFilesIntoBin(prev, [snapshot]);
+    });
+    return restored;
+  }, []);
 
   const syncFromTasksAndProjects = useCallback(() => {
     const fromTasks = (tasks ?? []).flatMap((task) =>
@@ -167,9 +214,10 @@ export function FilesProvider({ children, projects = [], onProjectsChange }) {
       registerFiles,
       removeFile,
       deleteFileEverywhere,
+      restoreFileToBin,
       syncFromTasksAndProjects,
     }),
-    [files, binFiles, registerFiles, removeFile, deleteFileEverywhere, syncFromTasksAndProjects]
+    [files, binFiles, registerFiles, removeFile, deleteFileEverywhere, restoreFileToBin, syncFromTasksAndProjects]
   );
 
   return <FilesContext.Provider value={value}>{children}</FilesContext.Provider>;

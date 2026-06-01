@@ -263,6 +263,7 @@ export function createTask(fields) {
     attachments: Array.isArray(fields.attachments) ? fields.attachments : [],
     completed: false,
     dreamboardNoteId: fields.dreamboardNoteId ?? null,
+    alertEnabled: Boolean(fields.alertEnabled),
   };
 }
 
@@ -306,6 +307,8 @@ export function mergeTask(existing, fields) {
         ? fields.dreamboardNoteId
         : (existing.dreamboardNoteId ?? null),
     completed: fields.completed !== undefined ? fields.completed : existing.completed,
+    alertEnabled:
+      fields.alertEnabled !== undefined ? Boolean(fields.alertEnabled) : Boolean(existing.alertEnabled),
   };
 }
 
@@ -403,6 +406,7 @@ export const MOCK_TASKS = [
 export const TASK_STATUS_FILTERS = [
   { id: "all", label: "All" },
   { id: "mine", label: "My tasks" },
+  { id: "events", label: "Events" },
   { id: "todo", label: "To Do" },
   { id: "in_progress", label: "In Progress" },
   { id: "done", label: "Completed" },

@@ -8,11 +8,16 @@ import {
   Users,
 } from "lucide-react";
 import {
+  CALENDAR_STATUS_FILTERS,
   CALENDAR_TYPE_FILTERS,
   eventInMonth,
+  filterCalendarEventsByStatus,
+  isEventComplete,
   parseEventDate,
 } from "../../data/calendarData";
 import { useCalendarEvents } from "../../context/CalendarEventsContext";
+import { useTasks } from "../../context/TasksContext";
+import { canCompleteTask } from "../../data/tasksData";
 import AddCalendarEventModal, { formatAddEventDateLabel } from "./AddCalendarEventModal";
 import PortfolioMonthCalendar, {
   CalendarDaySidebar,
@@ -52,13 +57,16 @@ function CalendarStatCard({ icon: Icon, label, value, subtitle, accent }) {
 
 export default function CalendarPage({ projects = [] }) {
   const { events, addEvent, updateEvent, deleteEvent } = useCalendarEvents();
+  const { tasks } = useTasks();
   const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [editingEvent, setEditingEvent] = useState(null);
 
   const filteredEvents = useMemo(() => {
-    if (typeFilter === "all") return events;
-    return events.filter((e) => e.type === typeFilter);
-  }, [typeFilter, events]);
+    let list = filterCalendarEventsByStatus(events, statusFilter);
+    if (typeFilter !== "all") list = list.filter((e) => e.type === typeFilter);
+    return list;
+  }, [typeFilter, statusFilter, events]);
 
   const {
     viewDate,
@@ -87,6 +95,17 @@ export default function CalendarPage({ projects = [] }) {
 
   const handleDeleteEvent = (event) => {
     deleteEvent(event.id);
+  };
+
+  const canToggleEventComplete = (event) => {
+    if (isEventComplete(event)) return true;
+    const linkedTask = tasks.find((task) => task.calendarEventId === event.id);
+    return !linkedTask || canCompleteTask(linkedTask);
+  };
+
+  const handleToggleEventComplete = (event) => {
+    if (!canToggleEventComplete(event)) return;
+    updateEvent(event.id, { completed: !isEventComplete(event) });
   };
 
   const monthStats = useMemo(() => {
@@ -167,25 +186,45 @@ export default function CalendarPage({ projects = [] }) {
         />
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-1">
-        {CALENDAR_TYPE_FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => setTypeFilter(f.id)}
-            className={cn(
-              "rounded-lg px-3 py-1.5 text-xs font-medium transition",
-              typeFilter === f.id
-                ? "bg-sky-600 text-white shadow-sm"
-                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap gap-1">
+          {CALENDAR_STATUS_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setStatusFilter(f.id)}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                statusFilter === f.id
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <span className="hidden h-4 w-px bg-slate-200 sm:inline" aria-hidden />
+        <div className="flex flex-wrap gap-1">
+          {CALENDAR_TYPE_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setTypeFilter(f.id)}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                typeFilter === f.id
+                  ? "bg-sky-600 text-white shadow-sm"
+                  : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <PortfolioMonthCalendar
           events={filteredEvents}
           viewDate={viewDate}
@@ -200,6 +239,8 @@ export default function CalendarPage({ projects = [] }) {
           onEdit={setEditingEvent}
           onDelete={handleDeleteEvent}
           onPreTasksChange={(event, preTasks) => updateEvent(event.id, { preTasks })}
+          onToggleComplete={handleToggleEventComplete}
+          canToggleComplete={canToggleEventComplete}
         />
       </div>
     </div>

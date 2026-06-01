@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
+import { useLoadingOptional } from "../../context/LoadingContext";
 import { useRoadmapAuth } from "../../context/RoadmapAuthContext";
 import { resetActiveProfileWorkspace } from "../../lib/blankWorkspace";
 
 export default function ResetWorkspaceCard({ className = "" }) {
   const { profile, updateProfile } = useRoadmapAuth();
-  const [resetting, setResetting] = useState(false);
+  const loading = useLoadingOptional();
   const [resetError, setResetError] = useState("");
 
   const handleResetWorkspace = async () => {
@@ -19,10 +20,9 @@ export default function ResetWorkspaceCard({ className = "" }) {
     );
     if (!confirmed) return;
 
-    setResetting(true);
     setResetError("");
 
-    try {
+    const runReset = async () => {
       await resetActiveProfileWorkspace();
 
       const profileResult = updateProfile({
@@ -38,9 +38,16 @@ export default function ResetWorkspaceCard({ className = "" }) {
       const base = `${window.location.pathname}${window.location.search}`;
       window.location.replace(`${base}#/dashboard`);
       window.location.reload();
+    };
+
+    try {
+      if (loading?.runWithLoading) {
+        await loading.runWithLoading(runReset, "Resetting workspace");
+      } else {
+        await runReset();
+      }
     } catch (err) {
       setResetError(err?.message ?? "Could not reset workspace.");
-      setResetting(false);
     }
   };
 
@@ -72,11 +79,11 @@ export default function ResetWorkspaceCard({ className = "" }) {
         <button
           type="button"
           onClick={handleResetWorkspace}
-          disabled={resetting || !profile}
+          disabled={Boolean(loading?.isLoading) || !profile}
           className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Trash2 className="h-4 w-4" />
-          {resetting ? "Resetting…" : "Reset workspace & start fresh"}
+          Reset workspace & start fresh
         </button>
       </div>
     </section>

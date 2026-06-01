@@ -30,6 +30,11 @@ import {
   type RoadmapSocialProvider,
 } from '../data/roadmapProfileStorage'
 import type { GoogleUserInfo } from '../lib/roadmap/googleAuth'
+import {
+  logConnectedAccount,
+  logProfileFieldChanges,
+  logWorkspaceActivity,
+} from '../lib/workspaceActivityLog'
 
 interface RoadmapAuthContextValue {
   profile: RoadmapProfile | null
@@ -139,6 +144,7 @@ export function RoadmapAuthProvider({ children }: { children: ReactNode }) {
         return { ok: false as const, error: result.error }
       }
 
+      logProfileFieldChanges(profile, input)
       setProfile(result.profile)
       return { ok: true as const }
     },
@@ -158,6 +164,7 @@ export function RoadmapAuthProvider({ children }: { children: ReactNode }) {
         return { ok: false as const, error: result.error }
       }
 
+      logWorkspaceActivity({ type: 'password_changed', message: profile.username })
       setProfile(result.profile)
       return { ok: true as const }
     },
@@ -189,6 +196,7 @@ export function RoadmapAuthProvider({ children }: { children: ReactNode }) {
         return { ok: false as const, error: result.error }
       }
 
+      logConnectedAccount('google')
       setProfile(result.profile)
       return { ok: true as const }
     },
@@ -216,6 +224,7 @@ export function RoadmapAuthProvider({ children }: { children: ReactNode }) {
         return { ok: false as const, error: result.error }
       }
 
+      logConnectedAccount(provider)
       setProfile(result.profile)
       return { ok: true as const }
     },

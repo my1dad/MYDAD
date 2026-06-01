@@ -32,6 +32,7 @@ import { getRoadmapProfileEmail } from "../../data/roadmapProfileStorage";
 import { getSettingsProfileFormValues } from "../../lib/settingsProfileFields";
 import ResetWorkspaceCard from "./ResetWorkspaceCard";
 import WorkspaceCsvBackupCard from "./WorkspaceCsvBackupCard";
+import DeletedItemsCard from "./DeletedItemsCard";
 
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
@@ -43,6 +44,7 @@ const SECTION_ICONS = {
   tags: Tag,
   appearance: Palette,
   workspace: Layout,
+  deleted: Trash2,
   backup: Download,
   account: Shield,
 };
@@ -106,7 +108,11 @@ const inputClassName =
 const selectClassName =
   "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
 
-export default function SettingsPage({ initialSection = "profile" }) {
+export default function SettingsPage({
+  initialSection = "profile",
+  restoreProject,
+  updateProjects,
+}) {
   const { profile: roadmapProfile, updateProfile } = useRoadmapAuth();
   const { eventTags, addEventTag, removeEventTag } = useWorkspaceSettings();
   const [activeSection, setActiveSection] = useState(initialSection);
@@ -500,6 +506,10 @@ export default function SettingsPage({ initialSection = "profile" }) {
                 </Field>
               </div>
             </SettingsCard>
+          )}
+
+          {activeSection === "deleted" && (
+            <DeletedItemsCard restoreProject={restoreProject} updateProjects={updateProjects} />
           )}
 
           {activeSection === "backup" && <WorkspaceCsvBackupCard />}

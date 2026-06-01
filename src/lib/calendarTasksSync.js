@@ -55,7 +55,8 @@ function buildTaskFromEvent(event, existingTask, defaultAssignee) {
     preTasks,
     attachments: existingTask?.attachments ?? [],
     dreamboardNoteId: existingTask?.dreamboardNoteId ?? null,
-    completed: existingTask?.completed ?? false,
+    completed: Boolean(normalized.completed),
+    alertEnabled: normalized.alertEnabled ?? existingTask?.alertEnabled ?? false,
   };
 
   const status = base.completed
@@ -125,5 +126,9 @@ export function taskUpdateToCalendarEventFields(fields, existingTask) {
         ? fields.description.trim()
         : (existingTask.description ?? ""),
     preTasks,
+    alertEnabled:
+      fields.alertEnabled !== undefined
+        ? Boolean(fields.alertEnabled)
+        : Boolean(existingTask.alertEnabled),
   };
 }

@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import AppPreloader from "../components/ui/AppPreloader";
 
 const LoadingContext = createContext(null);
 
@@ -44,11 +43,10 @@ function yieldToMain() {
 
 export function LoadingProvider({ children, activePage }) {
   const pendingRef = useRef(0);
-  const initialPageRef = useRef(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [pageReady, setPageReady] = useState(false);
-  const [loadingLabel, setLoadingLabel] = useState("Loading workspace");
+  const [loadingLabel, setLoadingLabel] = useState("Loading OverDrive");
 
   const syncPending = useCallback(() => {
     setPendingCount(pendingRef.current);
@@ -84,7 +82,7 @@ export function LoadingProvider({ children, activePage }) {
     let alive = true;
 
     (async () => {
-      setLoadingLabel("Loading workspace");
+      setLoadingLabel("Loading OverDrive");
       await Promise.all([yieldToMain(), minDelay(BOOTSTRAP_PRELOAD_MS)]);
       if (!alive) return;
       setBootstrapped(true);
@@ -98,14 +96,7 @@ export function LoadingProvider({ children, activePage }) {
   useEffect(() => {
     if (!bootstrapped) return;
 
-    setLoadingLabel(PAGE_LABELS[activePage] ?? "Loading page");
-
-    if (initialPageRef.current) {
-      initialPageRef.current = false;
-      setPageReady(true);
-      return undefined;
-    }
-
+    setLoadingLabel(PAGE_LABELS[activePage] ?? "Loading OverDrive");
     setPageReady(false);
 
     const timer = window.setTimeout(() => {
@@ -120,28 +111,15 @@ export function LoadingProvider({ children, activePage }) {
   const value = useMemo(
     () => ({
       isLoading,
+      loadingLabel,
       startLoading,
       stopLoading,
       runWithLoading,
     }),
-    [isLoading, startLoading, stopLoading, runWithLoading]
+    [isLoading, loadingLabel, startLoading, stopLoading, runWithLoading]
   );
 
-  return (
-    <LoadingContext.Provider value={value}>
-      {children}
-      {isLoading ? (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-50/80 backdrop-blur-[2px]"
-          aria-hidden={false}
-        >
-          <div className="rounded-2xl border border-slate-200/80 bg-white/95 px-8 py-7 shadow-lg shadow-slate-200/60">
-            <AppPreloader label={loadingLabel} />
-          </div>
-        </div>
-      ) : null}
-    </LoadingContext.Provider>
-  );
+  return <LoadingContext.Provider value={value}>{children}</LoadingContext.Provider>;
 }
 
 export function useLoading() {

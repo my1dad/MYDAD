@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Pencil, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock, Pencil, Trash2 } from "lucide-react";
 import CalendarEventDetailPopover from "./CalendarEventDetailPopover";
 import {
   CALENDAR_EVENTS,
@@ -13,14 +13,25 @@ import {
   getFirstDayOfMonth,
   getEventStageColor,
   groupEventsByDay,
+  isEventComplete,
 } from "../../data/calendarData";
 
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
-export function EventAgendaItem({ event, onSelect, onEdit, onDelete }) {
+export function EventAgendaItem({
+  event,
+  onSelect,
+  onEdit,
+  onDelete,
+  onToggleComplete,
+  canToggleComplete = true,
+}) {
   const stageColor = getEventStageColor(event);
+  const isDone = isEventComplete(event);
+  const hasPreTasks = getEventPreTasks(event).length > 0;
+  const blocked = !isDone && hasPreTasks && !canToggleComplete;
 
   const handleSelect = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -37,28 +48,69 @@ export function EventAgendaItem({ event, onSelect, onEdit, onDelete }) {
     if (window.confirm(`Delete "${event.title}"?`)) onDelete?.(event);
   };
 
+  const handleToggle = (e) => {
+    e.stopPropagation();
+    if (blocked) return;
+    onToggleComplete?.(event);
+  };
+
   return (
     <li
-      role="button"
-      tabIndex={0}
-      onClick={handleSelect}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          handleSelect(e);
-        }
-      }}
-      className="group flex w-full cursor-pointer gap-3 rounded-xl border bg-slate-50/50 p-3 text-left transition hover:border-slate-200 hover:bg-white hover:shadow-sm"
+      className={cn(
+        "group flex min-w-0 w-full gap-3 overflow-hidden rounded-xl border bg-slate-50/50 p-3 text-left transition hover:border-slate-200 hover:bg-white hover:shadow-sm",
+        isDone && "opacity-75"
+      )}
       style={{ borderColor: `${stageColor}35`, backgroundColor: `${stageColor}08` }}
     >
+      <button
+        type="button"
+        onClick={handleToggle}
+        title={
+          blocked
+            ? "Complete all pre-tasks first"
+            : isDone
+              ? "Mark incomplete"
+              : "Mark complete"
+        }
+        aria-label={
+          blocked
+            ? "Complete all pre-tasks before marking this event done"
+            : isDone
+              ? "Mark incomplete"
+              : "Mark complete"
+        }
+        className={cn(
+          "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition",
+          blocked
+            ? "cursor-not-allowed border-amber-300 bg-amber-50"
+            : isDone
+              ? "border-emerald-500 bg-emerald-500 text-white hover:border-emerald-600 hover:bg-emerald-600"
+              : "border-slate-300 bg-white hover:border-sky-400"
+        )}
+      >
+        {isDone && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+      </button>
+
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleSelect}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleSelect(e);
+          }
+        }}
+        className="flex min-w-0 flex-1 cursor-pointer gap-3"
+      >
         <div
           className="mt-0.5 h-full w-1.5 shrink-0 self-stretch rounded-full"
           style={{ backgroundColor: stageColor }}
         />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span
-              className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+              className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
               style={{
                 backgroundColor: `${EVENT_TYPE_COLORS[event.type]}18`,
                 color: EVENT_TYPE_COLORS[event.type],
@@ -66,17 +118,25 @@ export function EventAgendaItem({ event, onSelect, onEdit, onDelete }) {
             >
               {EVENT_TYPE_LABELS[event.type]}
             </span>
-            <span className="flex items-center gap-1 text-[11px] text-slate-500">
-              <Clock className="h-3 w-3" />
-              {event.time}
+            <span className="flex min-w-0 items-center gap-1 truncate text-[11px] text-slate-500">
+              <Clock className="h-3 w-3 shrink-0" />
+              <span className="truncate">{event.time}</span>
             </span>
           </div>
-          <p className="mt-1 text-sm font-semibold text-slate-900">{event.title}</p>
+          <p
+            className={cn(
+              "mt-1 truncate text-sm font-semibold text-slate-900",
+              isDone && "line-through text-slate-500"
+            )}
+            title={event.title}
+          >
+            {event.title}
+          </p>
           {event.description ? (
             <p className="mt-1 line-clamp-2 text-xs text-slate-500">{event.description}</p>
           ) : null}
           {getEventPreTasks(event).length > 0 ? (
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
               <span className="font-semibold text-slate-600">Pre-Tasks:</span>{" "}
               {getEventPreTasks(event).join(" · ")}
             </p>
@@ -95,34 +155,36 @@ export function EventAgendaItem({ event, onSelect, onEdit, onDelete }) {
           )}
           {event.project ? (
             <span
-              className="mt-1 inline-block truncate rounded-full px-2 py-0.5 text-[10px] font-medium"
+              className="mt-1 inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-medium"
               style={{
                 backgroundColor: `${stageColor}18`,
                 color: stageColor,
               }}
+              title={event.project}
             >
               {event.project}
             </span>
           ) : null}
         </div>
-        <div className="flex shrink-0 flex-col gap-1 opacity-70 transition group-hover:opacity-100">
-          <button
-            type="button"
-            title="Edit event"
-            onClick={handleEdit}
-            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title="Delete event"
-            onClick={handleDelete}
-            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+      </div>
+      <div className="flex shrink-0 flex-col gap-1 opacity-70 transition group-hover:opacity-100">
+        <button
+          type="button"
+          title="Edit event"
+          onClick={handleEdit}
+          className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          title="Delete event"
+          onClick={handleDelete}
+          className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
     </li>
   );
 }
@@ -373,6 +435,8 @@ export function CalendarDaySidebar({
   onEdit,
   onDelete,
   onPreTasksChange,
+  onToggleComplete,
+  canToggleComplete,
 }) {
   const [detailEvent, setDetailEvent] = useState(null);
   const [anchorRect, setAnchorRect] = useState(null);
@@ -391,8 +455,15 @@ export function CalendarDaySidebar({
     setAnchorRect(rect);
   };
 
+  const handleToggleComplete = (event) => {
+    onToggleComplete?.(event);
+    if (detailEvent?.id === event.id && !isEventComplete(event)) {
+      closeDetail();
+    }
+  };
+
   return (
-    <aside className="relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <aside className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 px-5 py-4">
         <h3 className="text-sm font-semibold text-slate-900">{selectedLabel}</h3>
         <p className="mt-0.5 text-xs text-slate-500">
@@ -420,6 +491,8 @@ export function CalendarDaySidebar({
                 onSelect={handleSelect}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onToggleComplete={handleToggleComplete}
+                canToggleComplete={canToggleComplete?.(event) ?? true}
               />
             ))}
           </ul>

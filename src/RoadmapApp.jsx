@@ -3,6 +3,7 @@ import { reloadToHashRoute } from './lib/reloadToHashRoute'
 import { flushBinStorage } from './lib/storageAdapter'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import App from './App.jsx'
+import { AppPreloaderOverlay } from './components/ui/AppPreloader.jsx'
 import RoadmapAppShell from './components/roadmap/RoadmapAppShell'
 import RoadmapProtectedRoute from './components/roadmap/RoadmapProtectedRoute'
 import { GOOGLE_CLIENT_ID, isGoogleConnectConfigured } from './config/google'
@@ -22,7 +23,9 @@ function DashboardApp() {
     reloadToHashRoute('/login')
   }
 
-  if (!profile) return null
+  if (!profile) {
+    return <AppPreloaderOverlay label="Loading OverDrive" />
+  }
 
   return <App key={profile.id} onLogout={handleLogout} />
 }
