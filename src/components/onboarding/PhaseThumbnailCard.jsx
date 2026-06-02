@@ -18,12 +18,21 @@ function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
-export default function PhaseThumbnailCard({ phase, data, selected, incomplete, onSelect }) {
+export default function PhaseThumbnailCard({
+  phase,
+  data,
+  selected,
+  incomplete,
+  onSelect,
+  onTitleChange,
+  defaultTitle,
+}) {
   const meta = PHASE_META[phase.id] ?? PHASE_META.foundation;
   const Icon = meta.icon;
   const tasks = data.tasks ?? [];
   const attachments = data.attachments?.length ?? 0;
   const status = STATUS_LABELS[data.status] ?? "Not Started";
+  const displayTitle = phase.title;
 
   return (
     <button
@@ -48,7 +57,19 @@ export default function PhaseThumbnailCard({ phase, data, selected, incomplete, 
         <p className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
           {meta.label}
         </p>
-        <h4 className="mt-0.5 text-sm font-bold leading-tight text-slate-950">{phase.title}</h4>
+        {selected && onTitleChange ? (
+          <input
+            type="text"
+            value={data?.title ?? ""}
+            placeholder={defaultTitle ?? displayTitle}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => onTitleChange(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-indigo-300 bg-white px-2 py-1 text-center text-sm font-bold text-slate-950 outline-none ring-0 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            aria-label={`${meta.label} title`}
+          />
+        ) : (
+          <h4 className="mt-0.5 text-sm font-bold leading-tight text-slate-950">{displayTitle}</h4>
+        )}
         <span
           className="mt-2 rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize text-slate-900"
           style={{ backgroundColor: `${meta.color}18` }}

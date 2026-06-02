@@ -5,6 +5,7 @@ import {
   calcProgress,
   completeProject,
   advanceProjectPhase,
+  getPhaseTitle,
   isProjectTasksComplete,
   updateProjectPhase,
 } from "../../lib/projectUtils";
@@ -72,7 +73,9 @@ export default function PhaseProgressPanel({ project, onUpdate, compact = false 
               )}
             >
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h3 className="text-xs font-semibold text-slate-800">{phaseDef.title}</h3>
+                <h3 className="text-xs font-semibold text-slate-800">
+                  {getPhaseTitle(phaseDef.id, phases)}
+                </h3>
                 <span className="text-xs font-bold text-indigo-600">{completion}%</span>
               </div>
 
@@ -101,7 +104,7 @@ export default function PhaseProgressPanel({ project, onUpdate, compact = false 
                   })
                 }
                 className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-indigo-600"
-                aria-label={`${phaseDef.title} completion`}
+                aria-label={`${getPhaseTitle(phaseDef.id, phases)} completion`}
               />
             </div>
           );

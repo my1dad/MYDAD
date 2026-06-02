@@ -62,8 +62,11 @@ async function writeJsonRelative(relativePath, payload) {
 }
 
 function createWindow() {
-  const WINDOW_WIDTH = 1460;
-  const WINDOW_HEIGHT = 940;
+  const CARD_WIDTH = 1480;
+  const CARD_HEIGHT = 940;
+  const VIEWPORT_GAP = 12;
+  const WINDOW_WIDTH = CARD_WIDTH + VIEWPORT_GAP * 2;
+  const WINDOW_HEIGHT = CARD_HEIGHT + VIEWPORT_GAP * 2;
 
   const win = new BrowserWindow({
     width: WINDOW_WIDTH,
@@ -74,6 +77,7 @@ function createWindow() {
     show: false,
     fullscreen: false,
     fullscreenable: false,
+    backgroundColor: "#e2e8f0",
     title: "Over Drive OS",
     icon: path.join(__dirname, "..", "build", "icon.icns"),
     webPreferences: {

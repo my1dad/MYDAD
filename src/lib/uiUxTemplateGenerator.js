@@ -19,12 +19,16 @@ export function buildPhasesFromUiUxTemplate(template) {
       }
     }
 
+    const templateTitle = phaseDef.phaseLabel?.replace(/^Phase \d+\s*[—-]\s*/i, "").trim();
+
     phases[phaseDef.phaseId] = normalizePhase({
       ...emptyPhase(),
+      ...(templateTitle ? { title: templateTitle } : {}),
       objective: phaseDef.phaseSummary,
       status: "not_started",
       tasks,
     });
+
   }
 
   return phases;

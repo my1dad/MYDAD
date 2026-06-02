@@ -1,7 +1,7 @@
 import { EVENT_TYPE_LABELS } from "../data/calendarData";
 import { formatFileSourceLabel } from "../data/filesData";
 import { getRoadmapProfileEmail, getRoadmapProfileFullName, getRoadmapProfileRole } from "../data/roadmapProfileStorage";
-import { PHASE_DEFS } from "./projectUtils";
+import { getPhaseTitle, PHASE_DEFS } from "./projectUtils";
 
 /** @typedef {"project"|"task"|"file"|"image"|"team_member"|"calendar_event"|"dreamboard_item"|"profile"} SearchResultKind */
 
@@ -69,7 +69,7 @@ function collectProjectText(project) {
   for (const def of PHASE_DEFS) {
     const phase = project.phases?.[def.id];
     if (!phase) continue;
-    parts.push(def.title, phase.notes, phase.status);
+    parts.push(getPhaseTitle(def.id, project.phases), phase.notes, phase.status);
     for (const task of phase.tasks ?? []) {
       parts.push(
         task.title,

@@ -1,10 +1,11 @@
 import { Plus } from "lucide-react";
+import Input from "../ui/Input";
 import Select from "../ui/Select";
 import Textarea from "../ui/Textarea";
 import AttachmentInput from "../ui/AttachmentInput";
 import PhaseTaskCard from "./PhaseTaskCard";
 import PhaseMemberSelect from "./PhaseMemberSelect";
-import { emptyTask } from "../../lib/projectUtils";
+import { emptyTask, getDefaultPhaseTitle, getPhaseTitle } from "../../lib/projectUtils";
 import { onboardingFieldVariant } from "./onboardingTheme";
 
 const FIELD = onboardingFieldVariant;
@@ -19,6 +20,8 @@ export default function PhaseCard({
 }) {
   const update = (field, value) => onChange({ ...data, [field]: value });
   const tasks = data.tasks ?? [];
+  const defaultTitle = getDefaultPhaseTitle(phase.id);
+  const displayTitle = getPhaseTitle(phase.id, { [phase.id]: data });
 
   const addTask = () => {
     update("tasks", [...tasks, emptyTask()]);
@@ -40,12 +43,20 @@ export default function PhaseCard({
 
   return (
     <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-md">
-      <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
-        <div>
+      <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-800">
             Editing phase
           </p>
-          <h4 className="text-lg font-bold text-slate-950">{phase.title}</h4>
+          <Input
+            variant={FIELD}
+            label="Phase title"
+            id={`${phase.id}-title`}
+            value={data.title ?? ""}
+            onChange={(e) => update("title", e.target.value)}
+            placeholder={defaultTitle}
+            className="mt-2"
+          />
         </div>
         <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-[10px] font-bold text-indigo-900">
           {tasks.length} task{tasks.length !== 1 ? "s" : ""}
@@ -59,7 +70,7 @@ export default function PhaseCard({
           id={`${phase.id}-objective`}
           value={data.objective}
           onChange={(e) => update("objective", e.target.value)}
-          placeholder={`What should ${phase.title} achieve?`}
+          placeholder={`What should ${displayTitle} achieve?`}
           rows={2}
         />
 
@@ -91,7 +102,7 @@ export default function PhaseCard({
           onChange={(files) => update("attachments", files)}
           fileSource={{
             type: "project",
-            label: `${projectName} · ${phase.title}`,
+            label: `${projectName} · ${displayTitle}`,
           }}
         />
 

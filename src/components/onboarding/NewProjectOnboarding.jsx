@@ -6,21 +6,37 @@ import {
   CheckCircle2,
   Layers,
   Rocket,
+  Save,
   Target,
   Users,
   X,
 } from "lucide-react";
 import Input from "../ui/Input";
 import Select from "../ui/Select";
+import StageColorSelect from "../ui/StageColorSelect";
 import Textarea from "../ui/Textarea";
 import TagInput from "../ui/TagInput";
 import PhaseCard from "./PhaseCard";
 import PhaseThumbnailCard from "./PhaseThumbnailCard";
+import OnboardingReviewStep from "./OnboardingReviewStep";
+import TeamMembersMultiSelect from "./TeamMembersMultiSelect";
 import UiUxTemplateForm from "./UiUxTemplateForm";
 import {
   clearOnboardingDraft,
 } from "../../lib/projectStorage";
-import { emptyPhase, getNextProjectId, getPhaseAssigneeName, normalizePhase, projectToForm, syncTeamFromPhaseAssignees } from "../../lib/projectUtils";
+import {
+  emptyPhase,
+  getNextProjectId,
+  getDefaultPhaseTitle,
+  generateProjectStageColor,
+  getProjectStageColor,
+  normalizePhase,
+  PHASE_DEFS,
+  PROJECT_STAGE_COLORS,
+  projectToForm,
+  resolvePhaseForDisplay,
+  syncTeamFromPhaseAssignees,
+} from "../../lib/projectUtils";
 import {
   buildDescriptionFromUiUxTemplate,
   buildPhasesFromUiUxTemplate,
@@ -50,13 +66,6 @@ const STEPS = [
   { id: 5, label: "Review & Create", icon: CheckCircle2 },
 ];
 
-const PHASE_DEFS = [
-  { id: "foundation", title: "Foundation" },
-  { id: "core", title: "Core Features" },
-  { id: "integrations", title: "Integrations" },
-  { id: "scale", title: "Scale & Optimization" },
-];
-
 const PROJECT_TYPE_LABELS = {
   web_app: "Web Application",
   web_slash_app: "Web/App",
@@ -77,6 +86,7 @@ const initialForm = () => ({
     description: "",
     priority: "medium",
     targetLaunchDate: "",
+    stageColor: PROJECT_STAGE_COLORS[0],
   },
   phases: {
     foundation: emptyPhaseData(),
@@ -109,25 +119,16 @@ function migrateFormDraft(form) {
   for (const id of Object.keys(form.phases ?? {})) {
     phases[id] = normalizePhase(form.phases[id]);
   }
-  return { ...form, phases };
-}
-
-function ReviewSection({ title, children }) {
-  return (
-    <div className="rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
-      <h4 className="mb-3 text-xs font-bold uppercase tracking-wide text-indigo-800">{title}</h4>
-      {children}
-    </div>
-  );
-}
-
-function ReviewRow({ label, value }) {
-  return (
-    <div className="flex justify-between gap-4 border-b border-slate-200 py-2 last:border-0">
-      <span className="text-xs font-semibold text-slate-700">{label}</span>
-      <span className="text-right text-xs font-bold text-slate-950">{value || "—"}</span>
-    </div>
-  );
+  return {
+    ...form,
+    phases,
+    foundation: {
+      ...form.foundation,
+      stageColor:
+        form.foundation?.stageColor ??
+        PROJECT_STAGE_COLORS[0],
+    },
+  };
 }
 
 export default function NewProjectOnboarding({
@@ -182,6 +183,7 @@ export default function NewProjectOnboarding({
       foundation: {
         ...initialForm().foundation,
         projectId: getNextProjectId("internal", projects),
+        stageColor: generateProjectStageColor(projects.map((p) => p.color)),
       },
     });
     setStep(1);
@@ -203,7 +205,9 @@ export default function NewProjectOnboarding({
     [phases, members, team]
   );
 
-  const selectedPhase = PHASE_DEFS.find((p) => p.id === selectedPhaseId) ?? PHASE_DEFS[0];
+  const selectedPhase =
+    resolvePhaseForDisplay(selectedPhaseId, phases) ??
+    resolvePhaseForDisplay(PHASE_DEFS[0].id, phases);
   const selectedPhaseHasTask = (phases[selectedPhaseId]?.tasks?.length ?? 0) > 0;
 
   const phasesMissingTasks = useMemo(
@@ -285,15 +289,6 @@ export default function NewProjectOnboarding({
     updateTeam("estimatedBudget", parseUsdBudgetInput(value));
   };
 
-  const toggleMember = (id) => {
-    setForm((f) => {
-      const memberIds = f.team.teamMembers.includes(id)
-        ? f.team.teamMembers.filter((m) => m !== id)
-        : [...f.team.teamMembers, id];
-      return { ...f, team: { ...f.team, teamMembers: memberIds } };
-    });
-  };
-
   const updateKpis = (field, value) =>
     setForm((f) => ({ ...f, kpis: { ...f.kpis, [field]: value } }));
 
@@ -306,25 +301,35 @@ export default function NewProjectOnboarding({
     onClose();
   };
 
-  const handleSubmit = () => {
+  const buildProjectFromForm = () => {
     const foundationFields = { ...form.foundation };
+    const stageColor =
+      foundationFields.stageColor ??
+      (isEditing ? getProjectStageColor(editingProject) : PROJECT_STAGE_COLORS[0]);
     delete foundationFields.projectId;
+    delete foundationFields.stageColor;
     const id = isEditing
       ? editingProject.id
       : getNextProjectId(foundation.clientType, projects);
-
     const syncedTeam = syncTeamFromPhaseAssignees(form.phases, members, form.team);
-
-    const project = {
+    return {
       id,
       ...foundationFields,
       phases: form.phases,
       team: syncedTeam,
       kpis: form.kpis,
-      color: isEditing ? editingProject.color : undefined,
+      color: stageColor,
       createdAt: isEditing ? editingProject.createdAt : new Date().toISOString(),
     };
-    onSubmit?.(project, { isEditing });
+  };
+
+  const handleQuickUpdate = () => {
+    if (!isEditing) return;
+    handleSubmit();
+  };
+
+  const handleSubmit = () => {
+    onSubmit?.(buildProjectFromForm(), { isEditing });
     if (!isEditing) clearOnboardingDraft();
     setStep(1);
     setForm(initialForm());
@@ -464,7 +469,7 @@ export default function NewProjectOnboarding({
       <div
         className={cn(
           "relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-2xl border",
-          step === 1 && templateMode === "ui_ux" ? "max-w-5xl" : "max-w-4xl",
+          step === 5 || (step === 1 && templateMode === "ui_ux") ? "max-w-5xl" : "max-w-4xl",
           onboardingShell.panel
         )}
       >
@@ -591,7 +596,7 @@ export default function NewProjectOnboarding({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Input
                   variant={FIELD}
                   label="Project ID"
@@ -599,12 +604,13 @@ export default function NewProjectOnboarding({
                   placeholder="e.g. N-0001"
                   value={foundation.projectId}
                   readOnly
-                  className="opacity-80"
+                  className="min-w-0 opacity-80"
                 />
                 <Select
                   variant={FIELD}
                   label="Project Type"
                   id="projectType"
+                  className="min-w-0"
                   value={foundation.projectType}
                   onChange={(e) => updateFoundation("projectType", e.target.value)}
                 >
@@ -615,6 +621,14 @@ export default function NewProjectOnboarding({
                   <option value="platform">Platform</option>
                   <option value="internal_tool">Internal Tool</option>
                 </Select>
+                <StageColorSelect
+                  variant={FIELD}
+                  label="Stage color"
+                  id="stageColor"
+                  className="min-w-0"
+                  value={foundation.stageColor}
+                  onChange={(color) => updateFoundation("stageColor", color)}
+                />
               </div>
 
               {templateMode === "blank" ? (
@@ -711,16 +725,23 @@ export default function NewProjectOnboarding({
               </p>
 
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {PHASE_DEFS.map((phase) => (
-                  <PhaseThumbnailCard
-                    key={phase.id}
-                    phase={phase}
-                    data={phases[phase.id]}
-                    selected={selectedPhaseId === phase.id}
-                    incomplete={!(phases[phase.id]?.tasks?.length > 0)}
-                    onSelect={() => setSelectedPhaseId(phase.id)}
-                  />
-                ))}
+                {PHASE_DEFS.map((phaseDef) => {
+                  const displayPhase = resolvePhaseForDisplay(phaseDef.id, phases);
+                  return (
+                    <PhaseThumbnailCard
+                      key={phaseDef.id}
+                      phase={displayPhase}
+                      data={phases[phaseDef.id]}
+                      selected={selectedPhaseId === phaseDef.id}
+                      incomplete={!(phases[phaseDef.id]?.tasks?.length > 0)}
+                      onSelect={() => setSelectedPhaseId(phaseDef.id)}
+                      defaultTitle={getDefaultPhaseTitle(phaseDef.id)}
+                      onTitleChange={(title) =>
+                        updatePhase(phaseDef.id, { ...phases[phaseDef.id], title })
+                      }
+                    />
+                  );
+                })}
               </div>
 
               {nextStepHint && (
@@ -737,7 +758,7 @@ export default function NewProjectOnboarding({
               )}
 
               <PhaseCard
-                phase={PHASE_DEFS.find((p) => p.id === selectedPhaseId) ?? PHASE_DEFS[0]}
+                phase={selectedPhase}
                 data={phases[selectedPhaseId]}
                 onChange={(data) => updatePhase(selectedPhaseId, data)}
                 projectName={foundation.projectName || "New project"}
@@ -759,35 +780,14 @@ export default function NewProjectOnboarding({
                 onChange={(e) => updateTeam("projectOwner", e.target.value)}
               />
 
-              {members.length > 0 && (
-              <div className="space-y-2">
-                <span className="block text-xs font-semibold text-slate-900">Team Members</span>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {members.map((member) => (
-                    <label
-                      key={member.id}
-                      className={cn(
-                        "flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition",
-                        team.teamMembers.includes(member.id)
-                          ? "border-indigo-700 bg-indigo-100"
-                          : "border-slate-400 bg-white hover:bg-slate-50"
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={team.teamMembers.includes(member.id)}
-                        onChange={() => toggleMember(member.id)}
-                        className="h-4 w-4 rounded accent-indigo-700"
-                      />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{member.name}</p>
-                        <p className="text-[10px] font-medium text-slate-600">{member.role}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              )}
+              <TeamMembersMultiSelect
+                variant={FIELD}
+                id="teamMembers"
+                members={members}
+                value={team.teamMembers}
+                onChange={(memberIds) => updateTeam("teamMembers", memberIds)}
+                workloadByMemberId={workload.workloadByMemberId}
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <Select
@@ -887,94 +887,49 @@ export default function NewProjectOnboarding({
 
           {/* Step 5 — Review */}
           {step === 5 && (
-            <div className="space-y-4">
-              <ReviewSection title="Project Foundation">
-                <ReviewRow label="Project ID" value={foundation.projectId} />
-                <ReviewRow label="Name" value={foundation.projectName} />
-                <ReviewRow
-                  label="Type"
-                  value={PROJECT_TYPE_LABELS[foundation.projectType] ?? foundation.projectType}
-                />
-                <ReviewRow label="Category" value={foundation.clientType} />
-                <ReviewRow label="Priority" value={foundation.priority} />
-                <ReviewRow label="Launch Date" value={foundation.targetLaunchDate} />
-                <ReviewRow label="Description" value={foundation.description} />
-              </ReviewSection>
-
-              <ReviewSection title="Roadmap Phases">
-                {PHASE_DEFS.map((p) => {
-                  const phase = phases[p.id];
-                  const tasks = phase.tasks ?? [];
-                  const attachmentCount = phase.attachments?.length ?? 0;
-                  return (
-                    <div key={p.id} className="border-b border-slate-200 py-2 last:border-0">
-                      <div className="flex justify-between gap-4">
-                        <span className="text-xs font-bold text-slate-900">{p.title}</span>
-                        <span className="text-xs font-semibold text-slate-700">
-                          {getPhaseAssigneeName(phase, members) ?? "Unassigned"} ·{" "}
-                          {tasks.length} task{tasks.length !== 1 ? "s" : ""} ·{" "}
-                          {attachmentCount} attachment{attachmentCount !== 1 ? "s" : ""} ·{" "}
-                          {phase.status.replace("_", " ")}
-                        </span>
-                      </div>
-                      {tasks.length > 0 && (
-                        <ul className="mt-2 space-y-1">
-                          {tasks.map((task) => (
-                            <li
-                              key={task.id}
-                              className="flex justify-between gap-3 text-[11px] font-medium text-slate-700"
-                            >
-                              <span className="truncate">{task.title || "Untitled task"}</span>
-                              <span className="shrink-0 text-right">
-                                {task.endDate ? `due ${task.endDate}` : "—"}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  );
-                })}
-              </ReviewSection>
-
-              <ReviewSection title="Team & Timeline">
-                <ReviewRow label="Owner" value={syncedTeamPreview.projectOwner} />
-                <ReviewRow
-                  label="Team"
-                  value={
-                    syncedTeamPreview.teamMembers.length
-                      ? syncedTeamPreview.teamMembers.map((member) => member.name).join(", ")
-                      : "None"
-                  }
-                />
-                <ReviewRow label="Sprint" value={team.sprintLength.replace("_", " ")} />
-                <ReviewRow label="Timeline" value={team.timelineType} />
-                <ReviewRow label="Budget" value={team.estimatedBudget} />
-              </ReviewSection>
-
-              <ReviewSection title="KPIs">
-                <ReviewRow
-                  label="Metrics"
-                  value={kpis.successMetrics.join(", ") || "None"}
-                />
-                <ReviewRow label="Revenue Goal" value={kpis.revenueGoal} />
-                <ReviewRow label="Risk" value={kpis.riskLevel} />
-                <ReviewRow label="User Volume" value={kpis.expectedUserVolume.replace("_", " ")} />
-              </ReviewSection>
-            </div>
+            <OnboardingReviewStep
+              foundation={foundation}
+              phases={phases}
+              team={team}
+              kpis={kpis}
+              members={members}
+              syncedTeamPreview={syncedTeamPreview}
+              projectTypeLabels={PROJECT_TYPE_LABELS}
+              isEditing={isEditing}
+              onUpdatePhase={updatePhase}
+              projectName={foundation.projectName || "New project"}
+              workloadByMemberId={workload.workloadByMemberId}
+            />
           )}
         </div>
 
         {/* Footer */}
-        <div className={cn("flex items-center justify-between px-6 py-4", onboardingShell.footer)}>
+        <div
+          className={cn(
+            "grid items-center gap-3 px-6 py-4",
+            isEditing ? "grid-cols-3" : "grid-cols-2",
+            onboardingShell.footer
+          )}
+        >
           <button
             type="button"
             onClick={step === 1 ? handleClose : back}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+            className="flex items-center justify-self-start gap-1.5 rounded-xl border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
           >
             <ArrowLeft className="h-4 w-4" />
             {step === 1 ? "Cancel" : "Back"}
           </button>
+
+          {isEditing && (
+            <button
+              type="button"
+              onClick={handleQuickUpdate}
+              className="flex items-center justify-center gap-1.5 justify-self-center rounded-xl border border-indigo-300 bg-indigo-50 px-5 py-2 text-sm font-bold text-indigo-800 transition hover:bg-indigo-100"
+            >
+              <Save className="h-4 w-4" />
+              Update
+            </button>
+          )}
 
           {step < 5 ? (
             <button
@@ -982,7 +937,7 @@ export default function NewProjectOnboarding({
               onClick={next}
               disabled={!canGoNext}
               title={nextStepHint ?? undefined}
-              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-700 to-indigo-600 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-900/30 hover:from-indigo-800 hover:to-indigo-700 disabled:cursor-not-allowed disabled:from-slate-400 disabled:to-slate-400 disabled:opacity-70 disabled:shadow-none"
+              className="flex items-center justify-self-end gap-1.5 rounded-xl bg-gradient-to-r from-indigo-700 to-indigo-600 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-900/30 hover:from-indigo-800 hover:to-indigo-700 disabled:cursor-not-allowed disabled:from-slate-400 disabled:to-slate-400 disabled:opacity-70 disabled:shadow-none"
             >
               {nextButtonLabel}
               <ArrowRight className="h-4 w-4" />
@@ -991,7 +946,7 @@ export default function NewProjectOnboarding({
             <button
               type="button"
               onClick={handleSubmit}
-              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-700 to-indigo-600 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-900/30 hover:from-indigo-800 hover:to-indigo-700"
+              className="flex items-center justify-self-end gap-1.5 rounded-xl bg-gradient-to-r from-indigo-700 to-indigo-600 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-900/30 hover:from-indigo-800 hover:to-indigo-700"
             >
               <Rocket className="h-4 w-4" />
               {isEditing ? "Save Changes" : "Create Project"}

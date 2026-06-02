@@ -15,7 +15,7 @@ import {
 import { removeAttachmentFromProject } from "../lib/fileRemoval";
 import { archiveDeletedItem } from "../lib/deletedItemsStorage";
 import { loadFileBin, loadFileBinHydrated, saveFileBin } from "../lib/filesStorage";
-import { ensurePhases, PHASE_DEFS } from "../lib/projectUtils";
+import { ensurePhases, getPhaseTitle, PHASE_DEFS } from "../lib/projectUtils";
 import { logWorkspaceActivity } from "../lib/workspaceActivityLog";
 import { useTasks } from "./TasksContext";
 
@@ -34,7 +34,7 @@ function collectProjectAttachments(projects) {
           createPortfolioFile(file, {
             type: "project",
             id: project.id,
-            label: `${projectLabel} · ${def.title}`,
+            label: `${projectLabel} · ${getPhaseTitle(def.id, phases)}`,
           })
         );
       }
@@ -44,7 +44,7 @@ function collectProjectAttachments(projects) {
             createPortfolioFile(file, {
               type: "project",
               id: project.id,
-              label: `${projectLabel} · ${task.title ?? def.title}`,
+              label: `${projectLabel} · ${task.title ?? getPhaseTitle(def.id, phases)}`,
             })
           );
         }

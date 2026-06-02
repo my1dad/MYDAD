@@ -68,6 +68,7 @@ import SystemsPage from "./components/systems/SystemsPage";
 import FileBinWidget from "./components/file-manager/FileBinWidget";
 import FileManagerPage from "./components/file-manager/FileManagerPage";
 import DreamboardPage from "./components/dreamboard/DreamboardPage";
+import BudgetPage from "./components/budget/BudgetPage";
 import TaskDueDisplay from "./components/tasks/TaskDueDisplay";
 import TaskDreamboardIcon from "./components/tasks/TaskDreamboardIcon";
 import AddTaskModal from "./components/tasks/AddTaskModal";
@@ -122,22 +123,16 @@ function cn(...classes) {
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "roadmap", label: "Roadmap", icon: MapIcon },
+  { id: "projects", label: "Projects", icon: FolderKanban },
   { id: "tasks", label: "Tasks", icon: CheckSquare },
   { id: "calendar", label: "Calendar", icon: Calendar },
-  { id: "projects", label: "Projects", icon: FolderKanban },
-  { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "team", label: "Team", icon: Users },
-  { id: "messages", label: "Messages", icon: MessageSquare },
   { id: "file-manager", label: "File Manager", icon: FolderOpen },
   { id: "dreamboard", label: "Dreamboard", icon: Sparkles },
+  { id: "messages", label: "Messages", icon: MessageSquare },
+  { id: "budget", label: "Budget", icon: Wallet },
+  { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: Settings },
-];
-
-const phases = [
-  { id: "foundation", label: "Phase 1: Foundation", shortLabel: "Foundation" },
-  { id: "core", label: "Phase 2: Core Features", shortLabel: "Core Features" },
-  { id: "integrations", label: "Phase 3: Integrations", shortLabel: "Integrations" },
-  { id: "scale", label: "Phase 4: Scale & Optimize", shortLabel: "Scale & Optimize" },
 ];
 
 const roadmapProjects = [];
@@ -273,13 +268,14 @@ const mobileNavItems = [
 
 const mobileMoreNavItems = [
   { id: "projects", icon: FolderKanban, label: "Projects" },
-  { id: "file-manager", icon: FolderOpen, label: "Files" },
   { id: "team", icon: Users, label: "Team" },
-  { id: "messages", icon: MessageSquare, label: "Messages" },
-  { id: "reports", icon: BarChart3, label: "Reports" },
+  { id: "file-manager", icon: FolderOpen, label: "Files" },
   { id: "dreamboard", icon: Sparkles, label: "Dreamboard" },
-  { id: "systems", icon: Cpu, label: "Systems" },
+  { id: "messages", icon: MessageSquare, label: "Messages" },
+  { id: "budget", icon: Wallet, label: "Budget" },
+  { id: "reports", icon: BarChart3, label: "Reports" },
   { id: "settings", icon: Settings, label: "Settings" },
+  { id: "systems", icon: Cpu, label: "Systems" },
   { id: "account", icon: User, label: "Account" },
 ];
 
@@ -690,9 +686,13 @@ function GanttChart({ projects, onUpdateProject, fullPage = false, onViewFullRoa
     setProgressProjectId(projectId);
   };
 
-  const roadmapItems = filterActiveProjects(projects)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .map(projectToRoadmapRow);
+  const activeProjects = useMemo(
+    () =>
+      filterActiveProjects(projects).sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      ),
+    [projects]
+  );
 
   return (
     <Card
@@ -716,16 +716,18 @@ function GanttChart({ projects, onUpdateProject, fullPage = false, onViewFullRoa
     >
       <div className={cn("relative overflow-x-auto", fullPage && "flex-1")}>
         <div className="min-w-[560px]">
-          {/* Phase labels — timeline header only, no bar splits */}
+          {/* Phase labels — timeline header */}
           <div className="mb-2.5 grid grid-cols-[148px_1fr] gap-3">
             <div />
             <div className="grid grid-cols-4 gap-2 rounded-lg bg-slate-50/80 px-1 py-1">
-              {phases.map((phase) => (
+              {PHASE_DEFS.map((phase, index) => (
                 <div key={phase.id} className="px-2 py-2 text-center">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                    {phase.label.split(":")[0]}
+                    Phase {index + 1}
                   </p>
-                  <p className="text-sm font-bold leading-tight text-slate-800">{phase.shortLabel}</p>
+                  <p className="text-sm font-bold leading-tight text-slate-800">
+                    {phase.shortLabel}
+                  </p>
                 </div>
               ))}
             </div>
@@ -741,13 +743,14 @@ function GanttChart({ projects, onUpdateProject, fullPage = false, onViewFullRoa
             )}
           >
             <div className="space-y-2.5">
-              {roadmapItems.length === 0 ? (
+              {activeProjects.length === 0 ? (
                 <p className="px-2 py-6 text-center text-sm text-slate-500">
                   No active projects on the roadmap. Completed projects are in the Projects archive.
                 </p>
               ) : (
-              roadmapItems.map((project) => {
-                const Icon = project.icon;
+              activeProjects.map((project) => {
+                const row = projectToRoadmapRow(project);
+                const Icon = row.icon;
                 return (
                   <button
                     key={project.id}
@@ -755,7 +758,7 @@ function GanttChart({ projects, onUpdateProject, fullPage = false, onViewFullRoa
                     onClick={() => handleProjectRowClick(project.id)}
                     className="grid w-full grid-cols-[148px_1fr] items-center gap-3 rounded-lg px-1 py-0.5 text-left transition focus:outline-none focus:ring-2 focus:ring-offset-1"
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = `${project.color}12`;
+                      e.currentTarget.style.backgroundColor = `${row.color}12`;
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = "";
@@ -765,15 +768,17 @@ function GanttChart({ projects, onUpdateProject, fullPage = false, onViewFullRoa
                     <div className="flex items-center gap-2 pr-1">
                       <div
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-                        style={{ backgroundColor: `${project.color}18`, color: project.color }}
+                        style={{ backgroundColor: `${row.color}18`, color: row.color }}
                       >
                         <Icon className="h-3.5 w-3.5" />
                       </div>
-                      <span className="truncate text-sm font-medium text-slate-800">{project.name}</span>
+                      <span className="truncate text-sm font-medium text-slate-800">
+                        {row.name}
+                      </span>
                     </div>
 
                     <div className="relative">
-                      <RoadmapProgressBar progress={project.progress} color={project.color} />
+                      <RoadmapProgressBar progress={row.progress} color={row.color} />
                     </div>
                   </button>
                 );
@@ -2630,6 +2635,8 @@ export default function App({ onLogout }) {
             <FileManagerPage />
           ) : activePage === "dreamboard" ? (
             <DreamboardPage />
+          ) : activePage === "budget" ? (
+            <BudgetPage projects={projects} />
           ) : activePage === "settings" ? (
             <SettingsPage
               key={settingsSection}

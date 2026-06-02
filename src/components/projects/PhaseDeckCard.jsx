@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Layers, Link2, Pause, Play, Rocket, TrendingUp } from "lucide-react";
 import RoadmapProgressBar from "../roadmap/RoadmapProgressBar";
-import { PHASE_THEMES } from "../../lib/projectUtils";
+import { getPhaseShortLabel, PHASE_THEMES } from "../../lib/projectUtils";
 import {
   formatPhaseTimer,
   getPhaseTotalElapsedMs,
@@ -207,6 +207,7 @@ export default function PhaseDeckCard({
   const phaseTheme = PHASE_THEMES[phaseDef.id] ?? PHASE_THEMES.foundation;
   const PhaseIcon = PHASE_ICONS[phaseDef.id] ?? Layers;
   const phaseNumber = PHASE_NUMBERS[phaseDef.id] ?? "00";
+  const phaseTitle = getPhaseShortLabel(phaseDef.id, { [phaseDef.id]: phase });
 
   const phaseClockActive = phaseHasActiveElapsedClock(phase);
   const taskRunning = tasks.some((t) => taskTimerIsRunning(t));
@@ -271,7 +272,7 @@ export default function PhaseDeckCard({
                 </p>
                 <span className="text-lg font-bold tabular-nums text-slate-900">{completion}%</span>
               </div>
-              <h3 className="text-sm font-bold leading-tight text-slate-900">{phaseDef.shortLabel}</h3>
+              <h3 className="text-sm font-bold leading-tight text-slate-900">{phaseTitle}</h3>
               <p className="mt-0.5 text-[11px] font-medium text-slate-500">
                 {tasks.length > 0
                   ? `${buttonState.taskDone}/${buttonState.taskTotal} tasks`

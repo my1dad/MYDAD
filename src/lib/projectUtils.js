@@ -9,6 +9,51 @@ export const PHASE_DEFS = [
 
 export const PHASE_IDS = PHASE_DEFS.map((p) => p.id);
 
+export function getPhaseDef(phaseId) {
+  return PHASE_DEFS.find((phase) => phase.id === phaseId) ?? null;
+}
+
+export function getDefaultPhaseTitle(phaseId) {
+  return getPhaseDef(phaseId)?.title ?? phaseId;
+}
+
+export function getDefaultPhaseShortLabel(phaseId) {
+  const def = getPhaseDef(phaseId);
+  return def?.shortLabel ?? def?.title ?? phaseId;
+}
+
+/** Custom phase title from project data, or the built-in default. */
+export function getPhaseTitle(phaseId, phases) {
+  const custom = phases?.[phaseId]?.title?.trim();
+  return custom || getDefaultPhaseTitle(phaseId);
+}
+
+/** Short label for cards and compact UI — uses custom title when set. */
+export function getPhaseShortLabel(phaseId, phases) {
+  const custom = phases?.[phaseId]?.title?.trim();
+  if (custom) return custom;
+  return getDefaultPhaseShortLabel(phaseId);
+}
+
+export function resolvePhaseForDisplay(phaseId, phases) {
+  return {
+    id: phaseId,
+    title: getPhaseTitle(phaseId, phases),
+    shortLabel: getPhaseShortLabel(phaseId, phases),
+  };
+}
+
+/** Phase columns for roadmap Gantt rows (custom titles + completion per phase). */
+export function buildProjectGanttPhases(project) {
+  const phases = ensurePhases(project?.phases);
+  return PHASE_DEFS.map((def, index) => ({
+    id: def.id,
+    index: index + 1,
+    title: getPhaseShortLabel(def.id, phases),
+    completion: phases[def.id]?.completion ?? 0,
+  }));
+}
+
 export function syncTeamFromPhaseAssignees(phases, members, team = {}) {
   const assigneeIds = [
     ...new Set(PHASE_DEFS.map((def) => phases[def.id]?.assignedMemberId).filter(Boolean)),
@@ -342,8 +387,12 @@ export function normalizePhase(phase = {}) {
     }
   }
 
+  const title = typeof phase.title === "string" ? phase.title.trim() : "";
+  const { title: _ignoredTitle, ...phaseRest } = phase;
+
   return syncPhaseFromTasks({
-    ...phase,
+    ...phaseRest,
+    ...(title ? { title } : {}),
     tasks,
     attachments,
   });
@@ -536,6 +585,7 @@ export function projectToForm(project) {
       description: project.description ?? "",
       priority: project.priority ?? "medium",
       targetLaunchDate: project.targetLaunchDate ?? "",
+      stageColor: getProjectStageColor(project),
     },
     phases,
     team: {
@@ -1071,7 +1121,7 @@ export function getProjectTaskProgressLog(project, now = Date.now()) {
       const elapsedMs = getTaskElapsedMs(task, now);
       entries.push({
         phaseId: def.id,
-        phaseLabel: def.shortLabel ?? def.title,
+        phaseLabel: getPhaseShortLabel(def.id, phases),
         taskId: task.id,
         taskTitle: task.title || "Untitled",
         startedAt: task.startedAt ?? null,
@@ -1223,7 +1273,7 @@ export function getProjectElapsedBreakdown(project, now = Date.now(), phasesInpu
   const phases = phasesInput ?? ensurePhases(project.phases);
   const phaseTimes = PHASE_DEFS.map((def) => ({
     id: def.id,
-    label: def.shortLabel,
+    label: getPhaseShortLabel(def.id, phases),
     elapsedMs: getPhaseTotalElapsedMs(phases[def.id], now),
   }));
   const totalMs = phaseTimes.reduce((sum, phase) => sum + phase.elapsedMs, 0);
@@ -1407,7 +1457,7 @@ export function getProjectTaskGroups(project) {
   const phases = ensurePhases(project.phases);
   return PHASE_DEFS.map((def) => ({
     id: def.id,
-    title: def.title,
+    title: getPhaseTitle(def.id, phases),
     tasks: phases[def.id]?.tasks ?? [],
     completion: phases[def.id]?.completion ?? 0,
   })).filter((group) => group.tasks.length > 0);
@@ -1460,7 +1510,7 @@ export function getProjectOnHoldDetails(project) {
     );
 
     return {
-      phaseTitle: def.shortLabel ?? def.title,
+      phaseTitle: getPhaseShortLabel(def.id, phases),
       taskTitles,
     };
   });
@@ -1495,7 +1545,7 @@ export function getOnHoldPhasesForProject(project) {
 
     return {
       phaseId: def.id,
-      label: def.shortLabel ?? def.title,
+      label: getPhaseShortLabel(def.id, phases),
       completion: phase.completion ?? 0,
       taskTitles: allTitles.slice(0, 3),
       extraTasks: Math.max(0, allTitles.length - 3),
@@ -1549,7 +1599,7 @@ export function getAtRiskPhasesForProject(project) {
     if (riskReason) {
       results.push({
         phaseId: def.id,
-        label: def.shortLabel ?? def.title,
+        label: getPhaseShortLabel(def.id, phases),
         completion,
         status,
         riskReason,
@@ -1570,7 +1620,7 @@ export function getAtRiskPhasesForProject(project) {
       const completion = phase?.completion ?? 0;
       results.push({
         phaseId: firstIncomplete.id,
-        label: firstIncomplete.shortLabel ?? firstIncomplete.title,
+        label: getPhaseShortLabel(firstIncomplete.id, phases),
         completion,
         status: phase?.status ?? "not_started",
         riskReason: "Contributing to portfolio risk",
@@ -1793,7 +1843,7 @@ export function getUpcomingMilestones(
           id: `${project.id}-${phaseDef.id}-end`,
           projectId: project.id,
           projectName,
-          title: `${phaseDef.title} complete`,
+          title: `${getPhaseTitle(phaseDef.id, phases)} complete`,
           date: phase.endDate,
           type: "phase_end",
           color,
@@ -1805,7 +1855,7 @@ export function getUpcomingMilestones(
           id: `${project.id}-${phaseDef.id}-start`,
           projectId: project.id,
           projectName,
-          title: `${phaseDef.title} kickoff`,
+          title: `${getPhaseTitle(phaseDef.id, phases)} kickoff`,
           date: phase.startDate,
           type: "phase_start",
           color,

@@ -11,6 +11,7 @@ const VALID_PAGES = new Set([
   "messages",
   "file-manager",
   "dreamboard",
+  "budget",
   "settings",
   "systems",
   "account",
