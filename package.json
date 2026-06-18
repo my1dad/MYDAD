@@ -1,17 +1,15 @@
 {
-  "name": "over-drive-os",
+  "name": "my-dollar-a-day",
   "private": true,
   "version": "1.0.0",
-  "description": "Over Drive OS — project roadmap dashboard",
-  "author": "Over Drive",
+  "description": "My Dollar A Day — community capital dashboard",
+  "author": "Dollar A Day",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --host --port 5173",
     "dev:clean": "lsof -ti:5173 | xargs kill -9 2>/dev/null || true; vite --host --port 5173",
-    "dev:open": "vite --host --port 5173 --open /roadmap.html",
-    "dev:preloader": "vite --host --port 5173 --open /preloader-dev.html",
-    "fresh-dashboard": "node scripts/fresh-dashboard.mjs",
+    "dev:open": "vite --host --port 5173 --open /dollaraday.html",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
@@ -22,38 +20,33 @@
     "electron:build": "npm run electron:pack && npm run electron:dmg"
   },
   "build": {
-    "appId": "os.overdrive.app",
-    "productName": "Over Drive OS",
+    "appId": "com.dollaraday.app",
+    "productName": "My Dollar A Day",
     "directories": {
       "output": "."
     },
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "bins/**/.gitkeep",
-      "bins/README.md"
+      "bins/dollaraday/**/.gitkeep"
     ],
     "mac": {
-      "category": "public.app-category.productivity",
+      "category": "public.app-category.finance",
       "target": ["dmg"],
       "icon": "build/icon.icns",
       "identity": null
     },
     "dmg": {
-      "title": "Over Drive OS",
+      "title": "My Dollar A Day",
       "icon": "build/icon.icns",
       "iconSize": 160
     }
   },
   "dependencies": {
-    "@react-oauth/google": "^0.13.5",
     "clsx": "^2.1.1",
-    "html2canvas": "^1.4.1",
-    "jspdf": "^4.2.1",
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.6.1",
     "recharts": "^2.15.4",
     "tailwind-merge": "^3.3.0"
   },

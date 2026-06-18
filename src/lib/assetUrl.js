@@ -1,22 +1,11 @@
 /** Public assets from /public — works in dev, production, and Electron (file://). */
 const BASE = import.meta.env.BASE_URL ?? "/";
 
-export const LOGO_URL = `${BASE}over-drive-logo.png`;
-export const LOGO_FULL_URL = `${BASE}over-drive-logo-full.png`;
-export const PRELOADER_LOGO_URL = `${BASE}over-drive-logo-transparent.png`;
-export const PROFILE_ENIS_URL = `${BASE}profile-enis.png`;
+export const DOLLARADAY_LOGO_URL = `${BASE}my-dollar-a-day-logo-transparent.png`;
+export const PRELOADER_LOGO_URL = `${BASE}my-dollar-a-day-logo-transparent.png`;
 
 export function assetUrl(relativePath) {
   const clean = String(relativePath ?? "").replace(/^\//, "");
   if (!clean) return BASE;
   return `${BASE}${clean}`;
-}
-
-/** Resolves stored avatar/logo paths (including legacy `/profile-enis.png`). */
-export function resolveAssetUrl(url) {
-  if (!url) return url;
-  if (url.startsWith("data:") || url.startsWith("blob:") || /^https?:\/\//i.test(url)) {
-    return url;
-  }
-  return assetUrl(url);
 }

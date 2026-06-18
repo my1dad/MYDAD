@@ -4,18 +4,15 @@ const path = require("node:path");
 
 const isDev = !app.isPackaged;
 const BINS_SUBDIR = "bins";
+const DAD_PROFILE_ID = "dollaraday";
 
 const BIN_MAP = {
-  "over-drive-os-project-bin": "projects/project-bin.json",
-  "over-drive-os-tasks": "tasks/tasks.json",
-  "over-drive-os-calendar-events": "calendar/events.json",
-  "over-drive-os-team-members": "team/members.json",
-  "over-drive-os-file-bin": "files/file-bin.json",
-  "over-drive-os-dreamboard": "dreamboard/items.json",
-  "over-drive-os-workspace-settings": "settings/workspace.json",
-  "over-drive-os-onboarding-draft": "drafts/onboarding.json",
-  "over-drive-os-workspace-migration": "settings/migration.json",
-  "over-drive-os-dreamboard-export-seq": "dreamboard/export-seq.json",
+  "dollar-a-day-members": "dollaraday/members.json",
+  "dollar-a-day-community-posts": "dollaraday/community-posts.json",
+  "dollar-a-day-contributions": "dollaraday/contributions.json",
+  "dollar-a-day-allocations": "dollaraday/allocations.json",
+  "dollar-a-day-admin-captures": "dollaraday/admin-captures.json",
+  "dollar-a-day-settings": "dollaraday/settings.json",
 };
 
 function getBinsRoot() {
@@ -37,9 +34,9 @@ function resolveProfileRoot(profileId) {
 
 async function ensureBinsRoot() {
   const root = getBinsRoot();
-  await fs.mkdir(path.join(root, "files", "attachments"), { recursive: true });
+  const profileRoot = path.join(root, "profiles", DAD_PROFILE_ID);
   for (const rel of Object.values(BIN_MAP)) {
-    await fs.mkdir(path.dirname(path.join(root, rel)), { recursive: true });
+    await fs.mkdir(path.dirname(path.join(profileRoot, rel)), { recursive: true });
   }
   return root;
 }
@@ -77,8 +74,8 @@ function createWindow() {
     show: false,
     fullscreen: false,
     fullscreenable: false,
-    backgroundColor: "#e2e8f0",
-    title: "Over Drive OS",
+    backgroundColor: "#071013",
+    title: "My Dollar A Day",
     icon: path.join(__dirname, "..", "build", "icon.icns"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -98,12 +95,10 @@ function createWindow() {
   });
 
   if (isDev) {
-    win.loadURL("http://localhost:5173/roadmap.html#/login");
+    win.loadURL("http://localhost:5173/dollaraday.html");
     win.webContents.openDevTools({ mode: "detach" });
   } else {
-    win.loadFile(path.join(__dirname, "..", "dist", "roadmap.html"), {
-      hash: "/login",
-    });
+    win.loadFile(path.join(__dirname, "..", "dist", "dollaraday.html"));
   }
 }
 
@@ -113,7 +108,7 @@ app.whenReady().then(async () => {
   ipcMain.handle("bins:getRoot", () => getBinsRoot());
 
   ipcMain.handle("bins:loadAll", async (_event, profileId) => {
-    const prefix = getProfilePrefix(profileId);
+    const prefix = getProfilePrefix(profileId ?? DAD_PROFILE_ID);
     const payload = {};
     for (const [binId, rel] of Object.entries(BIN_MAP)) {
       const scopedRel = prefix ? path.join(prefix, rel) : rel;
@@ -131,51 +126,14 @@ app.whenReady().then(async () => {
     return readJsonRelative(relativePath);
   });
 
-  ipcMain.handle("bins:writeAttachment", async (_event, relativePath, dataUrl) => {
-    const comma = dataUrl.indexOf(",");
-    const meta = comma >= 0 ? dataUrl.slice(0, comma) : "";
-    const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-    const buffer = Buffer.from(base64, "base64");
-    const filePath = path.join(getBinsRoot(), relativePath);
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, buffer);
-    await fs.writeFile(
-      `${filePath}.meta.json`,
-      JSON.stringify({ mime: meta.replace(/^data:/, "").replace(/;base64$/, "") }),
-      "utf8"
-    );
-    return true;
-  });
-
-  ipcMain.handle("bins:readAttachment", async (_event, relativePath) => {
-    const filePath = path.join(getBinsRoot(), relativePath);
-    const sidecar = `${filePath}.meta.json`;
-    const buffer = await fs.readFile(filePath);
-    let mime = "application/octet-stream";
-    try {
-      const meta = JSON.parse(await fs.readFile(sidecar, "utf8"));
-      if (meta?.mime) mime = meta.mime;
-    } catch {
-      // optional sidecar
-    }
-    return `data:${mime};base64,${buffer.toString("base64")}`;
-  });
-
   ipcMain.handle("bins:reset", async (_event, profileId) => {
-    const base = resolveProfileRoot(profileId);
+    const base = resolveProfileRoot(profileId ?? DAD_PROFILE_ID);
     for (const rel of Object.values(BIN_MAP)) {
       try {
         await fs.unlink(path.join(base, rel));
       } catch (err) {
         if (err?.code !== "ENOENT") throw err;
       }
-    }
-    const attachmentsDir = path.join(base, "files", "attachments");
-    try {
-      const entries = await fs.readdir(attachmentsDir);
-      await Promise.all(entries.map((entry) => fs.unlink(path.join(attachmentsDir, entry))));
-    } catch (err) {
-      if (err?.code !== "ENOENT") throw err;
     }
     return true;
   });

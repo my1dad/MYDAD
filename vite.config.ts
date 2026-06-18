@@ -16,9 +16,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "index.html"),
-        roadmap: path.resolve(__dirname, "roadmap.html"),
-        preloaderDev: path.resolve(__dirname, "preloader-dev.html"),
-        freshReset: path.resolve(__dirname, "fresh-reset.html"),
+        dollaraday: path.resolve(__dirname, "dollaraday.html"),
       },
     },
   },
@@ -26,9 +24,8 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: false,
-    open: "/roadmap.html",
+    open: "/dollaraday.html",
     watch: {
-      // Workspace bin writes must not trigger full-page reload loops in dev.
       ignored: ["**/bins/**"],
     },
     hmr: {

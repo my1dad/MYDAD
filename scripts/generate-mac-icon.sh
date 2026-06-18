@@ -9,7 +9,7 @@ if [[ ! -f "$SOURCE" ]]; then
   SOURCE="$ROOT/build/icon-source.png"
 fi
 if [[ ! -f "$SOURCE" ]]; then
-  SOURCE="$ROOT/public/over-drive-logo-transparent.png"
+  SOURCE="$ROOT/public/my-dollar-a-day-logo-transparent.png"
 fi
 
 ICONSET="$ROOT/build/icon.iconset"

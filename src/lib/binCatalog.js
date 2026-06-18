@@ -1,25 +1,20 @@
 /**
- * Workspace bin catalog — maps logical storage keys to on-disk paths
+ * Dollar A Day data bin catalog — maps logical storage keys to on-disk paths
  * relative to the bins root (./bins in dev, userData/bins when packaged).
  */
 
-export const BINS_ROOT_LABEL = "Over Drive OS workspace bins";
+export const BINS_ROOT_LABEL = "My Dollar A Day data bins";
 
 /** @typedef {{ id: string, path: string, label: string }} BinDefinition */
 
 /** @type {BinDefinition[]} */
 export const WORKSPACE_BINS = [
-  { id: "over-drive-os-project-bin", path: "projects/project-bin.json", label: "Projects" },
-  { id: "over-drive-os-tasks", path: "tasks/tasks.json", label: "Tasks" },
-  { id: "over-drive-os-calendar-events", path: "calendar/events.json", label: "Calendar" },
-  { id: "over-drive-os-team-members", path: "team/members.json", label: "Team" },
-  { id: "over-drive-os-file-bin", path: "files/file-bin.json", label: "File index" },
-  { id: "over-drive-os-dreamboard", path: "dreamboard/items.json", label: "Dreamboard" },
-  { id: "over-drive-os-workspace-settings", path: "settings/workspace.json", label: "Settings" },
-  { id: "over-drive-os-deleted-items", path: "settings/deleted-items.json", label: "Deleted items" },
-  { id: "over-drive-os-onboarding-draft", path: "drafts/onboarding.json", label: "Project draft" },
-  { id: "over-drive-os-workspace-migration", path: "settings/migration.json", label: "Migration" },
-  { id: "over-drive-os-dreamboard-export-seq", path: "dreamboard/export-seq.json", label: "Export sequence" },
+  { id: "dollar-a-day-members", path: "dollaraday/members.json", label: "Members" },
+  { id: "dollar-a-day-community-posts", path: "dollaraday/community-posts.json", label: "Community posts" },
+  { id: "dollar-a-day-contributions", path: "dollaraday/contributions.json", label: "Contributions" },
+  { id: "dollar-a-day-allocations", path: "dollaraday/allocations.json", label: "Allocations" },
+  { id: "dollar-a-day-admin-captures", path: "dollaraday/admin-captures.json", label: "Admin captures" },
+  { id: "dollar-a-day-settings", path: "dollaraday/settings.json", label: "Settings" },
 ];
 
 export const ATTACHMENTS_BIN_DIR = "files/attachments";

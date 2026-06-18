@@ -5,14 +5,7 @@ dist-electron
 release
 mac
 mac-arm64
-.dmg-staging
-build/test-*.png
-build/dmg-icon.png
-build/dmg-icon-trimmed.png
-build/dmg.iconset/
-build/dmg-volume.icns
-build/icon-1024.png
-builder-debug.yml
+dmg-staging
 *.dmg
 *.blockmap
 *.local

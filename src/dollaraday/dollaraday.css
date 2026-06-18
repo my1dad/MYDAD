@@ -1,0 +1,183 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-dda-bg: #071013;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  background: #071013;
+  color: #ffffff;
+}
+
+.dda-app {
+  min-height: 100dvh;
+  background: #071013;
+  color: #ffffff;
+}
+
+.dda-login-screen {
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  width: 100%;
+  background: #071013;
+}
+
+.dda-login-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 50% at 15% 10%, rgba(163, 230, 53, 0.12), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 85% 15%, rgba(52, 211, 153, 0.08), transparent 50%),
+    radial-gradient(ellipse 55% 40% at 50% 100%, rgba(132, 204, 22, 0.06), transparent 48%);
+}
+
+.dda-login-screen__content {
+  position: relative;
+  z-index: 1;
+}
+
+.dda-glass {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dda-panel {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.dda-glass-btn {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.04) 48%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 16px rgba(0, 0, 0, 0.18);
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.dda-glass-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    transparent 42%
+  );
+  pointer-events: none;
+}
+
+.dda-glass-btn:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.07) 48%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 8px 24px rgba(0, 0, 0, 0.22);
+  transform: translateY(-1px);
+}
+
+.dda-glass-btn:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dda-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.dda-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Members page — visual polish (no layout/size changes) */
+.dda-member-card {
+  overflow: hidden;
+}
+
+.dda-member-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(52, 211, 153, 0.45),
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.dda-member-card:hover::after {
+  opacity: 1;
+}
+
+.dda-member-stat {
+  position: relative;
+  overflow: hidden;
+}
+
+.dda-member-stat::before {
+  display: none;
+}
+
+.dda-featured-member {
+  position: relative;
+  overflow: hidden;
+}
+
+.dda-featured-member::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(52, 211, 153, 0.06),
+    transparent 55%
+  );
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.dda-featured-member:hover::before {
+  opacity: 1;
+}

@@ -2,13 +2,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$ROOT/mac/Over Drive OS.app"
+APP="$ROOT/mac/My Dollar A Day.app"
 DMG_ICON="$ROOT/build/dmg-volume.icns"
 ICON_PNG="$ROOT/build/dmg-icon.png"
-DMG="$ROOT/Over Drive OS-1.0.0.dmg"
+DMG="$ROOT/My Dollar A Day-1.0.0.dmg"
 STAGING="$ROOT/.dmg-staging"
 DMG_RW="$ROOT/.dmg-staging-rw.dmg"
-VOLNAME="Over Drive OS"
+VOLNAME="My Dollar A Day"
 
 if [[ ! -d "$APP" ]]; then
   echo "Missing packaged app at: $APP" >&2
@@ -31,7 +31,6 @@ cp "$DMG_ICON" "$STAGING/.VolumeIcon.icns"
 
 rm -f "$DMG" "$DMG_RW"
 
-# Build a read-write image first so we can enable the custom volume icon.
 STAGING_MB=$(( $(du -sm "$STAGING" | awk '{print $1}') + 32 ))
 hdiutil create \
   -srcfolder "$STAGING" \
@@ -67,7 +66,6 @@ hdiutil convert "$DMG_RW" -format UDZO -imagekey zlib-level=9 -o "$DMG" >/dev/nu
 rm -f "$DMG_RW"
 rm -rf "$STAGING"
 
-# Apply the installer artwork to the .dmg file itself in Finder.
 /usr/bin/osascript <<EOF >/dev/null
 use framework "Cocoa"
 

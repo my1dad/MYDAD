@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="My Dollar A Day — community capital dashboard for $1/day contributions, equity tracking, and pool management."
+    />
+    <title>My Dollar A Day</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      @keyframes initial-preloader-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes initial-preloader-glow {
+        0%,
+        100% {
+          opacity: 0.45;
+          transform: scale(0.94);
+        }
+        50% {
+          opacity: 0.85;
+          transform: scale(1.04);
+        }
+      }
+      @keyframes initial-preloader-panel-enter {
+        from {
+          opacity: 0;
+          transform: translateY(10px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      body {
+        margin: 0;
+        background: #071013;
+        color: #ffffff;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      }
+      #initial-preloader {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        isolation: isolate;
+        background: #071013;
+      }
+      #initial-preloader-backdrop {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(circle at 50% 35%, rgba(52, 211, 153, 0.14), transparent 52%),
+          radial-gradient(circle at 20% 80%, rgba(16, 185, 129, 0.1), transparent 40%),
+          linear-gradient(180deg, rgba(7, 16, 19, 0.96), rgba(7, 16, 19, 0.94));
+        backdrop-filter: blur(10px);
+      }
+      #initial-preloader-card {
+        position: relative;
+        width: fit-content;
+        max-width: calc(100vw - 2.5rem);
+        overflow: hidden;
+        isolation: isolate;
+        border-radius: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(18px) saturate(1.18);
+        -webkit-backdrop-filter: blur(18px) saturate(1.18);
+        padding: 2rem 1.15rem 1.85rem;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.06),
+          0 2px 4px rgba(0, 0, 0, 0.2),
+          0 14px 28px -10px rgba(16, 185, 129, 0.12),
+          0 22px 44px -18px rgba(0, 0, 0, 0.35);
+        animation: initial-preloader-panel-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      #initial-preloader-shell {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.25rem;
+      }
+      #initial-preloader-brand-logo {
+        display: block;
+        width: min(11rem, 72vw);
+        max-height: 7.5rem;
+        object-fit: contain;
+        filter: drop-shadow(0 8px 18px rgba(16, 185, 129, 0.12));
+      }
+      #initial-preloader-stage {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #initial-preloader-glow {
+        position: absolute;
+        inset: -0.85rem;
+        border-radius: 9999px;
+        background: radial-gradient(circle, rgba(52, 211, 153, 0.2), transparent 68%);
+        animation: initial-preloader-glow 1.2s ease-in-out infinite;
+      }
+      #initial-preloader-ring {
+        position: relative;
+        width: 5rem;
+        height: 5rem;
+        flex-shrink: 0;
+      }
+      #initial-preloader-ring .track {
+        position: absolute;
+        inset: 0;
+        border-radius: 9999px;
+        border: 2px solid rgba(255, 255, 255, 0.12);
+      }
+      #initial-preloader-ring .spin {
+        position: absolute;
+        inset: 0;
+        border-radius: 9999px;
+        border: 3px solid transparent;
+        border-top-color: #10b981;
+        border-right-color: #34d399;
+        filter: drop-shadow(0 0 6px rgba(52, 211, 153, 0.35));
+        animation: initial-preloader-spin 0.75s linear infinite;
+      }
+      #initial-preloader-copy {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.15rem;
+        text-align: center;
+      }
+      #initial-preloader-kicker {
+        margin: 0;
+        font: 700 0.65rem/1.2 Inter, system-ui, sans-serif;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #6b7280;
+      }
+      #initial-preloader-brand {
+        margin: 0;
+        font: 700 1.05rem/1.2 Inter, system-ui, sans-serif;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #84cc16 0%, #34d399 45%, #10b981 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div id="initial-preloader" aria-live="polite" aria-label="Loading My Dollar A Day">
+        <div id="initial-preloader-backdrop" aria-hidden="true"></div>
+        <div id="initial-preloader-card">
+          <div id="initial-preloader-shell">
+            <img
+              id="initial-preloader-brand-logo"
+              src="./my-dollar-a-day-logo-transparent.png"
+              alt=""
+              draggable="false"
+            />
+            <div id="initial-preloader-stage">
+              <span id="initial-preloader-glow" aria-hidden="true"></span>
+              <div id="initial-preloader-ring">
+                <span class="track" aria-hidden="true"></span>
+                <span class="spin" aria-hidden="true"></span>
+              </div>
+            </div>
+            <div id="initial-preloader-copy">
+              <p id="initial-preloader-kicker">Loading</p>
+              <p id="initial-preloader-brand">My Dollar A Day</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/dollaraday/main.jsx"></script>
+  </body>
+</html>

@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 
-interface OverDriveBinsApi {
+interface DadBinsApi {
   getRoot: () => Promise<string>;
-  loadAll: () => Promise<Record<string, unknown>>;
+  loadAll: (profileId?: string) => Promise<Record<string, unknown>>;
   readJson: (relativePath: string) => Promise<unknown>;
   writeJson: (relativePath: string, payload: unknown) => Promise<boolean>;
   writeAttachment: (relativePath: string, dataUrl: string) => Promise<boolean>;
@@ -13,7 +13,7 @@ interface OverDriveBinsApi {
 
 declare global {
   interface Window {
-    overDriveBins?: OverDriveBinsApi;
+    overDriveBins?: DadBinsApi;
   }
 }
 

@@ -2,7 +2,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/", "destination": "/roadmap.html" },
-    { "source": "/((?!assets/|app-icon\\.png|roadmap/|roadmap\\.html|index\\.html).*)", "destination": "/roadmap.html" }
+    { "source": "/", "destination": "/dollaraday.html" },
+    {
+      "source": "/((?!assets/|app-icon\\.png|dollaraday\\.html|index\\.html).*)",
+      "destination": "/dollaraday.html"
+    }
   ]
 }
