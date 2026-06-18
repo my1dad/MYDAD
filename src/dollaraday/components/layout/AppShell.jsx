@@ -1,16 +1,24 @@
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
+import MobileShell from "./MobileShell";
 
-export default function AppShell({ activePage, onNavigate, children }) {
+export default function AppShell({ activePage, scrollKey, authEntryTick = 0, onNavigate, children }) {
+  const shellScrollKey = `${activePage}-${scrollKey}-${authEntryTick}`;
+
   return (
-    <div className="dda-app flex min-h-dvh">
+    <div className="dda-app flex h-full min-h-0 w-full overflow-hidden">
       <Sidebar activePage={activePage} onNavigate={onNavigate} />
 
-      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
-        <main className="dda-scroll min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-4 lg:px-6 lg:pb-6">
-          <div className="mx-auto max-w-6xl">{children}</div>
-        </main>
-        <BottomNav activePage={activePage} onNavigate={onNavigate} />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <MobileShell
+          variant="app"
+          scrollKey={shellScrollKey}
+          mainClassName="px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 lg:px-6 lg:py-4"
+          contentClassName="mx-auto max-w-6xl lg:max-w-6xl"
+          footer={<BottomNav activePage={activePage} onNavigate={onNavigate} />}
+        >
+          {children}
+        </MobileShell>
       </div>
     </div>
   );

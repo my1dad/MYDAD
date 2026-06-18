@@ -19,7 +19,7 @@ export default function LoansPage() {
   const score = currentMember.loanEligibilityScore;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title={t("pages.loans.title")}
         description={t("pages.loans.description")}

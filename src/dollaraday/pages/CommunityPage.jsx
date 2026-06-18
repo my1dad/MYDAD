@@ -17,7 +17,7 @@ export default function CommunityPage({ onNavigate }) {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title={t("pages.community.title")}
         description={t("pages.community.description")}

@@ -50,5 +50,5 @@ export default function DdaStorageBootstrap({ children, fallback = null }) {
   }, []);
 
   if (!ready) return fallback;
-  return children;
+  return <div className="h-full w-full overflow-hidden">{children}</div>;
 }

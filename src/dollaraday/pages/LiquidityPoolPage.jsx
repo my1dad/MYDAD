@@ -19,7 +19,7 @@ export default function LiquidityPoolPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title={t("pages.poolPage.title")}
         description={t("pages.poolPage.description")}

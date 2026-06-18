@@ -5,9 +5,9 @@ import DadLoginPage from "./pages/DadLoginPage.jsx";
 export default function DadRoot() {
   const { isAuthenticated } = useDadAuth();
 
-  if (!isAuthenticated) {
-    return <DadLoginPage />;
-  }
-
-  return <App />;
+  return (
+    <div className="dda-app h-full w-full overflow-hidden">
+      {isAuthenticated ? <App /> : <DadLoginPage />}
+    </div>
+  );
 }

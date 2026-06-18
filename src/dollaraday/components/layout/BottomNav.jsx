@@ -15,19 +15,24 @@ export default function BottomNav({ activePage, onNavigate }) {
     if (!moreOpen) return undefined;
     const close = () => setMoreOpen(false);
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("touchstart", close, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+    };
   }, [moreOpen]);
 
   return (
     <>
       {moreOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 touch-manipulation lg:hidden"
           onMouseDown={() => setMoreOpen(false)}
+          onTouchStart={() => setMoreOpen(false)}
         />
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-[#071013]/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm lg:hidden">
+      <nav className="z-40 shrink-0 border-t border-white/10 bg-[#071013]/95 px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm lg:hidden">
         <div className="mx-auto flex max-w-lg justify-around text-xs text-gray-300">
           {mobileNavItems.map(({ id, icon: Icon }) => {
             const active = activePage === id;
@@ -37,7 +42,7 @@ export default function BottomNav({ activePage, onNavigate }) {
                 type="button"
                 onClick={() => onNavigate(id)}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 px-2",
+                  "flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 px-1.5 touch-manipulation",
                   active ? "text-emerald-400" : "hover:text-white"
                 )}
               >
@@ -54,7 +59,7 @@ export default function BottomNav({ activePage, onNavigate }) {
               onMouseDown={(e) => e.stopPropagation()}
               onClick={() => setMoreOpen((o) => !o)}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-2",
+                "flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 px-1.5 touch-manipulation",
                 moreOpen || moreActive ? "text-emerald-400" : "hover:text-white"
               )}
             >

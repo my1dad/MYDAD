@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import AppShell from "./components/layout/AppShell";
+import { useDadAuth } from "./context/DadAuthContext.jsx";
 import DailyAllocationsPage from "./pages/DailyAllocationsPage";
 import AdminPage from "./pages/AdminPage";
 import AdminDataBinsPage from "./pages/AdminDataBinsPage";
@@ -35,11 +36,23 @@ function hashForPage(page) {
 }
 
 export default function App() {
-  const [activePage, setActivePage] = useState(getPageFromHash);
+  const { authEntryTick } = useDadAuth();
+  const [activePage, setActivePage] = useState(() => "dashboard");
+  const [scrollKey, setScrollKey] = useState(0);
+
+  useEffect(() => {
+    if (!authEntryTick) return;
+    setActivePage("dashboard");
+    setScrollKey((tick) => tick + 1);
+    if (window.location.hash.replace(/^#/, "") !== "") {
+      window.location.hash = "";
+    }
+  }, [authEntryTick]);
 
   const navigate = useCallback((page) => {
     const nextPage = pages[page] ? page : "dashboard";
     setActivePage(nextPage);
+    setScrollKey((tick) => tick + 1);
     const nextHash = hashForPage(nextPage);
     const currentHash = window.location.hash.replace(/^#/, "");
     if (currentHash !== nextHash) {
@@ -48,17 +61,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const onHashChange = () => setActivePage(getPageFromHash());
+    const onHashChange = () => {
+      const nextPage = getPageFromHash();
+      setActivePage(nextPage);
+      setScrollKey((tick) => tick + 1);
+    };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   useEffect(() => {
+    if (authEntryTick) return;
     const initialPage = getPageFromHash();
+    setActivePage(initialPage);
     if (window.location.hash.replace(/^#/, "") !== hashForPage(initialPage)) {
       window.location.hash = hashForPage(initialPage);
     }
-  }, []);
+  }, [authEntryTick]);
 
   const Page = pages[activePage] ?? DashboardPage;
   const shellPage =
@@ -69,8 +88,13 @@ export default function App() {
         : activePage;
 
   return (
-    <AppShell activePage={shellPage} onNavigate={navigate}>
-      <Page onNavigate={navigate} />
+    <AppShell
+      activePage={shellPage}
+      scrollKey={scrollKey}
+      authEntryTick={authEntryTick}
+      onNavigate={navigate}
+    >
+      <Page key={`${activePage}-${authEntryTick}`} onNavigate={navigate} />
     </AppShell>
   );
 }

@@ -7,7 +7,7 @@ export default function AdminDataBinsPage({ onNavigate }) {
   const { t } = useLocale();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title={t("pages.adminBins.title")}
         description={t("pages.adminBins.description")}

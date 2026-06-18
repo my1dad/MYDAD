@@ -31,12 +31,12 @@ export default function DashboardPage({ onNavigate }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PageHeader
         variant="hero"
         kicker={t("brand.kicker")}
         title={t("brand.name")}
-        titleClassName="text-[3rem] sm:text-[4.5rem] bg-gradient-to-br from-[#84cc16] via-lime-300 to-[#bef264] bg-clip-text text-transparent [filter:drop-shadow(0_0_6px_rgba(132,204,22,0.22))]"
+        titleClassName="text-[2.25rem] sm:text-[3.25rem] lg:text-[4.5rem] bg-gradient-to-br from-[#84cc16] via-lime-300 to-[#bef264] bg-clip-text text-transparent [filter:drop-shadow(0_0_6px_rgba(132,204,22,0.22))]"
         description={t("pages.dashboard.description")}
         highlights={t("pages.dashboard.highlights")}
         action={

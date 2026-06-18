@@ -46,7 +46,7 @@ export default function Sidebar({ activePage, onNavigate }) {
   const { t } = useLocale();
 
   return (
-    <aside className="dda-scroll hidden h-full w-56 shrink-0 flex-col overflow-y-auto border-r border-white/10 bg-[#071013] px-3 py-4 lg:flex">
+    <aside className="dda-scroll hidden h-full min-h-0 w-56 shrink-0 flex-col overflow-y-auto border-r border-white/10 bg-[#071013] px-3 py-4 lg:flex">
       <div className="mb-6 px-2">
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/20 ring-1 ring-emerald-400/30">

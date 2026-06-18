@@ -32,9 +32,9 @@ export default function PageHeader({
 }) {
   if (variant === "hero") {
     return (
-      <header className={cn("dda-glass relative mb-6 overflow-hidden", className)}>
+      <header className={cn("dda-glass relative mb-4 overflow-hidden sm:mb-6", className)}>
         <div className="h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-lime-400" />
-        <div className="relative p-5 sm:p-6">
+        <div className="relative p-4 sm:p-6">
           <div className="absolute right-4 top-4 z-10 sm:right-5 sm:top-5">
             <LanguageToggle />
           </div>
@@ -98,7 +98,7 @@ export default function PageHeader({
   return (
     <header
       className={cn(
-        "relative mb-6 flex flex-col gap-3 border-b border-white/10 pb-5 pr-24 sm:flex-row sm:items-end sm:justify-between sm:pr-28",
+        "relative mb-4 flex flex-col gap-3 border-b border-white/10 pb-4 pr-20 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:pb-5 sm:pr-28",
         className
       )}
     >

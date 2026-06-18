@@ -95,7 +95,7 @@ export default function InvestmentsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title={t("pages.investments.title")}
         description={t("pages.investments.description")}

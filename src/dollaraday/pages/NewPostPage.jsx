@@ -73,7 +73,7 @@ export default function NewPostPage({ onNavigate }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <header className="dda-glass relative overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-lime-400" />
         <div className="p-5 sm:p-6">

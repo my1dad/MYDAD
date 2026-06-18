@@ -104,7 +104,7 @@ export default function MembersPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title={t("pages.members.title")}
         description={t("pages.members.description")}

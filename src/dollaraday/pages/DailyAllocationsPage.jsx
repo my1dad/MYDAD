@@ -37,7 +37,7 @@ export default function DailyAllocationsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title={t("pages.allocations.title")}
         description={t("pages.allocations.description")}
