@@ -26,7 +26,7 @@ export default function LoansPage() {
         action={
           <button
             type="button"
-            className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-[#071013] hover:bg-emerald-400"
+            className="dda-btn-primary px-3 py-2 text-xs"
           >
             {t("pages.loans.apply")}
           </button>
@@ -47,8 +47,8 @@ export default function LoansPage() {
         subtitle={`${currentMember.name} · ${translateTier(currentMember.tier)}`}
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/10 ring-1 ring-emerald-400/30">
-            <span className="text-3xl font-bold text-emerald-400">{score}</span>
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-dda-green-light/10 ring-1 ring-dda-green-light/30">
+            <span className="text-3xl font-bold text-dda-green-light">{score}</span>
           </div>
           <div className="flex-1">
             <Badge variant="success">{t("pages.loans.eligibleBadge")}</Badge>
@@ -93,7 +93,7 @@ export default function LoansPage() {
       </DashboardCard>
 
       <div className="dda-glass flex gap-3 rounded-2xl p-5">
-        <FileText className="h-5 w-5 shrink-0 text-emerald-400" />
+        <FileText className="h-5 w-5 shrink-0 text-dda-green-light" />
         <p className="text-sm text-gray-400">{t("pages.loans.footnote")}</p>
       </div>
     </div>

@@ -75,7 +75,7 @@ export default function NewPostPage({ onNavigate }) {
   return (
     <div className="space-y-4 sm:space-y-6">
       <header className="dda-glass relative overflow-hidden">
-        <div className="h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-lime-400" />
+        <div className="dda-accent-bar" />
         <div className="p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <button
@@ -86,7 +86,7 @@ export default function NewPostPage({ onNavigate }) {
               <ArrowLeft className="h-4 w-4" />
               {t("pages.newPost.community")}
             </button>
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-400">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-dda-green-light">
               /post
             </p>
           </div>
@@ -100,7 +100,7 @@ export default function NewPostPage({ onNavigate }) {
             </p>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-emerald-400 transition-all duration-300"
+                className="dda-progress-fill h-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -111,13 +111,13 @@ export default function NewPostPage({ onNavigate }) {
       <section className="dda-glass rounded-2xl p-5 sm:p-6">
         {completed ? (
           <div className="flex flex-col items-center py-4 text-center">
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
-              <CheckCircle2 className="h-8 w-8 text-emerald-400" strokeWidth={2.25} />
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-dda-green/15 ring-1 ring-dda-green/30">
+              <CheckCircle2 className="h-8 w-8 text-dda-green-light" strokeWidth={2.25} />
             </span>
             <h1 className="mt-5 text-xl font-bold text-white">{t("pages.newPost.published")}</h1>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-gray-400">
               {t("pages.newPost.publishedDesc")}{" "}
-              <span className="font-semibold text-emerald-400">#{selectedChannel?.label}</span>.
+              <span className="font-semibold text-dda-green-light">#{selectedChannel?.label}</span>.
             </p>
 
             <div className="dda-panel mt-6 w-full rounded-2xl p-4 text-left">
@@ -138,7 +138,7 @@ export default function NewPostPage({ onNavigate }) {
         ) : step === 0 ? (
           <div>
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-emerald-400" />
+              <Sparkles className="h-5 w-5 text-dda-green-light" />
               <h1 className="text-xl font-bold text-white">{steps[step].title}</h1>
             </div>
             <p className="mt-2 text-sm leading-relaxed text-gray-400">{steps[step].description}</p>
@@ -177,14 +177,14 @@ export default function NewPostPage({ onNavigate }) {
                     onClick={() => setChannelId(channel.id)}
                     className={cn(
                       "dda-glass-btn rounded-2xl p-4 text-left transition",
-                      active && "border-emerald-400/30 ring-1 ring-emerald-400/20"
+                      active && "border-dda-green-light/30 ring-1 ring-dda-green-light/20"
                     )}
                   >
                     <span
                       className={cn(
                         "flex h-10 w-10 items-center justify-center rounded-xl ring-1 ring-inset",
                         active
-                          ? "bg-emerald-400/15 text-emerald-400 ring-emerald-400/25"
+                          ? "bg-dda-green-light/15 text-dda-green-light ring-dda-green-light/25"
                           : "bg-white/5 text-gray-400 ring-white/10"
                       )}
                     >
@@ -220,7 +220,7 @@ export default function NewPostPage({ onNavigate }) {
                     onChange={(event) => setTitle(event.target.value)}
                     placeholder={t("pages.newPost.titlePlaceholderShort")}
                     maxLength={120}
-                    className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-medium text-white placeholder:text-gray-600 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-medium text-white placeholder:text-gray-600 outline-none transition focus:border-dda-green focus:ring-2 focus:ring-dda-green/20"
                   />
                 </div>
 
@@ -235,11 +235,11 @@ export default function NewPostPage({ onNavigate }) {
                     placeholder={t("pages.newPost.messagePlaceholder")}
                     rows={6}
                     maxLength={2000}
-                    className="w-full resize-y rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-relaxed text-white placeholder:text-gray-600 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full resize-y rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-relaxed text-white placeholder:text-gray-600 outline-none transition focus:border-dda-green focus:ring-2 focus:ring-dda-green/20"
                   />
                   <p className="mt-1.5 text-xs text-gray-500">{t("pages.newPost.charCount", { count: body.length })}</p>
                   {body.trim().length > 0 && body.trim().length < 12 ? (
-                    <p className="mt-1 text-xs text-amber-400">{t("pages.newPost.writeMin")}</p>
+                    <p className="mt-1 text-xs text-dda-gold-light">{t("pages.newPost.writeMin")}</p>
                   ) : null}
                 </div>
               </div>
@@ -268,8 +268,8 @@ export default function NewPostPage({ onNavigate }) {
           className={cn(
             "ml-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition",
             !completed && isLastStep && !canPublish
-              ? "cursor-not-allowed bg-emerald-500/40 text-[#071013]/70"
-              : "bg-emerald-500 text-[#071013] hover:bg-emerald-400"
+              ? "cursor-not-allowed bg-dda-green/40 text-dda-ink/70"
+              : "dda-btn-primary"
           )}
         >
           {completed ? t("pages.newPost.backToBoard") : isLastStep ? t("pages.newPost.publish") : t("common.continue")}

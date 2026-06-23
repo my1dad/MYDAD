@@ -13,8 +13,8 @@ import { usePoolState } from "../lib/poolState";
 import { formatPoolCurrency } from "../data/mockData";
 
 const statusStyles = {
-  completed: "text-emerald-400",
-  pending: "text-amber-400",
+  completed: "text-dda-green-light",
+  pending: "text-dda-gold-light",
   failed: "text-red-400",
 };
 
@@ -45,7 +45,7 @@ export default function DailyAllocationsPage() {
 
       <div className="dda-glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 sm:px-5">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400">
+          <p className="text-xs font-semibold uppercase tracking-wide text-dda-green-light">
             {t("common.today")}
           </p>
           <p className="text-sm font-medium text-white">{todayLabel}</p>
@@ -59,7 +59,7 @@ export default function DailyAllocationsPage() {
           </div>
           <div>
             <p className="text-xs text-gray-500">{t("pages.allocations.total")}</p>
-            <p className="font-bold tabular-nums text-emerald-400">
+            <p className="font-bold tabular-nums text-dda-green-light">
               {formatPoolCurrency(dailyAllocationSummary.totalAmount)}
             </p>
           </div>
@@ -107,13 +107,13 @@ export default function DailyAllocationsPage() {
                   }
                 }}
                 className={cn(
-                  "cursor-pointer border-b border-white/[0.04] text-xs text-gray-300 transition-colors hover:bg-emerald-400/[0.08] focus:bg-emerald-400/[0.08] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+                  "cursor-pointer border-b border-white/[0.04] text-xs text-gray-300 transition-colors hover:bg-dda-green-light/[0.08] focus:bg-dda-green-light/[0.08] focus:outline-none focus-visible:ring-2 focus-visible:ring-dda-green/40",
                   index % 2 === 0 ? "bg-white/[0.03]" : "bg-transparent"
                 )}
               >
                 <td className="px-2 py-1.5 sm:px-3">
                   <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-emerald-400/10 text-[9px] font-bold text-emerald-400">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-dda-green-light/10 text-[9px] font-bold text-dda-green-light">
                       {donation.member
                         .split(" ")
                         .map((part) => part[0])
@@ -126,7 +126,7 @@ export default function DailyAllocationsPage() {
                     </span>
                   </div>
                 </td>
-                <td className="px-2 py-1.5 font-semibold tabular-nums text-emerald-400 sm:px-3">
+                <td className="px-2 py-1.5 font-semibold tabular-nums text-dda-green-light sm:px-3">
                   ${donation.amount.toFixed(2)}
                 </td>
                 <td className="px-2 py-1.5 tabular-nums text-gray-400 sm:px-3">

@@ -9,7 +9,7 @@ import { usePoolState } from "../lib/poolState";
 
 export default function LiquidityPoolPage() {
   const { t } = useLocale();
-  const { escrowLedger, dashboardStatsLabels, statHints } = useLocalizedData();
+  const { escrowLedger, investmentFunnel, dashboardStatsLabels, statHints } = useLocalizedData();
   const { poolSummary, dashboardStats } = usePoolState();
 
   const localizedStats = {
@@ -29,9 +29,23 @@ export default function LiquidityPoolPage() {
 
       <PoolSecondaryStats stats={localizedStats} hints={statHints} />
 
+      <DashboardCard title={t("pages.dashboard.investmentFunnel")} noPadding>
+        <div className="space-y-4 p-5 pt-0">
+          {investmentFunnel.map((item) => (
+            <div key={item.key}>
+              <div className="mb-1 flex justify-between text-sm">
+                <span className="text-gray-200">{item.name}</span>
+                <span className="font-medium text-dda-green-light">{item.percent}%</span>
+              </div>
+              <ProgressBar value={item.percent} />
+            </div>
+          ))}
+        </div>
+      </DashboardCard>
+
       <DashboardCard title={t("pages.poolPage.escrowVisibility")}>
         <div className="flex items-start gap-3 rounded-xl bg-black/20 p-4 ring-1 ring-white/10">
-          <Lock className="h-5 w-5 shrink-0 text-emerald-400" />
+          <Lock className="h-5 w-5 shrink-0 text-dda-green-light" />
           <p className="text-sm leading-relaxed text-gray-400">
             {t("pages.poolPage.escrowCopy", { date: poolSummary.lastAudit })}
           </p>
@@ -54,7 +68,7 @@ export default function LiquidityPoolPage() {
               <span className="min-w-0 truncate text-gray-400">{entry.label}</span>
               <span
                 className={`shrink-0 font-semibold tabular-nums ${
-                  entry.type === "inflow" ? "text-emerald-400" : "text-gray-400"
+                  entry.type === "inflow" ? "text-dda-green-light" : "text-gray-400"
                 }`}
               >
                 {entry.type === "inflow" ? "+" : entry.type === "outflow" ? "−" : ""}
@@ -68,7 +82,7 @@ export default function LiquidityPoolPage() {
       <DashboardCard title={t("pages.poolPage.contributionVelocity")}>
         <div className="mb-2 flex justify-between text-sm">
           <span className="text-gray-400">{t("pages.poolPage.dailyCompliance")}</span>
-          <span className="font-medium text-emerald-400">96.8%</span>
+          <span className="font-medium text-dda-green-light">96.8%</span>
         </div>
         <ProgressBar value={96.8} />
       </DashboardCard>

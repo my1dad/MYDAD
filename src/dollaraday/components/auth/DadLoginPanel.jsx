@@ -1,8 +1,5 @@
 import { useLocale } from "../../i18n/LocaleContext.jsx";
 
-const inputClassName =
-  "w-full rounded-lg border border-white/10 bg-black/20 px-4 py-2.5 text-sm text-white placeholder:text-gray-500 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20";
-
 export default function DadLoginPanel({
   mode,
   onSwitchMode,
@@ -23,9 +20,9 @@ export default function DadLoginPanel({
 
   const content = (
     <>
-      <div className="mb-6">
+      <div className={embedded ? "dda-login-widget__header mb-6" : "mb-6"}>
         {!embedded && (
-          <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">{t("brand.name")}</p>
+          <p className="dda-text-kicker">{t("brand.name")}</p>
         )}
         <h1 className={`font-bold tracking-tight text-white ${embedded ? "text-lg" : "mt-1 text-xl sm:text-2xl"}`}>
           {mode === "sign-in" ? t("login.signInTitle") : t("login.createTitle")}
@@ -35,16 +32,14 @@ export default function DadLoginPanel({
         </p>
       </div>
 
-      <div className="mb-6 flex gap-1 rounded-lg bg-black/30 p-1">
+      <div className="mb-6 flex gap-1 rounded-lg bg-black/30 p-1 ring-1 ring-white/5">
         {["sign-in", "create"].map((tab) => (
           <button
             key={tab}
             type="button"
             onClick={() => onSwitchMode(tab)}
             className={`flex-1 rounded-md px-3 py-2 text-sm font-semibold transition ${
-              mode === tab
-                ? "bg-emerald-400/15 text-emerald-400 shadow-sm"
-                : "text-gray-400 hover:text-white"
+              mode === tab ? "dda-btn-tab-active shadow-sm" : "text-gray-400 hover:text-white"
             }`}
           >
             {tab === "sign-in" ? t("login.signInTab") : t("login.createTab")}
@@ -52,6 +47,7 @@ export default function DadLoginPanel({
         ))}
       </div>
 
+      <div className={embedded ? "dda-login-widget__forms" : undefined}>
       {mode === "sign-in" ? (
         <form onSubmit={onSignIn} className="space-y-4">
           <div>
@@ -65,7 +61,7 @@ export default function DadLoginPanel({
               value={username}
               onChange={(event) => onUsernameChange(event.target.value)}
               placeholder={t("login.usernamePlaceholder")}
-              className={inputClassName}
+              className="dda-input"
             />
           </div>
           <div>
@@ -79,7 +75,7 @@ export default function DadLoginPanel({
               value={password}
               onChange={(event) => onPasswordChange(event.target.value)}
               placeholder={t("login.passwordPlaceholder")}
-              className={inputClassName}
+              className="dda-input"
             />
           </div>
           {error && (
@@ -87,10 +83,7 @@ export default function DadLoginPanel({
               {error}
             </p>
           )}
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-[#071013] shadow-sm transition hover:bg-emerald-400"
-          >
+          <button type="submit" className="dda-btn-primary w-full py-2.5">
             {t("login.openDashboard")}
           </button>
         </form>
@@ -107,7 +100,7 @@ export default function DadLoginPanel({
               value={username}
               onChange={(event) => onUsernameChange(event.target.value)}
               placeholder={t("login.chooseUsername")}
-              className={inputClassName}
+              className="dda-input"
             />
           </div>
           <div>
@@ -120,7 +113,7 @@ export default function DadLoginPanel({
               value={displayName}
               onChange={(event) => onDisplayNameChange(event.target.value)}
               placeholder={t("login.displayNamePlaceholder")}
-              className={inputClassName}
+              className="dda-input"
             />
             <p className="mt-1.5 text-xs text-gray-500">{t("login.savedLocally")}</p>
           </div>
@@ -135,7 +128,7 @@ export default function DadLoginPanel({
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => onPasswordChange(event.target.value)}
-                className={inputClassName}
+                className="dda-input"
               />
             </div>
             <div>
@@ -148,7 +141,7 @@ export default function DadLoginPanel({
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(event) => onConfirmPasswordChange(event.target.value)}
-                className={inputClassName}
+                className="dda-input"
               />
             </div>
           </div>
@@ -157,14 +150,12 @@ export default function DadLoginPanel({
               {error}
             </p>
           )}
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-[#071013] shadow-sm transition hover:bg-emerald-400"
-          >
+          <button type="submit" className="dda-btn-primary w-full py-2.5">
             {t("login.createProfile")}
           </button>
         </form>
       )}
+      </div>
     </>
   );
 
@@ -173,7 +164,8 @@ export default function DadLoginPanel({
   }
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm sm:p-8">
+    <div className="dda-brand-card w-full max-w-md p-6 sm:p-8">
+      <div className="dda-accent-bar mb-6" />
       {content}
     </div>
   );

@@ -1,21 +1,23 @@
-import { CircleDollarSign, Lock, Percent } from "lucide-react";
+import { ChevronDown, CircleDollarSign, Lock, Percent } from "lucide-react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useLocale } from "../../i18n/LocaleContext";
+import { DDA_THEME } from "../../lib/theme";
 
 const secondaryStatConfig = {
   escrow: {
     icon: Lock,
-    accent: "#2563eb",
+    accent: DDA_THEME.greenLight,
     hintKey: "stats.segregatedReserve",
   },
   daily: {
     icon: CircleDollarSign,
-    accent: "#10b981",
+    accent: DDA_THEME.green,
     hintKey: "stats.memberInflowToday",
   },
   apy: {
     icon: Percent,
-    accent: "#eab308",
+    accent: DDA_THEME.goldLight,
     hintKey: "stats.annualPoolYield",
   },
 };
@@ -23,7 +25,7 @@ const secondaryStatConfig = {
 function SecondaryStatCard({ statKey, label, value, hint }) {
   const config = secondaryStatConfig[statKey];
   const Icon = config?.icon ?? CircleDollarSign;
-  const accent = config?.accent ?? "#34d399";
+  const accent = config?.accent ?? DDA_THEME.greenLight;
 
   return (
     <div className="dda-glass-btn group relative flex min-w-0 flex-1 flex-col p-3 sm:p-5">
@@ -74,28 +76,58 @@ export default function DashboardCard({
   action,
   compact = false,
   noPadding = false,
+  collapsible = false,
+  defaultCollapsed = false,
+  collapseAriaLabel,
+  expandAriaLabel,
 }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
+  const headerContent = (
+    <div className="min-w-0 flex-1 text-left">
+      {title && <h3 className="truncate text-lg font-semibold text-white">{title}</h3>}
+      {subtitle && !collapsed ? (
+        <p className="mt-0.5 truncate text-sm text-gray-400">{subtitle}</p>
+      ) : null}
+    </div>
+  );
+
   return (
     <section className={cn("dda-glass overflow-hidden", className)}>
-      {(title || action) && (
+      {(title || action || collapsible) && (
         <div
           className={cn(
             "flex items-start justify-between gap-2 border-b border-white/10",
-            compact ? "px-4 py-3" : "px-5 py-4"
+            compact ? "px-4 py-3" : "px-5 py-4",
+            collapsed && "border-b-0",
           )}
         >
-          <div className="min-w-0">
-            {title && (
-              <h3 className="truncate text-lg font-semibold text-white">{title}</h3>
-            )}
-            {subtitle && (
-              <p className="mt-0.5 truncate text-sm text-gray-400">{subtitle}</p>
-            )}
-          </div>
+          {collapsible ? (
+            <button
+              type="button"
+              onClick={() => setCollapsed((open) => !open)}
+              className="dda-card-collapse-trigger flex min-w-0 flex-1 items-start gap-2 text-left"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? expandAriaLabel : collapseAriaLabel}
+            >
+              {headerContent}
+              <ChevronDown
+                className={cn(
+                  "dda-card-collapse-trigger__chevron mt-1 h-5 w-5 shrink-0 text-gray-500",
+                  !collapsed && "dda-card-collapse-trigger__chevron--open",
+                )}
+                aria-hidden="true"
+              />
+            </button>
+          ) : (
+            headerContent
+          )}
           {action}
         </div>
       )}
-      <div className={noPadding ? undefined : compact ? "p-4" : "p-5"}>{children}</div>
+      {!collapsed ? (
+        <div className={noPadding ? undefined : compact ? "p-4" : "p-5"}>{children}</div>
+      ) : null}
     </section>
   );
 }
@@ -148,7 +180,7 @@ export function FeatureCard({ title, desc, onClick, className }) {
       type="button"
       onClick={onClick}
       className={cn(
-        "dda-glass rounded-2xl p-5 text-left transition hover:border-emerald-400/30 hover:bg-white/[0.07]",
+        "dda-glass rounded-2xl p-5 text-left transition hover:border-dda-gold-light/20 hover:bg-white/[0.07]",
         className
       )}
     >
@@ -168,7 +200,7 @@ export function MemberAvatar({ initials, size = "md" }) {
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full bg-emerald-400/20 font-bold text-emerald-400 ring-1 ring-emerald-400/30",
+        "dda-avatar",
         sizes[size]
       )}
     >
@@ -179,9 +211,9 @@ export function MemberAvatar({ initials, size = "md" }) {
 
 export function ProgressBar({ value, className }) {
   return (
-    <div className={cn("h-2 overflow-hidden rounded-full bg-white/10", className)}>
+    <div className={cn("dda-progress-track", className)}>
       <div
-        className="h-2 rounded-full bg-emerald-400 transition-all duration-500"
+        className="dda-progress-fill"
         style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
       />
     </div>
@@ -191,8 +223,8 @@ export function ProgressBar({ value, className }) {
 export function Badge({ children, variant = "default" }) {
   const variants = {
     default: "bg-white/10 text-gray-300 ring-white/10",
-    success: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/25",
-    warning: "bg-amber-500/15 text-amber-400 ring-amber-500/25",
+    success: "bg-dda-green/15 text-dda-green-light ring-dda-green/25",
+    warning: "bg-dda-gold/15 text-dda-gold-light ring-dda-gold/25",
     danger: "bg-red-500/15 text-red-400 ring-red-500/25",
     info: "bg-sky-500/15 text-sky-400 ring-sky-500/25",
   };

@@ -35,7 +35,7 @@ function HighlightCard({ item, t }) {
           className={cn(
             "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset",
             delta.direction === "up"
-              ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+              ? "bg-dda-green/10 text-dda-green-light ring-dda-green/20"
               : delta.direction === "down"
                 ? "bg-red-500/10 text-red-400 ring-red-500/20"
                 : "bg-white/5 text-gray-400 ring-white/10"
@@ -54,8 +54,8 @@ function HighlightCard({ item, t }) {
             {formatHighlightValue(item.previous, item.format)}
           </p>
         </div>
-        <div className="dda-panel rounded-xl p-3 ring-1 ring-emerald-500/20">
-          <p className="text-[10px] uppercase tracking-wide text-emerald-400/80">{t("common.now")}</p>
+        <div className="dda-panel rounded-xl p-3 ring-1 ring-dda-green/20">
+          <p className="text-[10px] uppercase tracking-wide text-dda-green-light/80">{t("common.now")}</p>
           <p className="mt-1 text-sm font-bold tabular-nums text-white sm:text-base">
             {formatHighlightValue(item.current, item.format)}
           </p>

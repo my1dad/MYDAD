@@ -60,19 +60,35 @@ export default function DadLoginPage() {
     <MobileShell
       variant="login"
       scrollKey={scrollKey}
-      mainClassName="px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-6"
-      contentClassName="mx-auto flex w-full max-w-xl flex-col items-center"
+      mainClassName="px-4 py-6 pb-4 pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-6"
+      contentClassName="dda-login-stack"
+      footer={
+        <div className="dda-login-contact">
+          <p>{t("login.contactIntro")}</p>
+          <p className="dda-login-contact__links">
+            <a href="mailto:reppmio@gmail.com" className="dda-login-contact__link">
+              {t("login.contactEmail")}
+            </a>
+            <span className="dda-login-contact__sep" aria-hidden="true">
+              |
+            </span>
+            <a href="tel:+15613379411" className="dda-login-contact__link">
+              {t("login.contactPhone")}
+            </a>
+          </p>
+        </div>
+      }
     >
       <img
         src={DOLLARADAY_LOGO_URL}
         alt="My Dollar A Day"
-        className="mb-4 h-auto w-full max-w-[220px] sm:max-w-[280px]"
+        className="mb-5 h-44 w-auto max-w-full object-contain sm:mb-6 sm:h-52"
         draggable={false}
       />
 
-      <div className="w-full">
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm shadow-xl shadow-emerald-500/5 ring-1 ring-white/5">
-          <div className="h-1 w-full bg-gradient-to-r from-emerald-500 to-emerald-400" />
+      <div className="dda-login-widget">
+        <div className="dda-brand-card">
+          <div className="dda-accent-bar" />
           <div className="p-5 sm:p-6">
             <DadLoginPanel
               embedded

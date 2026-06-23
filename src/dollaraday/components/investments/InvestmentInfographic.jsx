@@ -16,17 +16,17 @@ function AllocationTooltip({ active, payload, t }) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
   return (
-    <div className="rounded-lg border border-white/10 bg-[#071013]/95 px-3 py-2 text-xs shadow-xl">
+    <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2 text-xs shadow-xl">
       <p className="font-semibold text-white">{item.name}</p>
-      <p className="mt-0.5 tabular-nums text-emerald-400">{formatPoolCurrency(item.allocated)}</p>
+      <p className="mt-0.5 tabular-nums text-dda-green-light">{formatPoolCurrency(item.allocated)}</p>
       <p className="mt-0.5 text-gray-500">{t("investmentChart.percentDeployed", { percent: item.percent })}</p>
     </div>
   );
 }
 
 const riskStyles = {
-  Low: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/25",
-  Medium: "bg-amber-500/15 text-amber-400 ring-amber-500/25",
+  Low: "bg-dda-green/15 text-dda-green-light ring-dda-green/25",
+  Medium: "bg-dda-gold/15 text-dda-gold-light ring-dda-gold/25",
   High: "bg-red-500/15 text-red-400 ring-red-500/25",
 };
 
@@ -39,6 +39,7 @@ export default function InvestmentInfographic({
 }) {
   const { t } = useLocale();
   const selected = investments.find((item) => item.id === selectedId) ?? investments[0];
+  const hasDeployedCapital = totalAllocated > 0;
   const chartData = useMemo(
     () =>
       investments.map((item) => ({
@@ -58,7 +59,7 @@ export default function InvestmentInfographic({
               {formatPoolCurrency(totalAllocated)}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/25">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-dda-green/15 px-2.5 py-1 text-xs font-semibold text-dda-green-light ring-1 ring-dda-green/25">
                 <TrendingUp className="h-3.5 w-3.5" />
                 {t("investmentChart.blendedApyBadge", { apy: poolApy })}
               </span>
@@ -75,32 +76,38 @@ export default function InvestmentInfographic({
               <p className="text-xs text-gray-500">{t("investmentChart.tapSegment")}</p>
             </div>
 
-            <div className="flex h-10 overflow-hidden rounded-full ring-1 ring-white/10">
-              {investments.map((item) => {
-                const active = item.id === selectedId;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => onSelect(item.id)}
-                    title={item.name}
-                    className={cn(
-                      "relative min-w-[8%] transition-all duration-300 hover:brightness-110",
-                      active && "z-10 ring-2 ring-white/80 ring-offset-2 ring-offset-[#071013]"
-                    )}
-                    style={{
-                      width: `${item.percent}%`,
-                      backgroundColor: item.color,
-                    }}
-                  >
-                    {item.percent >= 12 ? (
-                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-[#071013]/80">
-                        {item.percent}%
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
+            <div className="flex h-10 overflow-hidden rounded-full bg-white/5 ring-1 ring-white/10">
+              {hasDeployedCapital ? (
+                investments.map((item) => {
+                  const active = item.id === selectedId;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => onSelect(item.id)}
+                      title={item.name}
+                      className={cn(
+                        "relative transition-all duration-300 hover:brightness-110",
+                        active && "z-10 ring-2 ring-white/80 ring-offset-2 ring-offset-[#071013]",
+                      )}
+                      style={{
+                        width: `${item.percent}%`,
+                        backgroundColor: item.color,
+                      }}
+                    >
+                      {item.percent >= 12 ? (
+                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-dda-ink/80">
+                          {item.percent}%
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="flex h-full w-full items-center justify-center px-3 text-[11px] text-gray-500">
+                  {t("investmentChart.noDeployment")}
+                </div>
+              )}
             </div>
 
             <div className="mt-4 space-y-3">
@@ -121,7 +128,7 @@ export default function InvestmentInfographic({
                       <span className={cn("font-medium", active ? "text-white" : "text-gray-300")}>
                         {item.name}
                       </span>
-                      <span className="tabular-nums text-emerald-400">
+                      <span className="tabular-nums text-dda-green-light">
                         {item.percent}% · {formatPoolCurrency(item.allocated)}
                       </span>
                     </div>
@@ -130,14 +137,16 @@ export default function InvestmentInfographic({
                       style={{ width: `${widthScale}%` }}
                     >
                       <div
-                        className="flex h-full items-center rounded-lg px-3 text-xs font-semibold text-[#071013] transition-all duration-500"
+                        className={cn(
+                          "flex h-full items-center rounded-lg px-3 text-xs font-semibold text-dda-ink transition-all duration-500",
+                          item.allocated <= 0 && "bg-transparent",
+                        )}
                         style={{
-                          width: `${item.percent}%`,
-                          backgroundColor: item.color,
-                          minWidth: active ? "100%" : undefined,
+                          width: item.allocated > 0 ? `${item.percent}%` : "0%",
+                          backgroundColor: item.allocated > 0 ? item.color : undefined,
                         }}
                       >
-                        {active ? item.name : null}
+                        {active && item.allocated > 0 ? item.name : null}
                       </div>
                     </div>
                   </button>
@@ -176,7 +185,7 @@ export default function InvestmentInfographic({
               </div>
               <div className="dda-panel rounded-xl p-3">
                 <p className="text-[10px] uppercase tracking-wide text-gray-500">{t("investmentChart.apy")}</p>
-                <p className="mt-1 text-sm font-bold tabular-nums text-emerald-400">
+                <p className="mt-1 text-sm font-bold tabular-nums text-dda-green-light">
                   {selected.returnPct}%
                 </p>
               </div>
@@ -198,7 +207,7 @@ export default function InvestmentInfographic({
               <span className="inline-flex rounded-full bg-white/5 px-2.5 py-0.5 text-[10px] font-semibold text-gray-300 ring-1 ring-white/10">
                 {selected.category}
               </span>
-              <span className="inline-flex rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-emerald-500/20">
+              <span className="inline-flex rounded-full bg-dda-green/10 px-2.5 py-0.5 text-[10px] font-semibold text-dda-green-light ring-1 ring-dda-green/20">
                 {selected.status}
               </span>
             </div>
@@ -246,7 +255,7 @@ export default function InvestmentInfographic({
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <CircleDollarSign className="h-5 w-5 text-emerald-400" />
+                <CircleDollarSign className="h-5 w-5 text-dda-green-light" />
                 <span className="mt-1 text-xs font-bold tabular-nums text-white">
                   {selected.percent}%
                 </span>
@@ -264,7 +273,7 @@ export default function InvestmentInfographic({
                       onClick={() => onSelect(item.id)}
                       className={cn(
                         "dda-glass-btn flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm transition",
-                        active && "border-emerald-400/25 ring-1 ring-emerald-400/15"
+                        active && "border-dda-green-light/25 ring-1 ring-dda-green-light/15"
                       )}
                     >
                       <span className="flex min-w-0 items-center gap-2 text-gray-300">

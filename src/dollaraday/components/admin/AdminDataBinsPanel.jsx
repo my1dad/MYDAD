@@ -11,6 +11,7 @@ import DashboardCard, { Badge } from "../layout/DashboardCard";
 import { DATA_BIN_DEFINITIONS } from "../../lib/dataBins";
 import { formatEasternDateTime } from "../../lib/dateTime";
 import { useInternalDatabase } from "../../hooks/useInternalDatabase";
+import { resetWorkspaceForBacktest } from "../../lib/workspaceReset";
 
 const modeLabels = {
   local: "localStorage",
@@ -33,6 +34,7 @@ export default function AdminDataBinsPanel({ className }) {
   const [demoNotes, setDemoNotes] = useState("");
   const [status, setStatus] = useState("");
   const [flushing, setFlushing] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const activeDefinition = DATA_BIN_DEFINITIONS.find((bin) => bin.key === activeBin);
   const activeDocument = snapshot.bins[activeBin];
@@ -67,6 +69,22 @@ export default function AdminDataBinsPanel({ className }) {
       setStatus("Flush failed — check console for details.");
     } finally {
       setFlushing(false);
+    }
+  };
+
+  const handleResetWorkspace = async () => {
+    const confirmed = window.confirm(
+      "Reset all profiles, members, contributions, pool state, and saved inputs? This cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    setResetting(true);
+    try {
+      await resetWorkspaceForBacktest();
+      window.location.reload();
+    } catch {
+      setStatus("Workspace reset failed — check console for details.");
+      setResetting(false);
     }
   };
 
@@ -130,8 +148,17 @@ export default function AdminDataBinsPanel({ className }) {
           </button>
           <button
             type="button"
+            onClick={handleResetWorkspace}
+            disabled={resetting}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/15 disabled:opacity-60"
+          >
+            <Trash2 className={cn("h-3.5 w-3.5", resetting && "animate-pulse")} />
+            Reset workspace
+          </button>
+          <button
+            type="button"
             onClick={handleExport}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/15"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-dda-green/25 bg-dda-green/10 px-3 py-2 text-xs font-semibold text-dda-green-light transition hover:bg-dda-green/15"
           >
             <Download className="h-3.5 w-3.5" />
             Export JSON
@@ -152,7 +179,7 @@ export default function AdminDataBinsPanel({ className }) {
                     onClick={() => setActiveBin(bin.key)}
                     className={cn(
                       "dda-glass-btn flex w-full items-start justify-between gap-3 rounded-xl px-3 py-3 text-left transition",
-                      active && "border-emerald-400/25 ring-1 ring-emerald-400/15"
+                      active && "border-dda-green-light/25 ring-1 ring-dda-green-light/15"
                     )}
                   >
                     <span className="min-w-0">
@@ -163,7 +190,7 @@ export default function AdminDataBinsPanel({ className }) {
                       </span>
                     </span>
                     <span className="shrink-0 text-right">
-                      <span className="block text-lg font-bold tabular-nums text-emerald-400">
+                      <span className="block text-lg font-bold tabular-nums text-dda-green-light">
                         {doc?.records.length ?? 0}
                       </span>
                       <span className="text-[10px] uppercase tracking-wide text-gray-500">
@@ -235,7 +262,7 @@ export default function AdminDataBinsPanel({ className }) {
               value={demoLabel}
               onChange={(event) => setDemoLabel(event.target.value)}
               placeholder="e.g. Pool policy update"
-              className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white placeholder:text-gray-600 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+              className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white placeholder:text-gray-600 outline-none transition focus:border-dda-green focus:ring-2 focus:ring-dda-green/20"
             />
           </div>
           <div className="sm:col-span-2">
@@ -248,7 +275,7 @@ export default function AdminDataBinsPanel({ className }) {
               onChange={(event) => setDemoNotes(event.target.value)}
               rows={4}
               placeholder="Any admin note or captured input..."
-              className="w-full resize-y rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-relaxed text-white placeholder:text-gray-600 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+              className="w-full resize-y rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-relaxed text-white placeholder:text-gray-600 outline-none transition focus:border-dda-green focus:ring-2 focus:ring-dda-green/20"
             />
           </div>
         </div>
@@ -257,7 +284,7 @@ export default function AdminDataBinsPanel({ className }) {
           <button
             type="button"
             onClick={handleDemoSave}
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-[#071013] transition hover:bg-emerald-400"
+            className="dda-btn-primary inline-flex items-center gap-2 px-4 py-2.5 text-sm"
           >
             <Save className="h-4 w-4" />
             Save to admin captures

@@ -50,7 +50,13 @@ function formatContribution(amount) {
   });
 }
 
-export default function ContributeOnboardingModal({ open, onClose, onComplete }) {
+export default function ContributeOnboardingModal({
+  open,
+  onClose,
+  onComplete,
+  initialAmount = null,
+  startOnCustom = false,
+}) {
   const { t } = useLocale();
   const { translateTier } = useLocalizedData();
   const { currentMember } = usePoolState();
@@ -62,9 +68,9 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
   ];
 
   const howItWorks = [
-    { icon: CircleDollarSign, title: t("contribute.dailyTitle"), text: t("contribute.dailyText"), accent: "#10b981" },
+    { icon: CircleDollarSign, title: t("contribute.dailyTitle"), text: t("contribute.dailyText"), accent: "var(--color-dda-green)" },
     { icon: Lock, title: t("contribute.escrowTitle"), text: t("contribute.escrowText"), accent: "#2563eb" },
-    { icon: TrendingUp, title: t("contribute.equityTitle"), text: t("contribute.equityText"), accent: "#eab308" },
+    { icon: TrendingUp, title: t("contribute.equityTitle"), text: t("contribute.equityText"), accent: "var(--color-dda-gold-light)" },
   ];
   const [step, setStep] = useState(0);
   const [completed, setCompleted] = useState(false);
@@ -100,8 +106,29 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
       setRecurringEnabled(true);
       setDonationPreset("1");
       setCustomAmount("");
+      return;
     }
-  }, [open]);
+
+    setStep(0);
+    setCompleted(false);
+    setReminderEnabled(true);
+    setRecurringEnabled(true);
+
+    if (initialAmount != null) {
+      setDonationPreset("custom");
+      setCustomAmount(String(initialAmount));
+      return;
+    }
+
+    if (startOnCustom) {
+      setDonationPreset("custom");
+      setCustomAmount("");
+      return;
+    }
+
+    setDonationPreset("1");
+    setCustomAmount("");
+  }, [open, initialAmount, startOnCustom]);
 
   if (!open) return null;
 
@@ -136,14 +163,14 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
         role="dialog"
         aria-modal="true"
         aria-labelledby="contribute-onboarding-title"
-        className="relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#071013] shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl"
+        className="relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-dda-bg shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-lime-400" />
+        <div className="dda-accent-bar" />
 
         <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-400">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-dda-green-light">
               {t("contribute.dailyContribution")}
             </p>
             <p className="text-xs text-gray-500">
@@ -166,7 +193,7 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
         <div className="px-5 pt-4">
           <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-emerald-400 transition-all duration-300"
+                className="dda-progress-fill h-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -175,8 +202,8 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
         <div className="dda-scroll overflow-y-auto px-5 py-5">
           {completed ? (
             <div className="flex flex-col items-center py-4 text-center">
-              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
-                <CheckCircle2 className="h-8 w-8 text-emerald-400" strokeWidth={2.25} />
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-dda-green/15 ring-1 ring-dda-green/30">
+                <CheckCircle2 className="h-8 w-8 text-dda-green-light" strokeWidth={2.25} />
               </span>
               <h2 id="contribute-onboarding-title" className="mt-5 text-xl font-bold text-white">
                 {t("contribute.contributingToday")}
@@ -207,7 +234,7 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
                   </div>
                 </div>
                 {recurringEnabled ? (
-                  <p className="mt-3 flex items-center gap-1.5 text-xs text-emerald-400">
+                  <p className="mt-3 flex items-center gap-1.5 text-xs text-dda-green-light">
                     <RefreshCw className="h-3.5 w-3.5" />
                     {t("contribute.recurringActive", { amount: formattedContribution })}
                   </p>
@@ -221,7 +248,7 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
                   src={DOLLARADAY_LOGO_URL}
                   alt=""
                   draggable={false}
-                  className="h-20 w-auto max-w-[9rem] object-contain"
+                  className="h-36 w-auto max-w-[13rem] object-contain sm:h-40 sm:max-w-[15rem]"
                 />
               </div>
               <h2 id="contribute-onboarding-title" className="mt-5 text-xl font-bold text-white">
@@ -231,7 +258,7 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
 
               <div className="dda-glass mt-5 rounded-2xl p-4">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-400/20 text-sm font-bold text-emerald-400 ring-1 ring-emerald-400/30">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-dda-green-light/20 text-sm font-bold text-dda-green-light ring-1 ring-dda-green-light/30">
                     {currentMember.avatarInitials}
                   </span>
                   <div>
@@ -246,7 +273,7 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
           ) : step === 1 ? (
             <div>
               <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-emerald-400" />
+                <Sparkles className="h-5 w-5 text-dda-green-light" />
                 <h2 id="contribute-onboarding-title" className="text-xl font-bold text-white">
                   {steps[step].title}
                 </h2>
@@ -304,7 +331,7 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
                             className={cn(
                               "rounded-md px-2 py-2 text-xs font-semibold transition sm:text-sm",
                               active
-                                ? "bg-emerald-400/15 text-emerald-400 shadow-sm"
+                                ? "bg-dda-green-light/15 text-dda-green-light shadow-sm"
                                 : "text-gray-400 hover:text-white"
                             )}
                           >
@@ -331,7 +358,7 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
                           value={customAmount}
                           onChange={(event) => setCustomAmount(sanitizeMoneyInput(event.target.value))}
                           placeholder="0.00"
-                          className="w-full rounded-xl border border-white/10 bg-black/20 py-3 pl-8 pr-4 text-sm font-semibold tabular-nums text-white placeholder:text-gray-600 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                          className="w-full rounded-xl border border-white/10 bg-black/20 py-3 pl-8 pr-4 text-sm font-semibold tabular-nums text-white placeholder:text-gray-600 outline-none transition focus:border-dda-green focus:ring-2 focus:ring-dda-green/20"
                         />
                       </div>
                       {customAmountInvalid ? (
@@ -347,14 +374,14 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
                         {formattedContribution}
                       </p>
                     </div>
-                    <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/25">
+                    <span className="rounded-full bg-dda-green/15 px-3 py-1 text-xs font-semibold text-dda-green-light ring-1 ring-dda-green/25">
                       {t("contribute.daily")}
                     </span>
                   </div>
 
                   <div className="dda-panel rounded-xl p-3">
                     <div className="flex items-center gap-3">
-                      <Shield className="h-5 w-5 shrink-0 text-emerald-400" />
+                      <Shield className="h-5 w-5 shrink-0 text-dda-green-light" />
                       <div>
                         <p className="text-sm font-medium text-white">{t("contribute.mockWallet")}</p>
                         <p className="text-xs text-gray-500">{t("contribute.demoPayment")}</p>
@@ -366,7 +393,7 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
                     className={cn(
                       "flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition",
                       recurringEnabled
-                        ? "border-emerald-500/30 bg-emerald-500/10"
+                        ? "border-dda-green/30 bg-dda-green/10"
                         : "border-white/10 bg-black/20"
                     )}
                   >
@@ -374,11 +401,11 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
                       type="checkbox"
                       checked={recurringEnabled}
                       onChange={(event) => setRecurringEnabled(event.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-white/20 bg-black/30 text-emerald-500 focus:ring-emerald-500/30"
+                      className="mt-0.5 h-4 w-4 rounded border-white/20 bg-black/30 text-dda-green focus:ring-dda-green/30"
                     />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
-                        <RefreshCw className="h-4 w-4 shrink-0 text-emerald-400" />
+                        <RefreshCw className="h-4 w-4 shrink-0 text-dda-green-light" />
                         <span className="text-sm font-medium text-white">
                           {t("contribute.recurringTitle")}
                         </span>
@@ -394,7 +421,7 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
                       type="checkbox"
                       checked={reminderEnabled}
                       onChange={(event) => setReminderEnabled(event.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-white/20 bg-black/30 text-emerald-500 focus:ring-emerald-500/30"
+                      className="mt-0.5 h-4 w-4 rounded border-white/20 bg-black/30 text-dda-green focus:ring-dda-green/30"
                     />
                     <span>
                       <span className="block text-sm font-medium text-white">
@@ -431,8 +458,8 @@ export default function ContributeOnboardingModal({ open, onClose, onComplete })
             className={cn(
               "ml-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition",
               !completed && isLastStep && customAmountInvalid
-                ? "cursor-not-allowed bg-emerald-500/40 text-[#071013]/70"
-                : "bg-emerald-500 text-[#071013] hover:bg-emerald-400"
+                ? "cursor-not-allowed bg-dda-green/40 text-dda-ink/70"
+                : "dda-btn-primary"
             )}
           >
             {completed

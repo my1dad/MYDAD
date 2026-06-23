@@ -19,11 +19,11 @@ function YieldTooltip({ active, payload, label }) {
   const delta = prev != null ? point.apy - prev : null;
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#071013]/95 px-3 py-2.5 text-xs shadow-xl">
+    <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2.5 text-xs shadow-xl">
       <p className="font-medium text-gray-400">{label}</p>
       <p className="mt-1 text-sm font-bold tabular-nums text-white">{point.apy.toFixed(2)}% APY</p>
       {delta != null ? (
-        <p className={cn("mt-1 tabular-nums", delta >= 0 ? "text-emerald-400" : "text-red-400")}>
+        <p className={cn("mt-1 tabular-nums", delta >= 0 ? "text-dda-green-light" : "text-red-400")}>
           {delta >= 0 ? "+" : ""}
           {delta.toFixed(2)}% vs prior
         </p>
@@ -67,7 +67,7 @@ export default function InvestmentYieldChart({ selectedInvestment, blendedApy })
           <p className="text-sm font-medium text-white">Yield trend · {selectedInvestment.name}</p>
           {periodDelta ? (
             <p className="mt-0.5 text-xs text-gray-500">
-              <span className={periodDelta.change >= 0 ? "text-emerald-400" : "text-red-400"}>
+              <span className={periodDelta.change >= 0 ? "text-dda-green-light" : "text-red-400"}>
                 {periodDelta.change >= 0 ? "+" : ""}
                 {periodDelta.change.toFixed(2)}%
               </span>{" "}
@@ -88,7 +88,7 @@ export default function InvestmentYieldChart({ selectedInvestment, blendedApy })
                 className={cn(
                   "rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition sm:px-3 sm:text-xs",
                   active
-                    ? "bg-emerald-400/15 text-emerald-400 shadow-sm"
+                    ? "bg-dda-green-light/15 text-dda-green-light shadow-sm"
                     : "text-gray-400 hover:text-white"
                 )}
               >
@@ -151,7 +151,7 @@ export default function InvestmentYieldChart({ selectedInvestment, blendedApy })
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3 text-[11px] text-gray-500">
         <span>
           Current sleeve APY:{" "}
-          <span className="font-semibold text-emerald-400">{selectedInvestment.returnPct}%</span>
+          <span className="font-semibold text-dda-green-light">{selectedInvestment.returnPct}%</span>
         </span>
         <span className="text-gray-600">Interactive range · hover for detail</span>
       </div>

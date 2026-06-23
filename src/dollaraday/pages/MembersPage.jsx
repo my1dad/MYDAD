@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Activity, Star, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import DashboardCard from "../components/layout/DashboardCard";
 import OpenChatRoomButton from "../components/community/OpenChatRoomButton";
-import MemberCard from "../components/members/MemberCard";
 import MemberDetailModal from "../components/members/MemberDetailModal";
 import { getMemberInitials } from "../lib/memberDetails";
 import { useFeaturedMembers, useMembers } from "../lib/memberRegistry";
 import { useLocale } from "../i18n/LocaleContext";
+import { useLocalizedData } from "../i18n/localizedData";
 import { usePoolState } from "../lib/poolState";
 
 function MemberStatCard({ title, value, icon: Icon, accent, bg, bgDeep, border }) {
@@ -65,6 +66,7 @@ function MemberStatCard({ title, value, icon: Icon, accent, bg, bgDeep, border }
 
 export default function MembersPage() {
   const { t } = useLocale();
+  const { translateStatus } = useLocalizedData();
   const [selectedMember, setSelectedMember] = useState(null);
   const { poolSummary } = usePoolState();
   const members = useMembers();
@@ -75,7 +77,7 @@ export default function MembersPage() {
       key: "active",
       title: t("pages.members.activeMembers"),
       icon: Users,
-      accent: "#34d399",
+      accent: "var(--color-dda-green-light)",
       bg: "rgba(16, 185, 129, 0.24)",
       bgDeep: "rgba(4, 47, 46, 0.72)",
       border: "rgba(52, 211, 153, 0.38)",
@@ -95,11 +97,18 @@ export default function MembersPage() {
       key: "score",
       title: t("pages.members.avgScore"),
       icon: Star,
-      accent: "#fbbf24",
+      accent: "var(--color-dda-gold-light)",
       bg: "rgba(251, 191, 36, 0.2)",
       bgDeep: "rgba(69, 45, 8, 0.72)",
       border: "rgba(251, 191, 36, 0.38)",
-      value: () => "82",
+      value: () => {
+        const active = members.filter((member) => member.status === "active");
+        if (!active.length) return "—";
+        const average = Math.round(
+          active.reduce((sum, member) => sum + member.score, 0) / active.length,
+        );
+        return String(average);
+      },
     },
   ];
 
@@ -117,11 +126,61 @@ export default function MembersPage() {
         ))}
       </section>
 
-      <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-3">
-        {members.map((member) => (
-          <MemberCard key={member.id} member={member} onClick={setSelectedMember} modern />
-        ))}
-      </div>
+      <DashboardCard
+        title={t("pages.members.directory")}
+        subtitle={t("pages.members.directorySubtitle", { count: members.length.toLocaleString() })}
+      >
+        <div className="dda-members-list" role="list">
+          {members.map((member) => (
+            <button
+              key={member.id}
+              type="button"
+              role="listitem"
+              onClick={() => setSelectedMember(member)}
+              className="dda-members-list__row group"
+            >
+              <span className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-dda-green-light/25 to-dda-green/10 text-[10px] font-bold text-dda-green-soft ring-1 ring-dda-green-light/25 sm:h-9 sm:w-9 sm:text-xs">
+                  {getMemberInitials(member.name)}
+                </span>
+                <span className="min-w-0 text-left">
+                  <span className="block truncate text-sm font-medium text-gray-200 transition group-hover:text-white">
+                    {member.name}
+                  </span>
+                  <span className="block truncate text-xs text-gray-500">{member.handle}</span>
+                </span>
+              </span>
+
+              <span
+                className={cn(
+                  "hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide sm:inline-flex sm:text-[11px] dda-members-list__status",
+                  member.status === "active"
+                    ? "dda-members-list__status--active"
+                    : "dda-members-list__status--inactive"
+                )}
+              >
+                {translateStatus(member.status)}
+              </span>
+
+              <span className="ml-3 shrink-0 text-right sm:ml-4">
+                <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("common.equity")}
+                </span>
+                <span className="font-semibold tabular-nums text-dda-green-light">
+                  ${member.equity.toLocaleString()}
+                </span>
+              </span>
+
+              <span className="ml-3 hidden shrink-0 text-right sm:ml-4 sm:block">
+                <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("common.score")}
+                </span>
+                <span className="font-semibold tabular-nums text-white">{member.score}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </DashboardCard>
 
       <DashboardCard title={t("pages.members.featured")} subtitle={t("pages.members.featuredSubtitle")}>
         <div className="space-y-2">
@@ -132,10 +191,10 @@ export default function MembersPage() {
                 key={member.id}
                 type="button"
                 onClick={() => setSelectedMember(fullMember)}
-                className="dda-featured-member dda-glass-btn group flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm transition hover:border-emerald-400/20"
+                className="dda-featured-member dda-glass-btn group flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm transition hover:border-dda-green-light/20"
               >
                 <span className="relative flex min-w-0 items-center gap-2.5">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400/25 to-emerald-600/10 text-[10px] font-bold text-emerald-300 ring-1 ring-emerald-400/25">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-dda-green-light/25 to-dda-green/10 text-[10px] font-bold text-dda-green-soft ring-1 ring-dda-green-light/25">
                     {getMemberInitials(member.name)}
                   </span>
                   <span className="flex min-w-0 items-center gap-2">
@@ -151,7 +210,7 @@ export default function MembersPage() {
                   <span className="block text-[10px] uppercase tracking-wide text-gray-500">
                     {t("common.equity")}
                   </span>
-                  <span className="font-semibold tabular-nums text-emerald-400">
+                  <span className="font-semibold tabular-nums text-dda-green-light">
                     ${member.equity.toLocaleString()}
                   </span>
                 </span>

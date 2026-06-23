@@ -50,17 +50,24 @@ function HeroStatCard({ title, value, icon: Icon, accent }) {
 export default function InvestmentsPage() {
   const { t } = useLocale();
   const { investments, investmentHighlights } = useLocalizedData();
-  const [selectedId, setSelectedId] = useState(investments[0]?.id);
   const { poolSummary } = usePoolState();
 
-  const totalAllocated = useMemo(
-    () => investments.reduce((sum, item) => sum + item.allocated, 0),
-    [investments]
+  const sleeveInvestments = useMemo(
+    () =>
+      investments.map((item) => ({
+        ...item,
+        allocated: Math.round((poolSummary.deployedCapital * item.percent) / 100),
+      })),
+    [investments, poolSummary.deployedCapital],
   );
 
+  const [selectedId, setSelectedId] = useState(sleeveInvestments[0]?.id);
+
+  const totalAllocated = poolSummary.deployedCapital;
+
   const selectedInvestment = useMemo(
-    () => investments.find((item) => item.id === selectedId) ?? investments[0],
-    [investments, selectedId]
+    () => sleeveInvestments.find((item) => item.id === selectedId) ?? sleeveInvestments[0],
+    [sleeveInvestments, selectedId],
   );
 
   const heroStats = [
@@ -68,7 +75,7 @@ export default function InvestmentsPage() {
       key: "deployed",
       title: t("pages.investments.totalDeployed"),
       icon: PiggyBank,
-      accent: "#10b981",
+      accent: "var(--color-dda-green)",
       value: formatPoolCurrency(totalAllocated),
     },
     {
@@ -89,7 +96,7 @@ export default function InvestmentsPage() {
       key: "growth",
       title: t("pages.investments.ytdGrowth"),
       icon: TrendingUp,
-      accent: "#fbbf24",
+      accent: "var(--color-dda-gold-light)",
       value: `+${poolSummary.ytdGrowthPct}%`,
     },
   ];
@@ -116,7 +123,7 @@ export default function InvestmentsPage() {
       </section>
 
       <InvestmentInfographic
-        investments={investments}
+        investments={sleeveInvestments}
         totalAllocated={totalAllocated}
         poolApy={poolSummary.poolApy}
         selectedId={selectedId}
@@ -133,7 +140,7 @@ export default function InvestmentsPage() {
           <p className="text-sm font-medium text-white">{t("pages.investments.sleeveComparison")}</p>
           <p className="mt-1 text-xs text-gray-500">{t("pages.investments.sleeveComparisonSub")}</p>
           <ul className="mt-4 space-y-2">
-            {[...investments]
+            {[...sleeveInvestments]
               .sort((a, b) => b.allocated - a.allocated)
               .map((item, index) => {
                 const active = item.id === selectedId;
@@ -144,11 +151,11 @@ export default function InvestmentsPage() {
                       onClick={() => setSelectedId(item.id)}
                       className={cn(
                         "dda-glass-btn flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition",
-                        active && "border-emerald-400/25 ring-1 ring-emerald-400/15"
+                        active && "border-dda-green-light/25 ring-1 ring-dda-green-light/15"
                       )}
                     >
                       <span
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-[#071013]"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-dda-ink"
                         style={{ backgroundColor: item.color }}
                       >
                         {index + 1}
@@ -163,7 +170,7 @@ export default function InvestmentsPage() {
                         </span>
                       </span>
                       <span className="shrink-0 text-right">
-                        <span className="block text-sm font-bold tabular-nums text-emerald-400">
+                        <span className="block text-sm font-bold tabular-nums text-dda-green-light">
                           {item.returnPct}%
                         </span>
                         <span className="block text-[11px] tabular-nums text-gray-500">

@@ -161,3 +161,7 @@ export function getActiveDadProfile(): DadProfile | null {
   if (!sessionId) return null;
   return readProfiles().find((profile) => profile.id === sessionId) ?? null;
 }
+
+export function clearAllDadProfiles(): void {
+  localStorage.removeItem(PROFILES_KEY);
+}

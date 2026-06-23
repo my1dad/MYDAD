@@ -28,13 +28,13 @@ function BalanceTooltip({ active, payload, label, t }) {
   const delta = prev != null ? value - prev : null;
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#071013]/95 px-3 py-2.5 text-xs shadow-xl">
+    <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2.5 text-xs shadow-xl">
       <p className="font-medium text-gray-400">{label}</p>
       <p className="mt-1 text-sm font-bold tabular-nums text-white">
         {formatPoolCurrency(value)}
       </p>
       {delta != null ? (
-        <p className={cn("mt-1 tabular-nums", delta >= 0 ? "text-emerald-400" : "text-red-400")}>
+        <p className={cn("mt-1 tabular-nums", delta >= 0 ? "text-dda-green-light" : "text-red-400")}>
           {t("pool.vsPriorDelta", {
             delta: `${delta >= 0 ? "+" : ""}${formatPoolCurrency(delta)}`,
           })}
@@ -82,7 +82,7 @@ export default function PoolBalanceChart() {
           <p className="text-sm font-medium text-white">{t("pool.balanceTrend")}</p>
           {periodDelta ? (
             <p className="mt-0.5 text-xs text-gray-500">
-              <span className={periodDelta.change >= 0 ? "text-emerald-400" : "text-red-400"}>
+              <span className={periodDelta.change >= 0 ? "text-dda-green-light" : "text-red-400"}>
                 {periodDelta.change >= 0 ? "+" : ""}
                 {formatPoolCurrency(periodDelta.change)}
               </span>{" "}
@@ -103,7 +103,7 @@ export default function PoolBalanceChart() {
                 className={cn(
                   "rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition sm:px-3 sm:text-xs",
                   active
-                    ? "bg-emerald-400/15 text-emerald-400 shadow-sm"
+                    ? "bg-dda-green-light/15 text-dda-green-light shadow-sm"
                     : "text-gray-400 hover:text-white"
                 )}
               >
@@ -119,8 +119,8 @@ export default function PoolBalanceChart() {
           <LineChart data={chartData} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
             <defs>
               <linearGradient id="poolLineGlow" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#34d399" stopOpacity={0.2} />
-                <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                <stop offset="0%" stopColor="var(--color-dda-green-light)" stopOpacity={0.2} />
+                <stop offset="100%" stopColor="var(--color-dda-green-light)" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid
@@ -152,10 +152,10 @@ export default function PoolBalanceChart() {
             <Line
               type="monotone"
               dataKey="balance"
-              stroke="#34d399"
+              stroke="var(--color-dda-green-light)"
               strokeWidth={2.5}
-              dot={{ r: 3, fill: "#071013", stroke: "#34d399", strokeWidth: 2 }}
-              activeDot={{ r: 5, fill: "#34d399", stroke: "#071013", strokeWidth: 2 }}
+              dot={{ r: 3, fill: "#071013", stroke: "var(--color-dda-green-light)", strokeWidth: 2 }}
+              activeDot={{ r: 5, fill: "var(--color-dda-green-light)", stroke: "#071013", strokeWidth: 2 }}
             />
           </LineChart>
         </ResponsiveContainer>

@@ -15,6 +15,7 @@ import {
   formatEasternTime,
 } from "./dateTime";
 import { buildEasternPoolSeed } from "./easternSeedData";
+import { getTotalMemberEscrowBalance } from "./memberEscrowTotals";
 
 const POOL_STATE_RECORD_ID = "pool-live-state";
 
@@ -156,9 +157,13 @@ function bumpBalanceHistory(amount: number): void {
 
 function syncCompositionAndReserve(): void {
   const escrow = state.poolComposition.find((segment) => segment.key === "escrow");
-  if (escrow) {
-    escrow.value = state.poolSummary.escrowBalance;
-  }
+  const deployed = state.poolComposition.find((segment) => segment.key === "deployed");
+  const available = state.poolComposition.find((segment) => segment.key === "available");
+
+  if (escrow) escrow.value = state.poolSummary.escrowBalance;
+  if (deployed) deployed.value = state.poolSummary.deployedCapital;
+  if (available) available.value = state.poolSummary.availableToDeploy;
+
   state.poolSummary.reserveRatio =
     state.poolSummary.totalBalance > 0
       ? state.poolSummary.escrowBalance / state.poolSummary.totalBalance
@@ -245,6 +250,36 @@ export function hydratePoolStateFromStorage(): void {
     applyPoolState(record.payload);
     notifyPoolListeners();
   }
+  syncMemberEscrowToLiquidityPool();
+}
+
+/** Align liquidity pool escrow/total with summed member Chase Escrow account balances. */
+export function syncMemberEscrowToLiquidityPool(): void {
+  const totalEscrow = getTotalMemberEscrowBalance();
+  const previousEscrow = state.poolSummary.escrowBalance;
+  const delta = totalEscrow - previousEscrow;
+
+  if (delta === 0 && state.poolSummary.totalBalance === totalEscrow + state.poolSummary.deployedCapital) {
+    return;
+  }
+
+  state.poolSummary.escrowBalance = totalEscrow;
+  state.poolSummary.availableToDeploy = 0;
+  state.poolSummary.totalBalance = totalEscrow + state.poolSummary.deployedCapital;
+
+  if (delta !== 0) {
+    bumpBalanceHistory(delta);
+  }
+
+  syncCompositionAndReserve();
+  persistPoolState();
+  notifyPoolListeners();
+}
+
+export function resetPoolStateToSeed(): void {
+  state = createSeedState();
+  persistPoolState();
+  notifyPoolListeners();
 }
 
 export function activateMemberSession(member: CurrentMemberState): void {

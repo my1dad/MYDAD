@@ -25,7 +25,7 @@ export default function CommunityPage({ onNavigate }) {
           <button
             type="button"
             onClick={() => onNavigate?.("post")}
-            className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-400 transition hover:border-emerald-400/40 hover:bg-emerald-500/15 hover:text-emerald-300"
+            className="rounded-lg border border-dda-green/25 bg-dda-green/10 px-3 py-2 text-xs font-semibold text-dda-green-light transition hover:border-dda-gold-light/30 hover:bg-dda-green/15 hover:text-dda-green-soft"
           >
             {t("pages.community.newPost")}
           </button>
@@ -64,11 +64,11 @@ export default function CommunityPage({ onNavigate }) {
                   ) : null}
                   <p className="mt-2 text-sm leading-relaxed text-gray-300">{post.body}</p>
                   <div className="mt-3 flex items-center gap-4 text-sm text-gray-500">
-                    <button type="button" className="flex items-center gap-1 hover:text-emerald-400">
+                    <button type="button" className="flex items-center gap-1 hover:text-dda-green-light">
                       <Heart className="h-3.5 w-3.5" />
                       {post.likes}
                     </button>
-                    <button type="button" className="flex items-center gap-1 hover:text-emerald-400">
+                    <button type="button" className="flex items-center gap-1 hover:text-dda-green-light">
                       <MessageCircle className="h-3.5 w-3.5" />
                       {post.replies} {t("common.replies")}
                     </button>

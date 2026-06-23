@@ -49,9 +49,9 @@ function PoolTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
   return (
-    <div className="rounded-lg border border-white/10 bg-[#071013]/95 px-3 py-2 text-xs shadow-xl">
+    <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2 text-xs shadow-xl">
       <p className="font-semibold text-white">{item.name}</p>
-      <p className="mt-0.5 tabular-nums text-emerald-400">
+      <p className="mt-0.5 tabular-nums text-dda-green-light">
         {formatPoolCurrency(item.value)}
       </p>
     </div>
@@ -61,7 +61,8 @@ function PoolTooltip({ active, payload }) {
 export default function LiquidityPoolInfographic() {
   const { t } = useLocale();
   const { poolSummary, poolComposition } = usePoolState();
-  const reservePct = Math.round(poolSummary.reserveRatio * 100);
+  const reservePct =
+    poolSummary.totalBalance > 0 ? Math.round(poolSummary.reserveRatio * 100) : 0;
 
   const localizedComposition = poolComposition.map((segment) => ({
     ...segment,
@@ -74,7 +75,7 @@ export default function LiquidityPoolInfographic() {
       label: t("pool.deployed"),
       value: formatPoolCurrency(poolSummary.deployedCapital),
       icon: TrendingUp,
-      accent: "#10b981",
+      accent: "var(--color-dda-green)",
     },
     {
       key: "escrow",
@@ -88,14 +89,14 @@ export default function LiquidityPoolInfographic() {
       label: t("pool.available"),
       value: formatPoolCurrency(poolSummary.availableToDeploy),
       icon: Wallet,
-      accent: "#eab308",
+      accent: "var(--color-dda-gold-light)",
     },
     {
       key: "monthly",
       label: t("pool.monthlyInflow"),
       value: formatPoolCurrency(poolSummary.monthlyInflow),
       icon: ArrowDownToLine,
-      accent: "#34d399",
+      accent: "var(--color-dda-green-light)",
     },
   ];
 
@@ -109,12 +110,12 @@ export default function LiquidityPoolInfographic() {
               {formatPoolCurrency(poolSummary.totalBalance)}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/25">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-dda-green/15 px-2.5 py-1 text-xs font-semibold text-dda-green-light ring-1 ring-dda-green/25">
                 <TrendingUp className="h-3.5 w-3.5" />
                 {t("pool.ytd", { pct: poolSummary.ytdGrowthPct })}
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs font-semibold text-gray-300 ring-1 ring-white/10">
-                <Users className="h-3.5 w-3.5 text-emerald-400" />
+                <Users className="h-3.5 w-3.5 text-dda-green-light" />
                 {poolSummary.memberCount.toLocaleString()} {t("common.members")}
               </span>
             </div>
@@ -169,7 +170,10 @@ export default function LiquidityPoolInfographic() {
 
             <ul className="mt-2 w-full space-y-2">
               {localizedComposition.map((segment) => {
-                const pct = Math.round((segment.value / poolSummary.totalBalance) * 100);
+                const pct =
+                  poolSummary.totalBalance > 0
+                    ? Math.round((segment.value / poolSummary.totalBalance) * 100)
+                    : 0;
                 return (
                   <li key={segment.key} className="flex items-center justify-between gap-2 text-sm">
                     <span className="flex min-w-0 items-center gap-2 text-gray-400">

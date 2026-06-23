@@ -18,9 +18,7 @@ export default function LanguageToggle({ className }) {
         onClick={() => setLocale("en")}
         className={cn(
           "rounded-md px-2.5 py-1 transition",
-          locale === "en"
-            ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30"
-            : "text-gray-500 hover:text-gray-300"
+          locale === "en" ? "dda-btn-tab-active" : "text-gray-500 hover:text-gray-300"
         )}
       >
         EN
@@ -30,9 +28,7 @@ export default function LanguageToggle({ className }) {
         onClick={() => setLocale("es")}
         className={cn(
           "rounded-md px-2.5 py-1 transition",
-          locale === "es"
-            ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30"
-            : "text-gray-500 hover:text-gray-300"
+          locale === "es" ? "dda-btn-tab-active" : "text-gray-500 hover:text-gray-300"
         )}
       >
         ES

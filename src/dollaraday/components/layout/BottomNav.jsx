@@ -1,25 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LogOut, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logoutDollarADay } from "../../lib/logout";
 import { useLocale } from "../../i18n/LocaleContext";
 import { mobileMoreItems, mobileNavItems, getMobileNavLabel } from "./Sidebar";
-import LanguageToggle from "./LanguageToggle";
 
 export default function BottomNav({ activePage, onNavigate }) {
   const { t } = useLocale();
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreMenuRef = useRef(null);
+  const moreTriggerRef = useRef(null);
   const moreActive = mobileMoreItems.some((item) => item.id === activePage);
 
   useEffect(() => {
-    if (!moreOpen) return undefined;
-    const close = () => setMoreOpen(false);
-    document.addEventListener("mousedown", close);
-    document.addEventListener("touchstart", close, { passive: true });
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("touchstart", close);
+    if (!moreOpen) return;
+
+    const handlePointerDown = (event) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (moreMenuRef.current?.contains(target)) return;
+      if (moreTriggerRef.current?.contains(target)) return;
+      setMoreOpen(false);
     };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [moreOpen]);
 
   return (
@@ -27,12 +32,11 @@ export default function BottomNav({ activePage, onNavigate }) {
       {moreOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/60 touch-manipulation lg:hidden"
-          onMouseDown={() => setMoreOpen(false)}
-          onTouchStart={() => setMoreOpen(false)}
+          aria-hidden="true"
         />
       )}
 
-      <nav className="z-40 shrink-0 border-t border-white/10 bg-[#071013]/95 px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm lg:hidden">
+      <nav className="relative z-50 shrink-0 border-t border-white/10 bg-dda-bg/95 px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm lg:hidden">
         <div className="mx-auto flex max-w-lg justify-around text-xs text-gray-300">
           {mobileNavItems.map(({ id, icon: Icon }) => {
             const active = activePage === id;
@@ -43,7 +47,7 @@ export default function BottomNav({ activePage, onNavigate }) {
                 onClick={() => onNavigate(id)}
                 className={cn(
                   "flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 px-1.5 touch-manipulation",
-                  active ? "text-emerald-400" : "hover:text-white"
+                  active ? "text-dda-green-light" : "hover:text-white"
                 )}
               >
                 <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
@@ -52,15 +56,15 @@ export default function BottomNav({ activePage, onNavigate }) {
             );
           })}
 
-          <div className="relative">
+          <div className="relative" ref={moreTriggerRef}>
             <button
               type="button"
               aria-expanded={moreOpen}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => setMoreOpen((o) => !o)}
+              aria-haspopup="menu"
+              onClick={() => setMoreOpen((open) => !open)}
               className={cn(
                 "flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 px-1.5 touch-manipulation",
-                moreOpen || moreActive ? "text-emerald-400" : "hover:text-white"
+                moreOpen || moreActive ? "text-dda-green-light" : "hover:text-white"
               )}
             >
               <MoreHorizontal className="h-5 w-5" strokeWidth={moreOpen || moreActive ? 2.5 : 2} />
@@ -69,17 +73,15 @@ export default function BottomNav({ activePage, onNavigate }) {
 
             {moreOpen && (
               <div
-                className="absolute bottom-full right-0 z-50 mb-2 w-48 overflow-hidden rounded-xl border border-white/10 bg-[#071013] py-1 shadow-xl"
-                onMouseDown={(e) => e.stopPropagation()}
+                ref={moreMenuRef}
+                role="menu"
+                className="absolute bottom-full right-0 z-50 mb-2 w-48 overflow-hidden rounded-xl border border-white/10 bg-dda-bg py-1 shadow-xl"
               >
-                <div className="flex justify-end px-2 py-1.5">
-                  <LanguageToggle />
-                </div>
-                <div className="my-1 border-t border-white/10" />
                 {mobileMoreItems.map(({ id, icon: Icon }) => (
                   <button
                     key={id}
                     type="button"
+                    role="menuitem"
                     onClick={() => {
                       onNavigate(id);
                       setMoreOpen(false);
@@ -87,7 +89,7 @@ export default function BottomNav({ activePage, onNavigate }) {
                     className={cn(
                       "flex w-full items-center gap-2 px-3 py-2.5 text-sm",
                       activePage === id
-                        ? "bg-emerald-400/10 text-emerald-400"
+                        ? "dda-nav-active"
                         : "text-gray-300 hover:bg-white/5"
                     )}
                   >
@@ -98,6 +100,7 @@ export default function BottomNav({ activePage, onNavigate }) {
                 <div className="my-1 border-t border-white/10" />
                 <button
                   type="button"
+                  role="menuitem"
                   onClick={() => {
                     setMoreOpen(false);
                     logoutDollarADay();

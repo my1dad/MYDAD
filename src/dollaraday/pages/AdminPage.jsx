@@ -37,7 +37,7 @@ export default function AdminPage({ onNavigate }) {
             <button
               type="button"
               onClick={() => onNavigate?.("admin-bins")}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-400 transition hover:border-emerald-400/40 hover:bg-emerald-500/15"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-dda-green/25 bg-dda-green/10 px-3 py-2 text-xs font-semibold text-dda-green-light transition hover:border-dda-gold-light/30 hover:bg-dda-green/15"
             >
               <Database className="h-3.5 w-3.5" />
               {t("pages.admin.dataBins")}
@@ -50,7 +50,7 @@ export default function AdminPage({ onNavigate }) {
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {adminStats.map(({ key, label, value, icon: Icon }) => (
           <div key={key} className="dda-glass rounded-2xl p-4">
-            <Icon className="h-4 w-4 text-emerald-400" />
+            <Icon className="h-4 w-4 text-dda-green-light" />
             <p className="mt-2 text-xs uppercase tracking-wider text-gray-500">{label}</p>
             <p className="mt-1 text-xl font-bold text-white">{value}</p>
           </div>
@@ -81,7 +81,7 @@ export default function AdminPage({ onNavigate }) {
                   <span className="font-semibold text-white">{formatPoolCurrency(loan.amount)}</span>
                   <button
                     type="button"
-                    className="rounded-md bg-emerald-400/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400"
+                    className="rounded-md bg-dda-green-light/20 px-2 py-0.5 text-[10px] font-semibold text-dda-green-light"
                   >
                     {t("common.review")}
                   </button>
@@ -108,7 +108,7 @@ export default function AdminPage({ onNavigate }) {
                 <tr key={m.id} className="border-b border-white/5 last:border-0">
                   <td className="py-2 pr-4 font-medium text-white">{m.name}</td>
                   <td className="py-2 pr-4 text-gray-400">{m.days}</td>
-                  <td className="py-2 pr-4 tabular-nums text-emerald-400">
+                  <td className="py-2 pr-4 tabular-nums text-dda-green-light">
                     ${m.equity.toLocaleString()}
                   </td>
                   <td className="py-2 text-white">{m.score}</td>

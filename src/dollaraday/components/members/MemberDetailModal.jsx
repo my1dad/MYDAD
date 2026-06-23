@@ -28,17 +28,17 @@ import { useLocale } from "../../i18n/LocaleContext";
 import { useLocalizedData } from "../../i18n/localizedData";
 
 const loanStatusStyles = {
-  approved: "text-emerald-400",
-  in_review: "text-amber-400",
+  approved: "text-dda-green-light",
+  in_review: "text-dda-gold-light",
   declined: "text-red-400",
 };
 
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-white/10 bg-[#071013]/95 px-3 py-2 text-xs shadow-xl">
+    <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2 text-xs shadow-xl">
       <p className="text-gray-400">{label}</p>
-      <p className="mt-0.5 font-semibold text-emerald-400">${payload[0].value}</p>
+      <p className="mt-0.5 font-semibold text-dda-green-light">${payload[0].value}</p>
     </div>
   );
 }
@@ -47,9 +47,9 @@ function AccountTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
   return (
-    <div className="rounded-lg border border-white/10 bg-[#071013]/95 px-3 py-2 text-xs shadow-xl">
+    <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2 text-xs shadow-xl">
       <p className="font-medium text-white">{item.name}</p>
-      <p className="mt-0.5 text-emerald-400">${item.value.toLocaleString()}</p>
+      <p className="mt-0.5 text-dda-green-light">${item.value.toLocaleString()}</p>
     </div>
   );
 }
@@ -99,14 +99,14 @@ export default function MemberDetailModal({ member, open, onClose }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="member-detail-title"
-        className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#071013] shadow-2xl sm:max-h-[88dvh] sm:rounded-2xl"
+        className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-dda-bg shadow-2xl sm:max-h-[88dvh] sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-lime-400" />
+        <div className="dda-accent-bar" />
 
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-sm font-bold text-emerald-400 ring-1 ring-emerald-400/30">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-dda-green-light/15 text-sm font-bold text-dda-green-light ring-1 ring-dda-green-light/30">
               {detail.initials}
             </span>
             <div className="min-w-0">
@@ -163,7 +163,7 @@ export default function MemberDetailModal({ member, open, onClose }) {
                 className={cn(
                   "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition",
                   activeTab === id
-                    ? "bg-emerald-400/15 text-emerald-400"
+                    ? "bg-dda-green-light/15 text-dda-green-light"
                     : "text-gray-400 hover:text-white"
                 )}
               >
@@ -178,7 +178,7 @@ export default function MemberDetailModal({ member, open, onClose }) {
               <div className="dda-glass rounded-2xl p-4">
                 <p className="text-sm font-medium text-white">{t("memberModal.communityScore")}</p>
                 <div className="mt-3 flex items-end justify-between gap-3">
-                  <p className="text-3xl font-bold text-emerald-400">{detail.score}</p>
+                  <p className="text-3xl font-bold text-dda-green-light">{detail.score}</p>
                   <p className="text-sm text-gray-500">out of 100</p>
                 </div>
                 <ProgressBar value={detail.score} className="mt-3" />
@@ -224,7 +224,7 @@ export default function MemberDetailModal({ member, open, onClose }) {
                         ticks={[0, 1]}
                       />
                       <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(52,211,153,0.08)" }} />
-                      <Bar dataKey="amount" fill="#34d399" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                      <Bar dataKey="amount" fill="var(--color-dda-green-light)" radius={[4, 4, 0, 0]} maxBarSize={28} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -252,13 +252,13 @@ export default function MemberDetailModal({ member, open, onClose }) {
                         )}
                       >
                         <td className="px-3 py-1 text-gray-300">{row.date}</td>
-                        <td className="px-3 py-1 font-semibold tabular-nums text-emerald-400">
+                        <td className="px-3 py-1 font-semibold tabular-nums text-dda-green-light">
                           ${row.amount.toFixed(2)}
                         </td>
                         <td
                           className={cn(
                             "px-3 py-1 text-right capitalize",
-                            row.status === "completed" ? "text-emerald-400" : "text-amber-400"
+                            row.status === "completed" ? "text-dda-green-light" : "text-dda-gold-light"
                           )}
                         >
                           {translateStatus(row.status)}
@@ -298,7 +298,7 @@ export default function MemberDetailModal({ member, open, onClose }) {
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                      <CircleDollarSign className="h-5 w-5 text-emerald-400" />
+                      <CircleDollarSign className="h-5 w-5 text-dda-green-light" />
                       <span className="mt-1 text-xs font-bold text-white">
                         ${detail.accountTotal.toLocaleString()}
                       </span>
@@ -307,7 +307,9 @@ export default function MemberDetailModal({ member, open, onClose }) {
 
                   <ul className="space-y-2">
                     {detail.accounts.map((account) => {
-                      const pct = Math.round((account.value / detail.accountTotal) * 100);
+                      const pct = detail.accountTotal
+                        ? Math.round((account.value / detail.accountTotal) * 100)
+                        : 0;
                       return (
                         <li
                           key={account.name}

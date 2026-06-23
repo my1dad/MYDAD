@@ -3,6 +3,18 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --color-dda-bg: #071013;
+  --color-dda-bg-elevated: #0b171c;
+  --color-dda-ink: #071013;
+  --color-dda-green: #10b981;
+  --color-dda-green-light: #34d399;
+  --color-dda-green-soft: #6ee7b7;
+  --color-dda-lime: #84cc16;
+  --color-dda-lime-light: #a3e635;
+  --color-dda-lime-bright: #bef264;
+  --color-dda-gold: #d4a012;
+  --color-dda-gold-light: #fbbf24;
+  --color-dda-gold-soft: #fcd34d;
+  --color-dda-gold-deep: #b45309;
 }
 
 html {
@@ -21,7 +33,7 @@ body {
   overscroll-behavior: none;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  background: #071013;
+  background: var(--color-dda-bg);
   color: #ffffff;
   touch-action: manipulation;
 }
@@ -35,7 +47,7 @@ body {
 .dda-app {
   height: 100%;
   width: 100%;
-  background: #071013;
+  background: var(--color-dda-bg);
   color: #ffffff;
 }
 
@@ -51,7 +63,7 @@ body {
   max-height: 100dvh;
   overflow: hidden;
   touch-action: manipulation;
-  background: #071013;
+  background: var(--color-dda-bg);
   color: #ffffff;
 }
 
@@ -73,8 +85,9 @@ body {
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(ellipse 70% 50% at 15% 10%, rgba(163, 230, 53, 0.12), transparent 55%),
-    radial-gradient(ellipse 60% 45% at 85% 15%, rgba(52, 211, 153, 0.08), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 15% 10%, rgba(163, 230, 53, 0.14), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 85% 15%, rgba(52, 211, 153, 0.1), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 75% 90%, rgba(212, 160, 18, 0.07), transparent 48%),
     radial-gradient(ellipse 55% 40% at 50% 100%, rgba(132, 204, 22, 0.06), transparent 48%);
 }
 
@@ -92,8 +105,9 @@ body {
 
 .dda-mobile-shell__footer {
   position: relative;
-  z-index: 2;
+  z-index: 50;
   flex-shrink: 0;
+  overflow: visible;
 }
 
 .dda-page-stack {
@@ -112,17 +126,525 @@ body {
   flex: 1;
 }
 
-@media (max-width: 1023px) {
-  .dda-mobile-shell--login .dda-page-stack {
-    margin-inline: auto;
-    max-width: min(100%, 28rem);
+.dda-mobile-shell--login .dda-mobile-shell__main {
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+}
+
+.dda-login-stack {
+  display: flex;
+  width: 100%;
+  max-width: min(100%, 28rem);
+  flex-direction: column;
+  align-items: center;
+  margin-inline: auto;
+}
+
+.dda-login-widget {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.dda-login-widget__header {
+  min-height: 5.75rem;
+}
+
+.dda-login-widget__forms {
+  min-height: 22.5rem;
+}
+
+@media (min-width: 640px) {
+  .dda-login-widget__forms {
+    min-height: 20rem;
   }
+}
+
+.dda-login-contact {
+  padding: 0.75rem 1rem 1rem;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.dda-login-contact__links {
+  margin-top: 0.15rem;
+  display: flex flex-wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem 1.25rem;
+}
+
+.dda-login-contact__link {
+  color: var(--color-dda-green-light);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.dda-login-contact__link:hover {
+  color: var(--color-dda-gold-light);
+}
+
+.dda-login-contact__sep {
+  padding-inline: 0.35rem;
+  color: rgba(156, 163, 175, 0.55);
 }
 
 .dda-glass {
   border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.03) 55%,
+    rgba(212, 160, 18, 0.02) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 rgba(212, 160, 18, 0.04);
+}
+
+/* Brand accents — green primary, gold secondary */
+.dda-accent-bar {
+  height: 0.25rem;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-dda-green) 0%,
+    var(--color-dda-green-light) 42%,
+    var(--color-dda-lime-light) 78%,
+    var(--color-dda-gold-light) 100%
+  );
+}
+
+.dda-kicker {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--color-dda-green) 12%, transparent);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-dda-green-light);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-dda-green) 28%, transparent);
+}
+
+.dda-kicker::after {
+  content: "";
+  margin-left: 0.5rem;
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 9999px;
+  background: var(--color-dda-gold-light);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.45);
+}
+
+.dda-text-kicker {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-dda-green-light);
+}
+
+.dda-text-hero {
+  background: linear-gradient(
+    135deg,
+    var(--color-dda-lime) 0%,
+    var(--color-dda-lime-bright) 52%,
+    var(--color-dda-gold-soft) 88%,
+    var(--color-dda-gold-light) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 8px rgba(132, 204, 22, 0.18));
+}
+
+.dda-btn-primary {
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    135deg,
+    var(--color-dda-green) 0%,
+    color-mix(in srgb, var(--color-dda-green) 88%, var(--color-dda-gold) 12%) 100%
+  );
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-dda-ink);
+  box-shadow:
+    0 10px 24px -8px rgba(16, 185, 129, 0.35),
+    inset 0 1px 0 rgba(252, 211, 77, 0.15);
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.dda-btn-primary:hover {
+  background: linear-gradient(
+    135deg,
+    var(--color-dda-lime) 0%,
+    var(--color-dda-lime-bright) 55%,
+    var(--color-dda-gold-soft) 100%
+  );
+  box-shadow:
+    0 12px 28px -8px rgba(163, 230, 53, 0.28),
+    0 0 0 1px rgba(251, 191, 36, 0.12);
+}
+
+.dda-btn-tab-active {
+  background: color-mix(in srgb, var(--color-dda-green-light) 16%, transparent);
+  color: var(--color-dda-green-light);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-dda-green-light) 22%, transparent),
+    inset 0 -1px 0 rgba(251, 191, 36, 0.08);
+}
+
+.dda-input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  color: #ffffff;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dda-input::placeholder {
+  color: #6b7280;
+}
+
+.dda-input:focus {
+  border-color: var(--color-dda-green);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--color-dda-green) 22%, transparent),
+    0 0 0 1px rgba(251, 191, 36, 0.08);
+}
+
+.dda-nav-active {
+  background: color-mix(in srgb, var(--color-dda-green-light) 15%, transparent);
+  color: var(--color-dda-green-light);
+  box-shadow: inset 2px 0 0 var(--color-dda-gold-light);
+}
+
+.dda-nav-icon {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-dda-green-light) 22%, transparent),
+    color-mix(in srgb, var(--color-dda-gold) 8%, transparent)
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-dda-green-light) 32%, transparent),
+    inset 0 1px 0 rgba(252, 211, 77, 0.08);
+  color: var(--color-dda-green-light);
+}
+
+.dda-brand-card {
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    0 20px 40px -16px rgba(16, 185, 129, 0.12),
+    0 8px 24px -12px rgba(212, 160, 18, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.dda-glow-green {
+  background: color-mix(in srgb, var(--color-dda-green) 10%, transparent);
+}
+
+.dda-glow-gold {
+  background: color-mix(in srgb, var(--color-dda-gold) 8%, transparent);
+}
+
+.dda-highlight-pill {
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #d1d5db;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.dda-progress-track {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dda-progress-fill {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    var(--color-dda-green) 0%,
+    var(--color-dda-green-light) 70%,
+    var(--color-dda-gold-light) 100%
+  );
+  transition: width 0.5s ease;
+}
+
+.dda-avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-dda-green-light) 22%, transparent),
+    color-mix(in srgb, var(--color-dda-gold) 10%, transparent)
+  );
+  font-weight: 700;
+  color: var(--color-dda-green-light);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-dda-green-light) 32%, transparent),
+    inset 0 1px 0 rgba(252, 211, 77, 0.1);
+}
+
+.dda-home-contribute-btn {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 0.875rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.04) 48%,
+    rgba(212, 160, 18, 0.03) 100%
+  );
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 14px rgba(0, 0, 0, 0.18);
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.dda-home-contribute-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 42%);
+  pointer-events: none;
+}
+
+.dda-home-contribute-btn:hover {
+  border-color: color-mix(in srgb, var(--color-dda-green-light) 28%, rgba(255, 255, 255, 0.2));
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.07) 48%,
+    rgba(212, 160, 18, 0.05) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 8px 20px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(251, 191, 36, 0.08);
+  transform: translateY(-1px);
+}
+
+.dda-home-contribute-btn:active {
+  transform: translateY(0);
+}
+
+.dda-home-payment-logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.75rem;
+  padding-top: 0.5rem;
+}
+
+.dda-home-payment-logo-link {
+  display: inline-flex;
+  line-height: 0;
+  text-decoration: none;
+}
+
+.dda-home-payment-logo {
+  height: 1.6rem;
+  width: auto;
+  object-fit: contain;
+  opacity: 0.62;
+  filter: grayscale(1) brightness(1.05) contrast(0.92);
+  transition: opacity 0.2s ease;
+}
+
+.dda-home-payment-logo-link:hover .dda-home-payment-logo,
+.dda-home-payment-logo:hover {
+  opacity: 0.75;
+}
+
+.dda-pool-widget {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.dda-pool-widget__card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.03) 52%,
+    rgba(212, 160, 18, 0.04) 100%
+  );
+  box-shadow:
+    0 18px 40px -18px rgba(16, 185, 129, 0.18),
+    0 10px 24px -16px rgba(212, 160, 18, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.dda-pool-widget:hover .dda-pool-widget__card {
+  border-color: color-mix(in srgb, var(--color-dda-gold-light) 22%, rgba(255, 255, 255, 0.12));
+  box-shadow:
+    0 22px 44px -18px rgba(16, 185, 129, 0.22),
+    0 12px 28px -14px rgba(212, 160, 18, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+.dda-pool-widget:active .dda-pool-widget__card {
+  transform: translateY(0);
+}
+
+.dda-pool-widget__glow {
+  pointer-events: none;
+  position: absolute;
+  right: -2rem;
+  top: -3rem;
+  height: 10rem;
+  width: 10rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.12), transparent 68%);
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+.dda-pool-widget:hover .dda-pool-widget__glow {
+  opacity: 1;
+}
+
+.dda-pool-widget__live {
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 0.2rem 0.55rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-dda-green-light);
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.22);
+}
+
+.dda-pool-widget__amount {
+  font-size: clamp(1.75rem, 7vw, 2.5rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    var(--color-dda-green-soft) 42%,
+    var(--color-dda-gold-soft) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.dda-pool-widget__stat {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  border-radius: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.65rem 0.75rem;
+}
+
+.dda-pool-widget__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(156, 163, 175, 0.9);
+}
+
+.dda-pool-widget:hover .dda-pool-widget__footer {
+  color: var(--color-dda-gold-light);
+}
+
+.dda-home-welcome {
+  line-height: 1.65;
+}
+
+.dda-home-welcome em {
+  font-style: italic;
+  font-weight: 700;
+  color: var(--color-dda-green-light);
+}
+
+.dda-home-brand-line {
+  height: 2px;
+  border: 0;
+  margin: 0.35rem 0 0.5rem;
+  background: linear-gradient(
+    90deg,
+    var(--color-dda-green-light),
+    color-mix(in srgb, var(--color-dda-green-light) 70%, var(--color-dda-gold-light) 30%)
+  );
 }
 
 .dda-panel {
@@ -167,16 +689,17 @@ body {
 }
 
 .dda-glass-btn:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: color-mix(in srgb, var(--color-dda-green-light) 28%, rgba(255, 255, 255, 0.2));
   background: linear-gradient(
     165deg,
     rgba(255, 255, 255, 0.14) 0%,
     rgba(255, 255, 255, 0.07) 48%,
-    rgba(255, 255, 255, 0.04) 100%
+    rgba(212, 160, 18, 0.04) 100%
   );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 8px 24px rgba(0, 0, 0, 0.22);
+    0 8px 24px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(251, 191, 36, 0.06);
   transform: translateY(-1px);
 }
 
@@ -214,6 +737,7 @@ body {
     90deg,
     transparent,
     rgba(52, 211, 153, 0.45),
+    rgba(251, 191, 36, 0.22),
     transparent
   );
   opacity: 0;
@@ -244,7 +768,8 @@ body {
   inset: 0;
   background: linear-gradient(
     90deg,
-    rgba(52, 211, 153, 0.06),
+    rgba(52, 211, 153, 0.07),
+    rgba(251, 191, 36, 0.04),
     transparent 55%
   );
   opacity: 0;
@@ -254,4 +779,655 @@ body {
 
 .dda-featured-member:hover::before {
   opacity: 1;
+}
+
+.dda-members-list {
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(52, 211, 153, 0.12);
+}
+
+.dda-members-list__row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  border: 0;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dda-members-list__row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.dda-members-list__row:nth-child(even) {
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.dda-members-list__row:hover {
+  background: rgba(52, 211, 153, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.14);
+}
+
+.dda-members-list__row:focus-visible {
+  outline: 2px solid rgba(52, 211, 153, 0.45);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.dda-members-list__status--active {
+  color: var(--color-dda-green-soft);
+  background: rgba(16, 185, 129, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.22);
+}
+
+.dda-members-list__status--inactive {
+  color: #fcd34d;
+  background: rgba(251, 191, 36, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.22);
+}
+
+.dda-accounts-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dda-accounts-tab {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(52, 211, 153, 0.12);
+  background: rgba(255, 255, 255, 0.025);
+  color: #d1d5db;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dda-accounts-tab:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(52, 211, 153, 0.2);
+}
+
+.dda-accounts-tab--active {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(52, 211, 153, 0.35);
+  box-shadow:
+    inset 3px 0 0 var(--color-dda-gold-light),
+    0 8px 20px rgba(0, 0, 0, 0.18);
+  color: #fff;
+}
+
+.dda-accounts-tab__label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.dda-accounts-tab__type {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #9ca3af;
+  text-transform: lowercase;
+}
+
+.dda-accounts-tab--active .dda-accounts-tab__type {
+  color: var(--color-dda-green-soft);
+}
+
+.dda-accounts-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dda-accounts-hub__card {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  text-align: left;
+  border-radius: 1rem;
+  border: 1px solid rgba(52, 211, 153, 0.14);
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(7, 16, 19, 0.72));
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dda-accounts-hub__card:hover {
+  border-color: rgba(52, 211, 153, 0.28);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  transform: translateY(-1px);
+}
+
+.dda-accounts-hub__icon {
+  display: flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.95rem;
+}
+
+.dda-bank-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(52, 211, 153, 0.18);
+  background: linear-gradient(165deg, rgba(16, 185, 129, 0.12), rgba(7, 16, 19, 0.92));
+  padding: 1.25rem 1.35rem 1.4rem;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+}
+
+.dda-bank-hero__glow {
+  position: absolute;
+  inset: -30% auto auto -20%;
+  height: 12rem;
+  width: 12rem;
+  border-radius: 9999px;
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+.dda-bank-hero__balance {
+  margin-top: 0.35rem;
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.dda-bank-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.dda-bank-actions__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 4.25rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #d1d5db;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-bank-actions__btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.dda-bank-actions__btn--active {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--color-dda-green-soft);
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.18);
+}
+
+.dda-bank-amount-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(52, 211, 153, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.85rem 1rem;
+}
+
+.dda-bank-field {
+  width: 100%;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.85rem 1rem;
+  font-size: 0.875rem;
+  color: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.dda-bank-field:focus {
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+.dda-bank-transfer-route {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  padding: 0.85rem;
+}
+
+.dda-bank-transfer-route__node {
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 0.75rem;
+}
+
+.dda-bank-transfer-route__swap {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--color-dda-green-light);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dda-bank-transfer-route__swap:hover {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(52, 211, 153, 0.45);
+  transform: rotate(180deg);
+}
+
+.dda-bank-transfer-route__swap:active {
+  transform: rotate(180deg) scale(0.95);
+}
+
+.dda-bank-transfer-route__divider {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #9ca3af;
+}
+
+.dda-bank-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dda-bank-ledger__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.75rem 0.85rem;
+}
+
+.dda-bank-ledger__row--editing {
+  align-items: flex-start;
+  border-color: rgba(52, 211, 153, 0.22);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.dda-bank-ledger__actions {
+  display: flex;
+  shrink: 0;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dda-bank-ledger__icon-btn {
+  display: flex;
+  height: 1.75rem;
+  width: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #9ca3af;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-bank-ledger__icon-btn:hover {
+  color: #fff;
+  border-color: rgba(52, 211, 153, 0.25);
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.dda-bank-ledger__icon-btn--danger:hover {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.dda-bank-ledger__action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #d1d5db;
+}
+
+.dda-bank-ledger__action-btn--save {
+  border-color: rgba(52, 211, 153, 0.28);
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--color-dda-green-soft);
+}
+
+.dda-bank-ledger__action-btn--save:hover {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.dda-bank-ledger__icon {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.dda-bank-ledger-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dda-bank-ledger-pager__btn {
+  min-width: 5.5rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.dda-bank-ledger-pager__btn:hover:not(:disabled) {
+  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.25);
+  color: var(--color-dda-green-soft);
+}
+
+.dda-bank-ledger-pager__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.dda-bank-ledger-pager__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+}
+
+.dda-recurring-type {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.dda-recurring-type__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #9ca3af;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.dda-recurring-type__btn:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #e5e7eb;
+}
+
+.dda-recurring-type__btn--income {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--color-dda-green-soft);
+}
+
+.dda-recurring-type__btn--expense {
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+}
+
+.dda-recurring-type__btn--transfer {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.08);
+  color: #7dd3fc;
+}
+
+.dda-recurring-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dda-recurring-list__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.75rem;
+}
+
+.dda-recurring-list__item--paused {
+  opacity: 0.65;
+}
+
+.dda-recurring-list__icon {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+}
+
+.dda-recurring-list__icon--income {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--color-dda-green-light);
+}
+
+.dda-recurring-list__icon--expense {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+
+.dda-recurring-list__icon--transfer {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+}
+
+.dda-recurring-list__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dda-recurring-calendar {
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  padding: 0.85rem;
+}
+
+.dda-recurring-calendar__header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.dda-recurring-calendar__nav {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #d1d5db;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.dda-recurring-calendar__nav:hover {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.08);
+  color: var(--color-dda-green-soft);
+}
+
+.dda-recurring-calendar__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.dda-recurring-calendar__weekday {
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.dda-recurring-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+}
+
+.dda-recurring-calendar__day {
+  display: inline-flex;
+  height: 2.15rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #e5e7eb;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.dda-recurring-calendar__day:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dda-recurring-calendar__day--muted {
+  color: #6b7280;
+}
+
+.dda-recurring-calendar__day--today {
+  border-color: rgba(251, 191, 36, 0.35);
+  color: #fcd34d;
+}
+
+.dda-recurring-calendar__day--selected {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(52, 211, 153, 0.16);
+  color: var(--color-dda-green-soft);
+}
+
+.dda-recurring-calendar__today {
+  margin-top: 0.75rem;
+  width: 100%;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #9ca3af;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.dda-recurring-calendar__today:hover {
+  border-color: rgba(52, 211, 153, 0.3);
+  color: var(--color-dda-green-soft);
+}
+
+.dda-card-collapse-trigger {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dda-card-collapse-trigger__chevron {
+  transition: transform 0.2s ease, color 0.15s ease;
+}
+
+.dda-card-collapse-trigger:hover .dda-card-collapse-trigger__chevron {
+  color: #d1d5db;
+}
+
+.dda-card-collapse-trigger__chevron--open {
+  transform: rotate(180deg);
 }

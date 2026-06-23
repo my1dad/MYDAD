@@ -24,7 +24,7 @@ export default function AdminDataBinsPage({ onNavigate }) {
       />
 
       <div className="dda-glass flex items-center gap-3 rounded-2xl px-4 py-3 sm:px-5">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-dda-green/15 text-dda-green-light ring-1 ring-dda-green/25">
           <Database className="h-5 w-5" strokeWidth={2.25} />
         </span>
         <div>

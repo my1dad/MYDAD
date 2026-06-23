@@ -8,10 +8,7 @@ function HeaderHighlights({ items }) {
   return (
     <ul className="mt-4 flex flex-wrap gap-2">
       {items.map((item) => (
-        <li
-          key={item}
-          className="rounded-full bg-black/25 px-3 py-1 text-xs font-medium text-gray-300 ring-1 ring-white/10"
-        >
+        <li key={item} className="dda-highlight-pill">
           {item}
         </li>
       ))}
@@ -33,17 +30,17 @@ export default function PageHeader({
   if (variant === "hero") {
     return (
       <header className={cn("dda-glass relative mb-4 overflow-hidden sm:mb-6", className)}>
-        <div className="h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-lime-400" />
+        <div className="dda-accent-bar" />
         <div className="relative p-4 sm:p-6">
           <div className="absolute right-4 top-4 z-10 sm:right-5 sm:top-5">
             <LanguageToggle />
           </div>
           <div
-            className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full bg-emerald-500/10 blur-3xl"
+            className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full dda-glow-green blur-3xl"
             aria-hidden="true"
           />
           <div
-            className="pointer-events-none absolute -bottom-16 left-1/3 h-32 w-32 rounded-full bg-emerald-400/5 blur-3xl"
+            className="pointer-events-none absolute -bottom-16 left-1/3 h-32 w-32 rounded-full dda-glow-gold blur-3xl"
             aria-hidden="true"
           />
 
@@ -54,16 +51,12 @@ export default function PageHeader({
                   src={DOLLARADAY_LOGO_URL}
                   alt=""
                   draggable={false}
-                  className="h-[4.5rem] w-auto max-w-[10rem] object-contain sm:h-20 sm:max-w-[11rem]"
+                  className="h-32 w-auto max-w-[14rem] object-contain sm:h-36 sm:max-w-[16rem]"
                 />
               </div>
 
               <div className="min-w-0 text-center sm:text-left">
-                {kicker ? (
-                  <p className="inline-flex items-center rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-400 ring-1 ring-emerald-500/25">
-                    {kicker}
-                  </p>
-                ) : null}
+                {kicker ? <p className="dda-kicker">{kicker}</p> : null}
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                   <h1
                     className={cn(
@@ -106,11 +99,7 @@ export default function PageHeader({
         <LanguageToggle />
       </div>
       <div className="min-w-0">
-        {kicker ? (
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-400">
-            {kicker}
-          </p>
-        ) : null}
+        {kicker ? <p className="dda-text-kicker">{kicker}</p> : null}
         <div className={cn("flex flex-wrap items-center gap-2", kicker && "mt-1.5")}>
           <h1 className={cn("font-bold tracking-tight text-white", kicker ? "text-2xl sm:text-3xl" : "text-2xl sm:text-3xl")}>
             {title}

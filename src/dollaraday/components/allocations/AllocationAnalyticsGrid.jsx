@@ -28,7 +28,7 @@ function ComparisonCard({ item, t }) {
 
   const deltaColor =
     delta.direction === "up"
-      ? "text-emerald-400"
+      ? "text-dda-green-light"
       : delta.direction === "down"
         ? "text-red-400"
         : "text-gray-400";
@@ -43,7 +43,7 @@ function ComparisonCard({ item, t }) {
           <p className="mt-0.5 text-xs text-gray-400">{item.caption}</p>
         </div>
         {isMilestone ? (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/25">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-dda-gold/15 text-dda-gold-light ring-1 ring-dda-gold/25">
             <Target className="h-4 w-4" strokeWidth={2.25} />
           </span>
         ) : (
@@ -51,7 +51,7 @@ function ComparisonCard({ item, t }) {
             className={cn(
               "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset",
               delta.direction === "up"
-                ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                ? "bg-dda-green/10 text-dda-green-light ring-dda-green/20"
                 : delta.direction === "down"
                   ? "bg-red-500/10 text-red-400 ring-red-500/20"
                   : "bg-white/5 text-gray-400 ring-white/10"
@@ -71,8 +71,8 @@ function ComparisonCard({ item, t }) {
             {formatComparisonValue(previous, format)}
           </p>
         </div>
-        <div className="dda-panel rounded-xl p-3 ring-1 ring-emerald-500/20">
-          <p className="text-[10px] uppercase tracking-wide text-emerald-400/80">{t("common.now")}</p>
+        <div className="dda-panel rounded-xl p-3 ring-1 ring-dda-green/20">
+          <p className="text-[10px] uppercase tracking-wide text-dda-green-light/80">{t("common.now")}</p>
           <p className="mt-1 text-sm font-bold tabular-nums text-white sm:text-base">
             {formatComparisonValue(current, format)}
           </p>
@@ -83,11 +83,11 @@ function ComparisonCard({ item, t }) {
         <div className="mt-3">
           <div className="mb-1 flex justify-between text-[11px] text-gray-500">
             <span>{t("common.progressTo", { target: target.toLocaleString() })}</span>
-            <span className="font-semibold text-amber-400">{milestonePct}%</span>
+            <span className="font-semibold text-dda-gold-light">{milestonePct}%</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-400"
+              className="h-full rounded-full bg-gradient-to-r from-dda-gold to-dda-green-light"
               style={{ width: `${Math.min(100, milestonePct)}%` }}
             />
           </div>

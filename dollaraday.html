@@ -77,6 +77,7 @@
         background:
           radial-gradient(circle at 50% 35%, rgba(52, 211, 153, 0.14), transparent 52%),
           radial-gradient(circle at 20% 80%, rgba(16, 185, 129, 0.1), transparent 40%),
+          radial-gradient(circle at 80% 20%, rgba(251, 191, 36, 0.08), transparent 38%),
           linear-gradient(180deg, rgba(7, 16, 19, 0.96), rgba(7, 16, 19, 0.94));
         backdrop-filter: blur(10px);
       }
@@ -110,8 +111,9 @@
       }
       #initial-preloader-brand-logo {
         display: block;
-        width: min(11rem, 72vw);
-        max-height: 7.5rem;
+        height: min(12rem, 44vw);
+        width: auto;
+        max-width: min(16rem, 90vw);
         object-fit: contain;
         filter: drop-shadow(0 8px 18px rgba(16, 185, 129, 0.12));
       }
@@ -168,7 +170,7 @@
         margin: 0;
         font: 700 1.05rem/1.2 Inter, system-ui, sans-serif;
         letter-spacing: -0.02em;
-        background: linear-gradient(135deg, #84cc16 0%, #34d399 45%, #10b981 100%);
+        background: linear-gradient(135deg, #84cc16 0%, #34d399 52%, #fbbf24 100%);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
@@ -183,7 +185,7 @@
           <div id="initial-preloader-shell">
             <img
               id="initial-preloader-brand-logo"
-              src="./my-dollar-a-day-logo-transparent.png"
+              src="./dad-v2-logo-transparent.png"
               alt=""
               draggable="false"
             />

@@ -9,6 +9,7 @@ import DashboardPage from "./pages/DashboardPage";
 import InvestmentsPage from "./pages/InvestmentsPage";
 import LiquidityPoolPage from "./pages/LiquidityPoolPage";
 import LoansPage from "./pages/LoansPage";
+import AccountsPage from "./pages/AccountsPage";
 import MembersPage from "./pages/MembersPage";
 import NewPostPage from "./pages/NewPostPage";
 
@@ -18,6 +19,7 @@ const pages = {
   members: MembersPage,
   pool: LiquidityPoolPage,
   investments: InvestmentsPage,
+  accounts: AccountsPage,
   loans: LoansPage,
   community: CommunityPage,
   post: NewPostPage,
