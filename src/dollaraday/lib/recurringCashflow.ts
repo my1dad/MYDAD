@@ -38,6 +38,7 @@ interface RecurringCashflowsPayload {
 export const RECURRING_CASHFLOWS_ID = "recurring-cashflows";
 const CHECK_INTERVAL_MS = 60_000;
 const MAX_CATCH_UP = 30;
+const EMPTY_SCHEDULES: RecurringCashflow[] = [];
 
 const listeners = new Set<() => void>();
 let automationTimer: ReturnType<typeof setInterval> | null = null;
@@ -54,7 +55,7 @@ function readPayload(): RecurringCashflowsPayload {
   const settings = readDataBin("settings");
   const record = settings.records.find((item) => item.id === RECURRING_CASHFLOWS_ID);
   const payload = record?.payload as Partial<RecurringCashflowsPayload> | undefined;
-  const schedules = Array.isArray(payload?.schedules) ? payload.schedules : [];
+  const schedules = Array.isArray(payload?.schedules) ? payload.schedules : EMPTY_SCHEDULES;
   return { schedules };
 }
 
@@ -183,14 +184,16 @@ function applyScheduleOccurrence(schedule: RecurringCashflow, dayYmd: string): b
 
 export function getRecurringCashflows(profileId?: string): RecurringCashflow[] {
   const { schedules } = readPayload();
+  if (schedules.length === 0) return EMPTY_SCHEDULES;
   if (!profileId) return schedules;
 
   const cached = filteredSnapshotCache.get(profileId);
   if (cached?.source === schedules) return cached.result;
 
   const result = schedules.filter((item) => item.profileId === profileId);
-  filteredSnapshotCache.set(profileId, { source: schedules, result });
-  return result;
+  const snapshot = result.length === 0 ? EMPTY_SCHEDULES : result;
+  filteredSnapshotCache.set(profileId, { source: schedules, result: snapshot });
+  return snapshot;
 }
 
 export function addRecurringCashflow(input: {
