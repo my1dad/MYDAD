@@ -21,3 +21,4 @@ bins/**/*
 !bins/**/
 !bins/**/.gitkeep
 !bins/README.md
+.env*

@@ -46,7 +46,14 @@ else
 fi
 
 echo "==> Pushing ${BRANCH} to ${GITHUB_USER}/${REPO_NAME}..."
-git push -u "$REMOTE_NAME" "$BRANCH"
+# Bypass stale gh git-credential helper if gh binary was removed
+git -c credential.helper= -c 'credential.https://github.com.helper=' push -u "$REMOTE_NAME" "$BRANCH"
+
+echo "==> Supabase env (add anon key from Supabase Dashboard → Settings → API):"
+echo "  printf 'YOUR_ANON_KEY' | npx vercel env add VITE_SUPABASE_ANON_KEY production --yes"
+echo "  printf 'YOUR_ANON_KEY' | npx vercel env add VITE_SUPABASE_ANON_KEY preview --yes"
+echo "  printf 'YOUR_ANON_KEY' | npx vercel env add VITE_SUPABASE_ANON_KEY development --yes"
+echo "  See supabase/SUPABASE_SETUP.md — run schema.sql and enable Realtime first."
 
 echo "==> Checking Vercel CLI login..."
 VC_USER="$(npx vercel whoami 2>/dev/null | tail -1 || true)"

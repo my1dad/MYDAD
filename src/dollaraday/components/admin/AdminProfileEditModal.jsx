@@ -44,11 +44,11 @@ export default function AdminProfileEditModal({ profile, open, onClose, onSaved 
 
   if (!open || !profile) return null;
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
 
-    const result = updateDadProfileByAdmin(profile.id, {
+    const result = await updateDadProfileByAdmin(profile.id, {
       username,
       displayName,
       email,

@@ -43,7 +43,7 @@ export async function masterResetDashboard(): Promise<void> {
   }
 
   resetPoolStateToSeed();
-  ensureDadAdminProfile();
+  await ensureDadAdminProfile();
   setDadSessionId(null);
 
   await flushInternalDatabase();

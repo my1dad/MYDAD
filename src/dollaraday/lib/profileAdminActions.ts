@@ -12,6 +12,7 @@ import {
   updateDadProfileRecord,
   type DadProfile,
 } from "./dadProfileStorage";
+import { hashPassword } from "./passwordHash";
 import { removeDataRecord, removeDataRecordsByPayload } from "./internalDatabase";
 import { formatPhoneInput } from "./phoneFormat";
 import { logProfileActivity } from "./profileActivity";
@@ -173,7 +174,7 @@ export function denyDadProfileByAdmin(profileId: string): AdminActionResult {
   return { ok: true, profile: updated };
 }
 
-export function updateDadProfileByAdmin(
+export async function updateDadProfileByAdmin(
   profileId: string,
   input: {
     username: string;
@@ -183,7 +184,7 @@ export function updateDadProfileByAdmin(
     password?: string;
     role?: string;
   },
-): AdminActionResult {
+): Promise<AdminActionResult> {
   const profile = findDadProfileById(profileId);
   const blocked = guardProtectedProfile(profile);
   if (blocked) return blocked;
@@ -205,6 +206,7 @@ export function updateDadProfileByAdmin(
     return { ok: false, error: "That username is already taken." };
   }
 
+  const hashedPassword = password ? await hashPassword(password) : null;
   const updated = updateDadProfileRecord(profileId, (current) => ({
     ...current,
     username,
@@ -213,7 +215,7 @@ export function updateDadProfileByAdmin(
     email: input.email?.trim() || undefined,
     phone: input.phone?.trim() ? formatPhoneInput(input.phone) : undefined,
     role,
-    password: password || current.password,
+    password: hashedPassword ?? current.password,
   }));
   if (!updated) return { ok: false, error: "Profile not found." };
 
@@ -228,13 +230,13 @@ export function updateDadProfileByAdmin(
   return { ok: true, profile: updated };
 }
 
-export function updateMasterAdminOwnProfile(input: {
+export async function updateMasterAdminOwnProfile(input: {
   displayName: string;
   email?: string;
   phone?: string;
   password?: string;
-}): AdminActionResult {
-  const profile = ensureDadAdminProfile();
+}): Promise<AdminActionResult> {
+  const profile = await ensureDadAdminProfile();
   const displayName = input.displayName.trim();
   const password = input.password?.trim() ?? "";
 
@@ -243,13 +245,14 @@ export function updateMasterAdminOwnProfile(input: {
     return { ok: false, error: "Password must be at least 4 characters." };
   }
 
+  const hashedPassword = password ? await hashPassword(password) : null;
   const updated = updateDadProfileRecord(profile.id, (current) => ({
     ...current,
     displayName,
     fullName: displayName,
     email: input.email?.trim() || undefined,
     phone: input.phone?.trim() ? formatPhoneInput(input.phone) : undefined,
-    password: password || current.password,
+    password: hashedPassword ?? current.password,
   }));
 
   if (!updated) return { ok: false, error: "Profile not found." };

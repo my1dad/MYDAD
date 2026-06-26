@@ -54,12 +54,12 @@ export default function DadLoginPage() {
     setScrollKey((tick) => tick + 1);
   };
 
-  const handleSignIn = (event) => {
+  const handleSignIn = async (event) => {
     event.preventDefault();
     setError("");
     setSuccess("");
 
-    const result = login(username, password, { rememberMe });
+    const result = await login(username, password, { rememberMe });
     if (!result.ok) {
       setError(
         result.error === "suspended"
@@ -79,7 +79,7 @@ export default function DadLoginPage() {
     });
   };
 
-  const handleCreateAccount = (event) => {
+  const handleCreateAccount = async (event) => {
     event.preventDefault();
     setError("");
 
@@ -88,7 +88,7 @@ export default function DadLoginPage() {
       return;
     }
 
-    const result = register({
+    const result = await register({
       username,
       password,
       displayName,

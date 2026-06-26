@@ -10,6 +10,7 @@ import {
   isProfilePendingApproval,
   isProfileSuspended,
   loginDadAdmin,
+  profilePasswordMatches,
   setDadSessionId,
   subscribeDadProfiles,
 } from "../lib/dadProfileStorage";
@@ -67,20 +68,20 @@ export function DadAuthProvider({ children }) {
     });
   }, []);
 
-  const login = useCallback((username, password, options = {}) => {
+  const login = useCallback(async (username, password, options = {}) => {
     const rememberMe = Boolean(options.rememberMe);
 
-    const adminMatch = loginDadAdmin(username, password);
+    const adminMatch = await loginDadAdmin(username, password);
     if (adminMatch) {
       setProfile(beginAuthenticatedSession(adminMatch, "login", rememberMe));
       setAuthEntryTick((tick) => tick + 1);
       return { ok: true };
     }
 
-    const matched = authenticateDadProfile(username, password);
+    const matched = await authenticateDadProfile(username, password);
     if (!matched) {
       const existing = findDadProfileByUsername(username);
-      if (existing && existing.password === password.trim()) {
+      if (existing && (await profilePasswordMatches(existing, password))) {
         if (isProfilePendingApproval(existing)) {
           return { ok: false, error: "pendingApproval" };
         }
@@ -99,8 +100,8 @@ export function DadAuthProvider({ children }) {
     return { ok: true };
   }, []);
 
-  const register = useCallback((input) => {
-    const result = createDadProfile(input);
+  const register = useCallback(async (input) => {
+    const result = await createDadProfile(input);
     if ("error" in result) {
       return { ok: false, error: result.error };
     }

@@ -153,13 +153,13 @@ export default function AdminSettingsCard() {
     setStatus(t("pages.admin.settings.timezoneUpdated"));
   };
 
-  const handleAccountSave = (event) => {
+  const handleAccountSave = async (event) => {
     event.preventDefault();
     setSavingAccount(true);
     setError("");
     setStatus("");
 
-    const result = updateMasterAdminOwnProfile({
+    const result = await updateMasterAdminOwnProfile({
       displayName,
       email,
       phone,

@@ -7,6 +7,7 @@ import {
 import { generateProId, normalizeProId } from "./proId";
 import { formatPhoneInput } from "./phoneFormat";
 import { MEMBER_PROFILE_TEMPLATE } from "../../config/memberProfile";
+import { hashPassword, isPasswordHash, verifyPassword } from "./passwordHash";
 
 export type DadProfileAccountStatus = "active" | "suspended";
 export type DadProfileApprovalStatus = "pending" | "approved" | "denied";
@@ -165,14 +166,14 @@ export function ensureProfileProIds(): void {
   if (changed) writeProfiles(next);
 }
 
-export function createDadProfile(input: {
+export async function createDadProfile(input: {
   username: string;
   password: string;
   displayName: string;
   email?: string;
   phone?: string;
   profilePhotoUrl?: string;
-}): { profile: DadProfile } | { error: string } {
+}): Promise<{ profile: DadProfile } | { error: string }> {
   const username = input.username.trim();
   const password = input.password.trim();
   const displayName = input.displayName.trim();
@@ -189,7 +190,7 @@ export function createDadProfile(input: {
   const profile: DadProfile = {
     id: createId(),
     username,
-    password,
+    password: await hashPassword(password),
     displayName,
     fullName: displayName,
     email: input.email?.trim() || undefined,
@@ -206,13 +207,19 @@ export function createDadProfile(input: {
   return { profile };
 }
 
-export function authenticateDadProfile(username: string, password: string): DadProfile | null {
+export async function authenticateDadProfile(
+  username: string,
+  password: string,
+): Promise<DadProfile | null> {
   const profile = findDadProfileByUsername(username);
-  if (!profile || profile.password !== password.trim()) return null;
+  if (!profile || !(await verifyPassword(password, profile.password))) return null;
   if (!isProfileLoginAllowed(profile)) return null;
 
+  const upgradedPassword =
+    !isPasswordHash(profile.password) ? await hashPassword(password) : profile.password;
   const updated: DadProfile = {
     ...profile,
+    password: upgradedPassword,
     lastLoginAt: new Date().toISOString(),
   };
 
@@ -220,7 +227,14 @@ export function authenticateDadProfile(username: string, password: string): DadP
   return updated;
 }
 
-export function ensureDadAdminProfile(): DadProfile {
+export async function profilePasswordMatches(
+  profile: DadProfile,
+  password: string,
+): Promise<boolean> {
+  return verifyPassword(password, profile.password);
+}
+
+export async function ensureDadAdminProfile(): Promise<DadProfile> {
   const profiles = readProfiles();
   let profile = profiles.find((item) => item.username.toLowerCase() === ADMIN_USERNAME);
 
@@ -229,7 +243,7 @@ export function ensureDadAdminProfile(): DadProfile {
     profile = {
       id: createId(),
       username: ADMIN_USERNAME,
-      password: ADMIN_PASSWORD,
+      password: await hashPassword(ADMIN_PASSWORD),
       displayName: ADMIN_WORKSPACE_NAME,
       fullName: ADMIN_ROLE,
       role: ADMIN_ROLE,
@@ -263,13 +277,20 @@ export function ensureDadAdminProfile(): DadProfile {
   return profile;
 }
 
-export function loginDadAdmin(username: string, password: string): DadProfile | null {
+export async function loginDadAdmin(username: string, password: string): Promise<DadProfile | null> {
   const normalized = username.trim().toLowerCase();
-  if (normalized !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) return null;
+  if (normalized !== ADMIN_USERNAME) return null;
 
-  const profile = ensureDadAdminProfile();
+  const profile = await ensureDadAdminProfile();
+  if (!(await verifyPassword(password, profile.password))) {
+    if (password !== ADMIN_PASSWORD) return null;
+  }
+
+  const upgradedPassword =
+    !isPasswordHash(profile.password) ? await hashPassword(password) : profile.password;
   const updated: DadProfile = {
     ...profile,
+    password: upgradedPassword,
     lastLoginAt: new Date().toISOString(),
   };
 
