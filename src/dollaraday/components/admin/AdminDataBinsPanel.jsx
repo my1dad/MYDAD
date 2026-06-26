@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import DashboardCard, { Badge } from "../layout/DashboardCard";
 import { DATA_BIN_DEFINITIONS } from "../../lib/dataBins";
 import { formatEasternDateTime } from "../../lib/dateTime";
+import { useLocale } from "../../i18n/LocaleContext";
 import { useInternalDatabase } from "../../hooks/useInternalDatabase";
 import { resetWorkspaceForBacktest } from "../../lib/workspaceReset";
 
@@ -19,15 +20,16 @@ const modeLabels = {
   electron: "Electron userData",
 };
 
-function formatTimestamp(value) {
+function formatTimestamp(value, locale) {
   try {
-    return formatEasternDateTime(value);
+    return formatEasternDateTime(value, locale);
   } catch {
     return value;
   }
 }
 
 export default function AdminDataBinsPanel({ className }) {
+  const { locale } = useLocale();
   const { snapshot, mode, binsRoot, appendRecord, clearBin, flush } = useInternalDatabase();
   const [activeBin, setActiveBin] = useState("adminCaptures");
   const [demoLabel, setDemoLabel] = useState("");
@@ -125,7 +127,7 @@ export default function AdminDataBinsPanel({ className }) {
           <div className="dda-panel rounded-xl p-3">
             <p className="text-[10px] uppercase tracking-wide text-gray-500">Last sync</p>
             <p className="mt-1 text-sm font-semibold text-white">
-              {formatTimestamp(snapshot.syncedAt)}
+              {formatTimestamp(snapshot.syncedAt, locale)}
             </p>
           </div>
         </div>
@@ -222,7 +224,7 @@ export default function AdminDataBinsPanel({ className }) {
           }
         >
           <p className="mb-3 text-xs text-gray-500">
-            Updated {formatTimestamp(activeDocument?.updatedAt ?? snapshot.syncedAt)}
+            Updated {formatTimestamp(activeDocument?.updatedAt ?? snapshot.syncedAt, locale)}
           </p>
 
           {activeDocument?.records.length ? (
@@ -234,7 +236,7 @@ export default function AdminDataBinsPanel({ className }) {
                     <Badge variant="default">{record.source}</Badge>
                   </div>
                   <p className="mt-2 text-[11px] text-gray-500">
-                    {formatTimestamp(record.createdAt)}
+                    {formatTimestamp(record.createdAt, locale)}
                   </p>
                   <pre className="dda-scroll mt-2 max-h-40 overflow-auto rounded-lg bg-black/30 p-2 text-[11px] leading-relaxed text-gray-300">
                     {JSON.stringify(record.payload, null, 2)}

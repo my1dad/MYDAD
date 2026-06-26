@@ -1,21 +1,49 @@
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Database, UserPlus, Wallet } from "lucide-react";
 import PageHeader from "../components/layout/PageHeader";
-import DashboardCard, { Badge, StatCard } from "../components/layout/DashboardCard";
+import DashboardCard, { Badge } from "../components/layout/DashboardCard";
+import AdminMemberDetailModal from "../components/admin/AdminMemberDetailModal";
+import AdminSettingsCard from "../components/admin/AdminSettingsCard";
+import MemberSettingsCard from "../components/members/MemberSettingsCard";
 import { adminOverview, formatPoolCurrency } from "../data/mockData";
+import { useDadAuth } from "../context/DadAuthContext";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
-import { useMembers } from "../lib/memberRegistry";
+import { consumePendingAdminProfileId } from "../lib/adminProfileNavigation";
+import { useAdminMemberRecords } from "../lib/profileRegistry";
 import { usePoolState } from "../lib/poolState";
 
 export default function AdminPage({ onNavigate }) {
   const { t } = useLocale();
-  const { loans } = useLocalizedData();
+  const { isAdmin } = useDadAuth();
+  const { loans, translateStatus } = useLocalizedData();
   const { poolSummary } = usePoolState();
-  const members = useMembers();
+  const registeredMembers = useAdminMemberRecords();
+  const [selectedProfileId, setSelectedProfileId] = useState(null);
+  const pendingApprovals = registeredMembers.filter((member) => member.status === "pending").length;
+
+  useEffect(() => {
+    const pendingProfileId = consumePendingAdminProfileId();
+    if (pendingProfileId) {
+      setSelectedProfileId(pendingProfileId);
+    }
+  }, []);
+
+  if (!isAdmin) {
+    return (
+      <div className="space-y-4 sm:space-y-6">
+        <PageHeader
+          title={t("nav.settings")}
+          description={t("memberProfile.settings.subtitle")}
+        />
+        <MemberSettingsCard embedded />
+      </div>
+    );
+  }
 
   const adminStats = [
     { key: "pending", label: t("pages.admin.pendingLoans"), value: adminOverview.pendingLoans, icon: Wallet },
-    { key: "signups", label: t("pages.admin.weeklySignups"), value: adminOverview.weeklySignups, icon: UserPlus },
+    { key: "approvals", label: t("pages.admin.pendingApprovals"), value: pendingApprovals, icon: UserPlus },
     { key: "compliance", label: t("pages.admin.compliance"), value: `${adminOverview.contributionCompliance}%`, icon: CheckCircle2 },
     { key: "flagged", label: t("pages.admin.flagged"), value: adminOverview.flaggedAccounts, icon: AlertTriangle },
   ];
@@ -58,7 +86,13 @@ export default function AdminPage({ onNavigate }) {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <DashboardCard title={t("pages.admin.poolAdmin")}>
+        <DashboardCard
+          title={t("pages.admin.poolAdmin")}
+          collapsible
+          defaultCollapsed
+          collapseAriaLabel={t("pages.admin.collapsePoolAdmin")}
+          expandAriaLabel={t("pages.admin.expandPoolAdmin")}
+        >
           <dl className="space-y-2 text-sm">
             {poolRows.map(([k, v]) => (
               <div key={k} className="flex justify-between border-b border-white/10 py-2 last:border-0">
@@ -69,7 +103,13 @@ export default function AdminPage({ onNavigate }) {
           </dl>
         </DashboardCard>
 
-        <DashboardCard title={t("pages.admin.loanReview")}>
+        <DashboardCard
+          title={t("pages.admin.loanReview")}
+          collapsible
+          defaultCollapsed
+          collapseAriaLabel={t("pages.admin.collapseLoanReview")}
+          expandAriaLabel={t("pages.admin.expandLoanReview")}
+        >
           <ul className="space-y-2">
             {loans.map((loan) => (
               <li
@@ -92,32 +132,93 @@ export default function AdminPage({ onNavigate }) {
         </DashboardCard>
       </div>
 
-      <DashboardCard title={t("pages.admin.memberMgmt")}>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[480px] text-left text-sm">
+      <DashboardCard
+        title={t("pages.admin.memberMgmt")}
+        subtitle={t("pages.admin.memberMgmtSub", {
+          count: registeredMembers.length.toLocaleString(),
+        })}
+        collapsible
+        defaultCollapsed
+        scrollable
+        collapseAriaLabel={t("pages.admin.collapseMemberMgmt")}
+        expandAriaLabel={t("pages.admin.expandMemberMgmt")}
+      >
+        {registeredMembers.length ? (
+          <table className="dda-admin-member-table w-full table-fixed border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-gray-500">
-                <th className="pb-2 pr-4 font-semibold">{t("pages.admin.member")}</th>
-                <th className="pb-2 pr-4 font-semibold">{t("common.days")}</th>
-                <th className="pb-2 pr-4 font-semibold">{t("common.equity")}</th>
-                <th className="pb-2 font-semibold">{t("common.score")}</th>
+              <tr className="border-b border-white/10 text-[10px] uppercase tracking-wider text-gray-500 sm:text-xs">
+                <th className="pb-2 pr-2 font-semibold sm:pr-3">{t("pages.admin.member")}</th>
+                <th className="w-[5.5rem] pb-2 pr-2 font-semibold">{t("pages.admin.proId")}</th>
+                <th className="w-[4.5rem] pb-2 pr-2 font-semibold">{t("pages.admin.memberStatus")}</th>
+                <th className="w-[3rem] pb-2 pr-2 text-right font-semibold sm:w-14">{t("common.days")}</th>
+                <th className="w-[5rem] pb-2 pr-2 text-right font-semibold sm:w-24">{t("common.equity")}</th>
+                <th className="w-[3rem] pb-2 text-right font-semibold sm:w-14">{t("common.score")}</th>
               </tr>
             </thead>
             <tbody>
-              {members.map((m) => (
-                <tr key={m.id} className="border-b border-white/5 last:border-0">
-                  <td className="py-2 pr-4 font-medium text-white">{m.name}</td>
-                  <td className="py-2 pr-4 text-gray-400">{m.days}</td>
-                  <td className="py-2 pr-4 tabular-nums text-dda-green-light">
-                    ${m.equity.toLocaleString()}
+              {registeredMembers.map((member) => (
+                <tr key={member.id} className="border-b border-white/5 last:border-0">
+                  <td className="max-w-0 py-2 pr-2 sm:pr-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProfileId(member.id)}
+                      className="w-full text-left"
+                    >
+                      <span className="block truncate font-medium text-white hover:text-dda-green-light">
+                        {member.name}
+                      </span>
+                      <span className="block truncate text-[11px] text-gray-500">
+                        {member.username ? `@${member.username}` : member.handle}
+                      </span>
+                    </button>
                   </td>
-                  <td className="py-2 text-white">{m.score}</td>
+                  <td className="py-2 pr-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProfileId(member.id)}
+                      className="truncate font-mono text-[11px] text-amber-300 hover:text-amber-200"
+                      title={member.proId}
+                    >
+                      {member.proId || "—"}
+                    </button>
+                  </td>
+                  <td className="py-2 pr-2">
+                    <Badge
+                      variant={
+                        member.status === "active"
+                          ? "success"
+                          : member.status === "pending"
+                            ? "warning"
+                            : member.status === "declined"
+                              ? "danger"
+                              : "default"
+                      }
+                    >
+                      {translateStatus(member.status)}
+                    </Badge>
+                  </td>
+                  <td className="py-2 pr-2 text-right tabular-nums text-gray-400">{member.days}</td>
+                  <td className="py-2 pr-2 text-right text-xs tabular-nums text-dda-green-light sm:text-sm">
+                    ${member.equity.toLocaleString()}
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-white">{member.score}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        ) : (
+          <p className="text-sm text-gray-500">{t("pages.admin.memberMgmtEmpty")}</p>
+        )}
       </DashboardCard>
+
+      <AdminSettingsCard />
+
+      <AdminMemberDetailModal
+        profileId={selectedProfileId}
+        open={Boolean(selectedProfileId)}
+        onClose={() => setSelectedProfileId(null)}
+        onProfileDeleted={() => setSelectedProfileId(null)}
+      />
     </div>
   );
 }

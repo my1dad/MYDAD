@@ -50,16 +50,43 @@ function formatContribution(amount) {
   });
 }
 
+const FREQUENCY_COPY = {
+  weekly: {
+    recurringTitle: "contribute.recurringTitleWeekly",
+    recurringDesc: "contribute.recurringDescWeekly",
+    recurringActive: "contribute.recurringActiveWeekly",
+    nextDue: "contribute.nextDueWeekly",
+    badge: "contribute.weekly",
+  },
+  monthly: {
+    recurringTitle: "contribute.recurringTitleMonthly",
+    recurringDesc: "contribute.recurringDescMonthly",
+    recurringActive: "contribute.recurringActiveMonthly",
+    nextDue: "contribute.nextDueMonthly",
+    badge: "contribute.monthly",
+  },
+  yearly: {
+    recurringTitle: "contribute.recurringTitleYearly",
+    recurringDesc: "contribute.recurringDescYearly",
+    recurringActive: "contribute.recurringActiveYearly",
+    nextDue: "contribute.nextDueYearly",
+    badge: "contribute.yearly",
+  },
+};
+
 export default function ContributeOnboardingModal({
   open,
   onClose,
   onComplete,
   initialAmount = null,
   startOnCustom = false,
+  contributionFrequency = "weekly",
 }) {
   const { t } = useLocale();
   const { translateTier } = useLocalizedData();
   const { currentMember } = usePoolState();
+
+  const frequencyCopy = FREQUENCY_COPY[contributionFrequency] ?? FREQUENCY_COPY.weekly;
 
   const steps = [
     { id: "welcome", title: t("contribute.welcomeTitle"), description: t("contribute.welcomeDesc") },
@@ -139,7 +166,12 @@ export default function ContributeOnboardingModal({
     if (isLastStep) {
       if (customAmountInvalid) return;
       setCompleted(true);
-      onComplete?.({ reminderEnabled, recurringEnabled, amount: contributionAmount });
+      onComplete?.({
+        reminderEnabled,
+        recurringEnabled,
+        amount: contributionAmount,
+        frequency: contributionFrequency,
+      });
       return;
     }
     setStep((current) => current + 1);
@@ -229,14 +261,14 @@ export default function ContributeOnboardingModal({
                   <div className="text-right">
                     <p className="text-xs text-gray-500">{t("contribute.nextDue")}</p>
                     <p className="mt-1 text-sm font-medium text-gray-200">
-                      {recurringEnabled ? t("contribute.tomorrowDue") : t("contribute.oneTimeDue")}
+                      {recurringEnabled ? t(frequencyCopy.nextDue) : t("contribute.oneTimeDue")}
                     </p>
                   </div>
                 </div>
                 {recurringEnabled ? (
                   <p className="mt-3 flex items-center gap-1.5 text-xs text-dda-green-light">
                     <RefreshCw className="h-3.5 w-3.5" />
-                    {t("contribute.recurringActive", { amount: formattedContribution })}
+                    {t(frequencyCopy.recurringActive, { amount: formattedContribution })}
                   </p>
                 ) : null}
               </div>
@@ -375,7 +407,7 @@ export default function ContributeOnboardingModal({
                       </p>
                     </div>
                     <span className="rounded-full bg-dda-green/15 px-3 py-1 text-xs font-semibold text-dda-green-light ring-1 ring-dda-green/25">
-                      {t("contribute.daily")}
+                      {t(frequencyCopy.badge)}
                     </span>
                   </div>
 
@@ -407,11 +439,11 @@ export default function ContributeOnboardingModal({
                       <span className="flex items-center gap-2">
                         <RefreshCw className="h-4 w-4 shrink-0 text-dda-green-light" />
                         <span className="text-sm font-medium text-white">
-                          {t("contribute.recurringTitle")}
+                          {t(frequencyCopy.recurringTitle)}
                         </span>
                       </span>
                       <span className="mt-0.5 block text-xs text-gray-500">
-                        {t("contribute.recurringDesc", { amount: formattedContribution })}
+                        {t(frequencyCopy.recurringDesc, { amount: formattedContribution })}
                       </span>
                     </span>
                   </label>

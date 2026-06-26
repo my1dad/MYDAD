@@ -1,5 +1,8 @@
 node_modules
 dist
+.env
+.env.local
+.env.*.local
 dist-ssr
 dist-electron
 release
@@ -11,6 +14,7 @@ dmg-staging
 *.local
 .DS_Store
 .vercel
+.tools
 
 # Workspace data (keep folder structure via .gitkeep)
 bins/**/*

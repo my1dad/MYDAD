@@ -38,6 +38,9 @@ export function LocaleProvider({ children }) {
     setLocaleState(value);
     localStorage.setItem(STORAGE_KEY, value);
     document.documentElement.lang = value;
+    queueMicrotask(() => {
+      void import("../lib/supabase/cloudSync").then(({ touchCloudKv }) => touchCloudKv(STORAGE_KEY));
+    });
   }, []);
 
   useEffect(() => {

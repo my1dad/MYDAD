@@ -4,7 +4,7 @@
   "rewrites": [
     { "source": "/", "destination": "/dollaraday.html" },
     {
-      "source": "/((?!assets/|app-icon\\.png|dollaraday\\.html|index\\.html).*)",
+      "source": "/((?!api/|assets/|app-icon\\.png|dollaraday\\.html|index\\.html).*)",
       "destination": "/dollaraday.html"
     }
   ]

@@ -14,9 +14,9 @@ import {
   poolComposition,
 } from "../data/mockData";
 import { useLocale } from "./LocaleContext";
-import { easternNow, formatEasternLongDate, formatRelativeTimeFromNow } from "../lib/dateTime";
+import { useEasternLiveTime } from "../context/EasternTimeContext";
+import { formatRelativeTimeFromNow } from "../lib/dateTime";
 
-const investmentKeys = ["treasury", "moneyMarket", "bonds", "cashReserve"];
 const escrowKeys = ["e1", "e2", "e3", "e4"];
 const loanPurposeKeys = ["purpose1", "purpose2", "purpose3"];
 const factorKeys = ["factorStreak", "factorEquity", "factorStanding", "factorRepayment"];
@@ -27,6 +27,7 @@ const postKeys = ["post1", "post2", "post3"];
 
 export function useLocalizedData() {
   const { t, locale } = useLocale();
+  const { longDate, relativeTick } = useEasternLiveTime();
 
   return useMemo(() => {
     const localizedPoolComposition = poolComposition.map((segment) => ({
@@ -34,25 +35,25 @@ export function useLocalizedData() {
       name: t(`pool.${segment.key}`),
     }));
 
-    const localizedInvestmentFunnel = investmentFunnel.map((item, index) => ({
+    const localizedInvestmentFunnel = investmentFunnel.map((item) => ({
       ...item,
-      name: t(`investments.${investmentKeys[index]}.name`),
-      description: t(`investments.${investmentKeys[index]}.desc`),
+      name: t(`investments.${item.key}.name`),
+      description: t(`investments.${item.key}.desc`),
       riskKey: item.risk,
       liquidityKey: item.liquidity,
       risk: t(`risk.${item.risk}`),
       liquidity: t(`liquidity.${item.liquidity}`),
     }));
 
-    const localizedInvestments = investments.map((item, index) => ({
+    const localizedInvestments = investments.map((item) => ({
       ...item,
-      name: t(`investments.${investmentKeys[index]}.name`),
-      description: t(`investments.${investmentKeys[index]}.desc`),
+      name: t(`investments.${item.key}.name`),
+      description: t(`investments.${item.key}.desc`),
       category: t("pages.investments.fixedIncome"),
-      riskKey: investmentFunnel[index].risk,
-      liquidityKey: investmentFunnel[index].liquidity,
-      risk: t(`risk.${investmentFunnel[index].risk}`),
-      liquidity: t(`liquidity.${investmentFunnel[index].liquidity}`),
+      riskKey: item.risk,
+      liquidityKey: item.liquidity,
+      risk: t(`risk.${item.risk}`),
+      liquidity: t(`liquidity.${item.liquidity}`),
       status: t("status.active"),
     }));
 
@@ -134,12 +135,8 @@ export function useLocalizedData() {
       dashboardStatsLabels,
       statHints,
       allocationSummary: {
-        dateLabel: formatEasternLongDate(easternNow(), locale),
-        lastUpdated: formatRelativeTimeFromNow(
-          new Date(easternNow().getTime() - 2 * 60_000),
-          t,
-          locale,
-        ),
+        dateLabel: longDate,
+        lastUpdated: formatRelativeTimeFromNow(new Date(), t, locale),
       },
       translateTier: (tier) => t(`tier.${tier}`),
       translateStatus: (status) => t(`status.${status}`),
@@ -147,5 +144,5 @@ export function useLocalizedData() {
       translateLiquidity: (liquidity) => t(`liquidity.${liquidity}`),
       translatePoolSegment: (key) => t(`pool.${key}`),
     };
-  }, [t, locale]);
+  }, [t, locale, longDate, relativeTick]);
 }

@@ -1,4 +1,4 @@
-import { DDA_THEME } from "../lib/theme.js";
+import { DDA_THEME, POOL_CAPITAL_COLORS } from "../lib/theme.js";
 
 /** Empty guest profile — replaced when a member signs in. */
 export const currentMember = {
@@ -32,9 +32,9 @@ export const poolSummary = {
 };
 
 export const poolComposition = [
-  { key: "deployed", name: "Deployed", value: 0, color: DDA_THEME.green },
-  { key: "escrow", name: "Escrow", value: 0, color: DDA_THEME.greenLight },
-  { key: "available", name: "Available", value: 0, color: DDA_THEME.goldLight },
+  { key: "deployed", name: "Deployed", value: 0, color: POOL_CAPITAL_COLORS.deployed },
+  { key: "escrow", name: "Escrow", value: 0, color: POOL_CAPITAL_COLORS.escrow },
+  { key: "available", name: "Available", value: 0, color: POOL_CAPITAL_COLORS.available },
 ];
 
 export const poolGrowthTrend = [];
@@ -71,16 +71,6 @@ export const investmentFunnel = [
     description: "Short-duration U.S. government paper with daily liquidity.",
   },
   {
-    key: "moneyMarket",
-    name: "Money Market",
-    percent: 0,
-    color: DDA_THEME.greenLight,
-    returnPct: 0,
-    risk: "Low",
-    liquidity: "High",
-    description: "Institutional money market funds for stable yield.",
-  },
-  {
     key: "bonds",
     name: "Bonds",
     percent: 0,
@@ -91,14 +81,14 @@ export const investmentFunnel = [
     description: "Investment-grade municipal and corporate fixed income.",
   },
   {
-    key: "cashReserve",
-    name: "Cash Reserve",
+    key: "stocks",
+    name: "Stocks",
     percent: 0,
-    color: DDA_THEME.goldLight,
+    color: "#38bdf8",
     returnPct: 0,
-    risk: "Low",
-    liquidity: "Immediate",
-    description: "On-demand liquidity buffer for member withdrawals.",
+    risk: "Medium",
+    liquidity: "Medium",
+    description: "Diversified index and sector equity funds.",
   },
 ];
 
@@ -106,6 +96,7 @@ export const escrowLedger = [];
 
 export const investments = investmentFunnel.map((item, index) => ({
   id: `inv-${index + 1}`,
+  key: item.key,
   name: item.name,
   category: "Fixed income",
   percent: item.percent,
@@ -119,12 +110,14 @@ export const investments = investmentFunnel.map((item, index) => ({
 }));
 
 export const investmentIntervals = [
+  { id: "1d", label: "Daily" },
   { id: "1m", label: "1 month" },
   { id: "3m", label: "3 months" },
   { id: "1y", label: "1 year" },
 ];
 
 export const investmentYieldHistory = {
+  "1d": [{ label: "Now", apy: 0 }],
   "1m": [{ label: "Start", apy: 0 }],
   "3m": [{ label: "Start", apy: 0 }],
   "1y": [{ label: "Start", apy: 0 }],

@@ -5,6 +5,7 @@ import DadRoot from "./DadRoot.jsx";
 import DdaStorageBootstrap from "./components/DdaStorageBootstrap.jsx";
 import { DadAuthProvider } from "./context/DadAuthContext.jsx";
 import { LocaleProvider } from "./i18n/LocaleContext.jsx";
+import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
 
 const rootEl = document.getElementById("root");
 if (rootEl) {
@@ -12,11 +13,13 @@ if (rootEl) {
   createRoot(rootEl).render(
     <StrictMode>
       <LocaleProvider>
-        <DadAuthProvider>
-          <DdaStorageBootstrap>
-            <DadRoot />
-          </DdaStorageBootstrap>
-        </DadAuthProvider>
+        <EasternTimeProvider>
+          <DadAuthProvider>
+            <DdaStorageBootstrap>
+              <DadRoot />
+            </DdaStorageBootstrap>
+          </DadAuthProvider>
+        </EasternTimeProvider>
       </LocaleProvider>
     </StrictMode>
   );

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Cell,
   Pie,
@@ -11,35 +12,47 @@ import PoolBalanceChart from "./PoolBalanceChart";
 import { formatPoolCurrency } from "../../data/mockData";
 import { useLocale } from "../../i18n/LocaleContext";
 import { usePoolState } from "../../lib/poolState";
+import { POOL_CAPITAL_COLORS } from "../../lib/theme";
+
+function CapitalTag({ label, color }) {
+  return (
+    <span
+      className="dda-pool-capital-tag inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+      style={{
+        color,
+        backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)`,
+        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 30%, transparent)`,
+      }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+      {label}
+    </span>
+  );
+}
 
 function PoolMetricButton({ label, value, icon: Icon, accent }) {
   return (
     <button
       type="button"
-      className="dda-glass-btn group flex min-w-0 flex-col p-3.5 text-left sm:p-4"
+      title={`${label}: ${value}`}
+      className="dda-pool-metric-btn dda-glass-btn group"
+      style={{
+        "--pool-metric-accent": accent,
+      }}
     >
-      <span className="relative flex items-center justify-between gap-2">
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset transition group-hover:scale-105"
-          style={{
-            backgroundColor: `${accent}18`,
-            color: accent,
-            boxShadow: `inset 0 0 0 1px ${accent}33`,
-          }}
-        >
-          <Icon className="h-4 w-4" strokeWidth={2.25} />
-        </span>
-        <span
-          className="h-1.5 w-1.5 shrink-0 rounded-full opacity-80"
-          style={{ backgroundColor: accent }}
-          aria-hidden="true"
-        />
+      <span
+        className="dda-pool-metric-btn__icon"
+        style={{
+          backgroundColor: `color-mix(in srgb, ${accent} 14%, transparent)`,
+          color: accent,
+          boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${accent} 28%, transparent)`,
+        }}
+      >
+        <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
       </span>
-      <span className="relative mt-3 text-[11px] font-medium uppercase tracking-wide text-gray-500">
-        {label}
-      </span>
-      <span className="relative mt-1 truncate text-sm font-bold tabular-nums text-white sm:text-base">
-        {value}
+      <span className="dda-pool-metric-btn__copy">
+        <span className="dda-pool-metric-btn__label">{label}</span>
+        <span className="dda-pool-metric-btn__value">{value}</span>
       </span>
     </button>
   );
@@ -48,10 +61,11 @@ function PoolMetricButton({ label, value, icon: Icon, accent }) {
 function PoolTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
+  const color = item.color ?? POOL_CAPITAL_COLORS[item.key] ?? "#34d399";
   return (
-    <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2 text-xs shadow-xl">
+    <div className="dda-chart-tooltip">
       <p className="font-semibold text-white">{item.name}</p>
-      <p className="mt-0.5 tabular-nums text-dda-green-light">
+      <p className="mt-0.5 tabular-nums" style={{ color }}>
         {formatPoolCurrency(item.value)}
       </p>
     </div>
@@ -60,14 +74,50 @@ function PoolTooltip({ active, payload }) {
 
 export default function LiquidityPoolInfographic() {
   const { t } = useLocale();
-  const { poolSummary, poolComposition } = usePoolState();
+  const { poolSummary } = usePoolState();
   const reservePct =
     poolSummary.totalBalance > 0 ? Math.round(poolSummary.reserveRatio * 100) : 0;
 
-  const localizedComposition = poolComposition.map((segment) => ({
-    ...segment,
-    name: t(`pool.${segment.key}`),
-  }));
+  const capitalSegments = useMemo(
+    () =>
+      [
+        {
+          key: "deployed",
+          value: poolSummary.deployedCapital,
+          color: POOL_CAPITAL_COLORS.deployed,
+        },
+        {
+          key: "escrow",
+          value: poolSummary.escrowBalance,
+          color: POOL_CAPITAL_COLORS.escrow,
+        },
+        {
+          key: "available",
+          value: poolSummary.availableToDeploy,
+          color: POOL_CAPITAL_COLORS.available,
+        },
+      ].map((segment) => ({
+        ...segment,
+        name: t(`pool.${segment.key}`),
+      })),
+    [
+      poolSummary.deployedCapital,
+      poolSummary.escrowBalance,
+      poolSummary.availableToDeploy,
+      t,
+    ],
+  );
+
+  /** Pie uses deployed + available cash only (escrow shares the same cash balance). */
+  const chartSegments = useMemo(
+    () => capitalSegments.filter((segment) => segment.value > 0 && segment.key !== "escrow"),
+    [capitalSegments],
+  );
+
+  const allocationTotal = useMemo(
+    () => chartSegments.reduce((sum, segment) => sum + segment.value, 0),
+    [chartSegments],
+  );
 
   const poolMetrics = [
     {
@@ -75,21 +125,21 @@ export default function LiquidityPoolInfographic() {
       label: t("pool.deployed"),
       value: formatPoolCurrency(poolSummary.deployedCapital),
       icon: TrendingUp,
-      accent: "var(--color-dda-green)",
+      accent: POOL_CAPITAL_COLORS.deployed,
     },
     {
       key: "escrow",
       label: t("pool.escrow"),
       value: formatPoolCurrency(poolSummary.escrowBalance),
       icon: Lock,
-      accent: "#2563eb",
+      accent: POOL_CAPITAL_COLORS.escrow,
     },
     {
       key: "available",
       label: t("pool.available"),
       value: formatPoolCurrency(poolSummary.availableToDeploy),
       icon: Wallet,
-      accent: "var(--color-dda-gold-light)",
+      accent: POOL_CAPITAL_COLORS.available,
     },
     {
       key: "monthly",
@@ -123,7 +173,7 @@ export default function LiquidityPoolInfographic() {
 
           <PoolBalanceChart />
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="dda-pool-metrics">
             {poolMetrics.map((metric) => (
               <PoolMetricButton
                 key={metric.key}
@@ -139,11 +189,11 @@ export default function LiquidityPoolInfographic() {
         <div className="flex flex-col gap-4">
           <div className="dda-panel relative flex flex-1 flex-col items-center rounded-xl p-4">
             <p className="mb-2 self-start text-sm font-medium text-white">{t("pool.capitalAllocation")}</p>
-            <div className="relative h-44 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="dda-donut-chart relative h-44 w-full">
+              <ResponsiveContainer width="100%" height="100%" className="dda-donut-chart__plot">
                 <PieChart>
                   <Pie
-                    data={localizedComposition}
+                    data={chartSegments}
                     cx="50%"
                     cy="50%"
                     innerRadius={52}
@@ -153,14 +203,17 @@ export default function LiquidityPoolInfographic() {
                     stroke="#071013"
                     strokeWidth={2}
                   >
-                    {localizedComposition.map((entry) => (
+                    {chartSegments.map((entry) => (
                       <Cell key={entry.key} fill={entry.color} fillOpacity={1} />
                     ))}
                   </Pie>
-                  <Tooltip content={<PoolTooltip />} />
+                  <Tooltip
+                    content={<PoolTooltip />}
+                    wrapperStyle={{ zIndex: 50, outline: "none" }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <div className="dda-donut-chart__center pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-lg font-bold tabular-nums text-white">
                   {reservePct}%
                 </span>
@@ -168,23 +221,24 @@ export default function LiquidityPoolInfographic() {
               </div>
             </div>
 
-            <ul className="mt-2 w-full space-y-2">
-              {localizedComposition.map((segment) => {
+            <ul className="mt-3 w-full space-y-2.5">
+              {capitalSegments.map((segment) => {
                 const pct =
-                  poolSummary.totalBalance > 0
-                    ? Math.round((segment.value / poolSummary.totalBalance) * 100)
-                    : 0;
+                  allocationTotal > 0 && segment.key !== "escrow"
+                    ? Math.round((segment.value / allocationTotal) * 100)
+                    : segment.key === "escrow" && poolSummary.totalBalance > 0
+                      ? Math.round((segment.value / poolSummary.totalBalance) * 100)
+                      : 0;
                 return (
-                  <li key={segment.key} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex min-w-0 items-center gap-2 text-gray-400">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: segment.color }}
-                      />
-                      {segment.name}
-                    </span>
-                    <span className="shrink-0 tabular-nums text-gray-200">
-                      {pct}% · {formatPoolCurrency(segment.value)}
+                  <li key={segment.key} className="flex items-center justify-between gap-3 text-sm">
+                    <CapitalTag label={segment.name} color={segment.color} />
+                    <span className="shrink-0 text-right tabular-nums">
+                      <span className="font-semibold" style={{ color: segment.color }}>
+                        {pct}%
+                      </span>
+                      <span className="ml-1.5 text-gray-400">
+                        · {formatPoolCurrency(segment.value)}
+                      </span>
                     </span>
                   </li>
                 );

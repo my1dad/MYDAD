@@ -12,10 +12,13 @@ import {
   easternNow,
   formatEasternIsoDate,
   formatEasternLongDate,
-  formatEasternTime,
 } from "./dateTime";
 import { buildEasternPoolSeed } from "./easternSeedData";
 import { getTotalMemberEscrowBalance } from "./memberEscrowTotals";
+import { getTotalDeployedCapital } from "./allocationSleeves";
+import { computePoolInflowMetrics } from "./poolInflow";
+import { POOL_CAPITAL_COLORS } from "./theme";
+import { subscribeInternalDatabase } from "./internalDatabase";
 
 const POOL_STATE_RECORD_ID = "pool-live-state";
 
@@ -122,7 +125,7 @@ function createSeedState(): PoolLiveState {
       ...deepClone(seedDailySummary),
       dateLabel: eastern.dateLabel,
       lastUpdated: eastern.lastUpdated,
-      lastUpdatedAt: new Date(now.getTime() - 2 * 60_000).toISOString(),
+      lastUpdatedAt: now.toISOString(),
     },
     todaysDonations: eastern.todaysDonations as TodayDonation[],
     allocationComparisons: deepClone(seedComparisons),
@@ -135,13 +138,19 @@ function createSeedState(): PoolLiveState {
 }
 
 let state: PoolLiveState = createSeedState();
+let inflowSyncSubscribed = false;
+
+function ensureInflowSyncSubscription(): void {
+  if (inflowSyncSubscribed) return;
+  inflowSyncSubscribed = true;
+  subscribeInternalDatabase(() => {
+    syncPoolInflowMetrics();
+    notifyPoolListeners();
+  });
+}
 
 function notifyPoolListeners(): void {
   listeners.forEach((listener) => listener(state));
-}
-
-function formatDonationTime(date = easternNow()): string {
-  return formatEasternTime(date);
 }
 
 function bumpBalanceHistory(amount: number): void {
@@ -160,9 +169,22 @@ function syncCompositionAndReserve(): void {
   const deployed = state.poolComposition.find((segment) => segment.key === "deployed");
   const available = state.poolComposition.find((segment) => segment.key === "available");
 
-  if (escrow) escrow.value = state.poolSummary.escrowBalance;
-  if (deployed) deployed.value = state.poolSummary.deployedCapital;
-  if (available) available.value = state.poolSummary.availableToDeploy;
+  if (escrow) {
+    escrow.value = 0;
+    escrow.color = POOL_CAPITAL_COLORS.escrow;
+  }
+  if (deployed) {
+    deployed.value = state.poolSummary.deployedCapital;
+    deployed.color = POOL_CAPITAL_COLORS.deployed;
+  }
+  if (available) {
+    available.value = state.poolSummary.availableToDeploy;
+    available.color = POOL_CAPITAL_COLORS.available;
+  }
+
+  state.poolSummary.totalBalance =
+    state.poolSummary.deployedCapital +
+    state.poolSummary.escrowBalance;
 
   state.poolSummary.reserveRatio =
     state.poolSummary.totalBalance > 0
@@ -170,9 +192,18 @@ function syncCompositionAndReserve(): void {
       : 0;
 }
 
-function updateComparisonCurrent(comparisonId: string, delta: number): void {
-  const item = state.allocationComparisons.find((comparison) => comparison.id === comparisonId);
-  if (item) item.current += delta;
+/** Align pool capital with live allocation positions and member escrow balances. */
+export function syncPoolCapitalFromLedger(): void {
+  const deployed = getTotalDeployedCapital();
+  const cashEscrow = getTotalMemberEscrowBalance();
+
+  state.poolSummary.deployedCapital = deployed;
+  state.poolSummary.escrowBalance = cashEscrow;
+  state.poolSummary.availableToDeploy = cashEscrow;
+  syncCompositionAndReserve();
+  syncPoolInflowMetrics();
+  persistPoolState();
+  notifyPoolListeners();
 }
 
 function persistPoolState(): void {
@@ -220,30 +251,51 @@ function applyPoolState(payload: Record<string, unknown>): void {
   }
 }
 
+/** Recompute daily/monthly inflow, today's donations, and allocation stats from live ledgers. */
+export function syncPoolInflowMetrics(): void {
+  const metrics = computePoolInflowMetrics(formatEasternIsoDate());
+
+  state.poolSummary.dailyInflow = metrics.dailyInflow;
+  state.poolSummary.monthlyInflow = metrics.monthlyInflow;
+  state.todaysDonations = metrics.todaysDonations;
+  state.dailyAllocationSummary = {
+    ...state.dailyAllocationSummary,
+    totalDonations: metrics.dailyAllocationSummary.totalDonations,
+    totalAmount: metrics.dailyAllocationSummary.totalAmount,
+    uniqueContributors: metrics.dailyAllocationSummary.uniqueContributors,
+    pending: metrics.dailyAllocationSummary.pending,
+    lastUpdatedAt: metrics.dailyAllocationSummary.lastUpdatedAt,
+  };
+
+  state.allocationComparisons.forEach((comparison) => {
+    const nextCurrent =
+      metrics.allocationComparisonCurrent[
+        comparison.id as keyof typeof metrics.allocationComparisonCurrent
+      ];
+    if (nextCurrent !== undefined) {
+      comparison.current = nextCurrent;
+    }
+  });
+}
+
 export function rolloverEasternDayIfNeeded(): boolean {
   const today = formatEasternIsoDate();
   if (state.activeEasternDay === today) return false;
 
   state.activeEasternDay = today;
-  state.todaysDonations = [];
-  state.poolSummary.dailyInflow = 0;
   state.dailyAllocationSummary = {
     ...state.dailyAllocationSummary,
     dateLabel: formatEasternLongDate(easternNow()),
-    totalDonations: 0,
-    totalAmount: 0,
-    uniqueContributors: 0,
-    pending: 0,
-    lastUpdated: "Just now",
-    lastUpdatedAt: easternNow().toISOString(),
   };
 
+  syncPoolInflowMetrics();
   persistPoolState();
   notifyPoolListeners();
   return true;
 }
 
 export function hydratePoolStateFromStorage(): void {
+  ensureInflowSyncSubscription();
   const settings = readDataBin("settings");
   const record = settings.records.find((item) => item.id === POOL_STATE_RECORD_ID);
   if (record?.payload) {
@@ -255,29 +307,17 @@ export function hydratePoolStateFromStorage(): void {
 
 /** Align liquidity pool escrow/total with summed member Chase Escrow account balances. */
 export function syncMemberEscrowToLiquidityPool(): void {
-  const totalEscrow = getTotalMemberEscrowBalance();
-  const previousEscrow = state.poolSummary.escrowBalance;
-  const delta = totalEscrow - previousEscrow;
-
-  if (delta === 0 && state.poolSummary.totalBalance === totalEscrow + state.poolSummary.deployedCapital) {
-    return;
-  }
-
-  state.poolSummary.escrowBalance = totalEscrow;
-  state.poolSummary.availableToDeploy = 0;
-  state.poolSummary.totalBalance = totalEscrow + state.poolSummary.deployedCapital;
-
-  if (delta !== 0) {
-    bumpBalanceHistory(delta);
-  }
-
-  syncCompositionAndReserve();
-  persistPoolState();
-  notifyPoolListeners();
+  syncPoolCapitalFromLedger();
 }
 
 export function resetPoolStateToSeed(): void {
   state = createSeedState();
+  persistPoolState();
+  notifyPoolListeners();
+}
+
+export function importPoolLiveState(partial: Partial<PoolLiveState>): void {
+  applyPoolState(partial as Record<string, unknown>);
   persistPoolState();
   notifyPoolListeners();
 }
@@ -316,13 +356,38 @@ export function getDashboardStats() {
   };
 }
 
+export function increaseDeployedCapital(_amount: number): void {
+  syncPoolCapitalFromLedger();
+}
+
+export function decreaseDeployedCapital(_amount: number): void {
+  syncPoolCapitalFromLedger();
+}
+
+/** Apply net treasury/bond daily compound P/L to pool balance history. */
+export function applyPoolCompoundReturn(netDelta: number): void {
+  if (!Number.isFinite(netDelta) || netDelta === 0) return;
+  bumpBalanceHistory(netDelta);
+  syncPoolCapitalFromLedger();
+}
+
+export function setPoolApy(apy: number): void {
+  if (!Number.isFinite(apy) || apy < 0) return;
+  state.poolSummary.poolApy = Math.round(apy * 100) / 100;
+  persistPoolState();
+  notifyPoolListeners();
+}
+
+export function setPoolYtdGrowthFromYield(pct: number): void {
+  if (!Number.isFinite(pct)) return;
+  state.poolSummary.ytdGrowthPct = Math.round(pct * 100) / 100;
+  persistPoolState();
+  notifyPoolListeners();
+}
+
 export function registerContribution({
   amount,
   memberId,
-  memberName,
-  handle,
-  includeDailyActivity = true,
-  contributedAt,
 }: {
   amount: number;
   reminderEnabled?: boolean;
@@ -335,55 +400,7 @@ export function registerContribution({
 }): void {
   if (!Number.isFinite(amount) || amount <= 0) return;
 
-  const timestamp = formatDonationTime(contributedAt ?? easternNow());
-
-  if (includeDailyActivity) {
-    const existingDonation = state.todaysDonations.find(
-      (donation) => donation.handle === handle || donation.member === memberName
-    );
-
-    if (existingDonation) {
-      const isSeedRow = /^d-\d{3}$/.test(existingDonation.id);
-      existingDonation.amount = isSeedRow ? amount : existingDonation.amount + amount;
-      existingDonation.time = timestamp;
-      existingDonation.status = "completed";
-      state.todaysDonations = [
-        existingDonation,
-        ...state.todaysDonations.filter((donation) => donation.id !== existingDonation.id),
-      ];
-    } else {
-      state.todaysDonations = [
-        {
-          id: `d-live-${Date.now()}-${memberId}`,
-          member: memberName,
-          handle,
-          amount,
-          time: timestamp,
-          status: "completed",
-        },
-        ...state.todaysDonations,
-      ];
-      state.dailyAllocationSummary.totalDonations += 1;
-      state.dailyAllocationSummary.uniqueContributors += 1;
-      updateComparisonCurrent("yesterday", 1);
-      updateComparisonCurrent("milestone", 1);
-    }
-
-    state.poolSummary.dailyInflow += amount;
-    state.dailyAllocationSummary.totalAmount += amount;
-    state.dailyAllocationSummary.lastUpdatedAt = easternNow().toISOString();
-    state.dailyAllocationSummary.lastUpdated = "Just now";
-  }
-
-  state.poolSummary.totalBalance += amount;
-  state.poolSummary.escrowBalance += amount;
-  state.poolSummary.monthlyInflow += amount;
-
-  bumpBalanceHistory(amount);
-  syncCompositionAndReserve();
-
-  updateComparisonCurrent("last-week", amount);
-  updateComparisonCurrent("last-month", amount);
+  syncPoolInflowMetrics();
 
   if (state.currentMember.id === memberId) {
     state.currentMember.totalContributed += amount;

@@ -7,10 +7,8 @@ import {
   Check,
   CheckCircle2,
   CircleDollarSign,
-  Landmark,
   Pencil,
   Trash2,
-  Wallet,
   X,
 } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -18,6 +16,7 @@ import { cn } from "@/lib/utils";
 import DashboardCard from "../layout/DashboardCard";
 import { formatPoolCurrency } from "../../data/mockData";
 import { useLocale } from "../../i18n/LocaleContext";
+import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocalizedData } from "../../i18n/localizedData";
 import { buildMemberDetail } from "../../lib/memberDetails";
 import {
@@ -33,23 +32,12 @@ import {
 } from "../../lib/memberAccounts";
 import { usePoolState } from "../../lib/poolState";
 import RecurringCashflowPanel from "./RecurringCashflowPanel";
+import WalletFundingTabs from "./WalletFundingTabs";
+import BankAccountLogo from "./BankAccountLogo";
+import { getAccountDisplay } from "./accountDisplay";
+import { MEMBER_BANK_ACCOUNTS } from "./bankAccounts";
 
-const ACCOUNT_META = {
-  checking: {
-    labelKey: "checkingTab",
-    typeKey: "checkingType",
-    icon: Wallet,
-    accent: "var(--color-dda-green-light)",
-    bankKey: "checkingBank",
-  },
-  escrow: {
-    labelKey: "escrowTab",
-    typeKey: "escrowType",
-    icon: Landmark,
-    accent: "#38bdf8",
-    bankKey: "escrowBank",
-  },
-};
+const ACCOUNT_META = MEMBER_BANK_ACCOUNTS;
 
 const ACTION_OPTIONS = [
   { id: "deposit", icon: ArrowDownLeft, labelKey: "actionDeposit" },
@@ -208,13 +196,14 @@ function getSignedAmount(transaction) {
 }
 
 export default function AccountDetailView({ accountId, onBack }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const { isAdmin } = useDadAuth();
   const { translateTier } = useLocalizedData();
   const { currentMember } = usePoolState();
   const profileId = resolveMemberProfileId();
   const ledger = useMemberAccounts(profileId);
   const meta = ACCOUNT_META[accountId];
-  const Icon = meta.icon;
+  const accountDisplay = getAccountDisplay(accountId, isAdmin, t);
   const counterpartyId = accountId === "checking" ? "escrow" : "checking";
 
   const [activeAction, setActiveAction] = useState("deposit");
@@ -230,13 +219,24 @@ export default function AccountDetailView({ accountId, onBack }) {
   const [editMemo, setEditMemo] = useState("");
   const [activityActionError, setActivityActionError] = useState("");
 
+  const actionOptions = isAdmin
+    ? ACTION_OPTIONS
+    : ACTION_OPTIONS.filter((option) => option.id !== "transfer");
+
+  useEffect(() => {
+    if (!isAdmin && accountId === "escrow") {
+      onBack();
+    }
+  }, [accountId, isAdmin, onBack]);
+
   useEffect(() => {
     setTransferFromId(accountId);
     setTransferToId(counterpartyId);
     setActivityPage(0);
     setEditingTransactionId(null);
     setActivityActionError("");
-  }, [accountId, counterpartyId]);
+    setActiveAction((current) => (!isAdmin && current === "transfer" ? "deposit" : current));
+  }, [accountId, counterpartyId, isAdmin]);
 
   const balance = accountId === "checking" ? ledger.checkingBalance : ledger.escrowBalance;
   const transferFromMeta = ACCOUNT_META[transferFromId];
@@ -364,7 +364,7 @@ export default function AccountDetailView({ accountId, onBack }) {
         className="dda-accounts-back inline-flex items-center gap-2 text-sm font-medium text-gray-400 transition hover:text-white"
       >
         <ArrowLeft className="h-4 w-4" />
-        {t("pages.accounts.backToAccounts")}
+        {t(isAdmin ? "pages.accounts.backToAccounts" : "pages.wallet.backToWallet")}
       </button>
 
       <section className="dda-bank-hero">
@@ -372,24 +372,17 @@ export default function AccountDetailView({ accountId, onBack }) {
         <div className="relative flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">
-              {t(`pages.accounts.${meta.bankKey}`)}
+              {accountDisplay.bank}
             </p>
             <h2 className="mt-1 truncate text-lg font-semibold text-white sm:text-xl">
-              {t(`pages.accounts.${meta.labelKey}`)}
+              {accountDisplay.title}
             </h2>
             <p className="mt-1 text-sm text-gray-400">
-              {t(`pages.accounts.${meta.typeKey}`)} · {maskAccountNumber(profileId, accountId)}
+              {accountDisplay.type} · {maskAccountNumber(profileId, accountId)}
             </p>
           </div>
-          <span
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset"
-            style={{
-              backgroundColor: `${meta.accent}18`,
-              color: meta.accent,
-              boxShadow: `inset 0 0 0 1px ${meta.accent}33`,
-            }}
-          >
-            <Icon className="h-5 w-5" strokeWidth={2.25} />
+          <span className="dda-bank-logo-wrap dda-bank-logo-wrap--hero">
+            <BankAccountLogo accountId={accountId} size="lg" />
           </span>
         </div>
 
@@ -408,7 +401,7 @@ export default function AccountDetailView({ accountId, onBack }) {
       </section>
 
       <section className="dda-bank-actions">
-        {ACTION_OPTIONS.map(({ id, icon: ActionIcon, labelKey }) => {
+        {actionOptions.map(({ id, icon: ActionIcon, labelKey }) => {
           const active = activeAction === id;
           return (
             <button
@@ -428,7 +421,7 @@ export default function AccountDetailView({ accountId, onBack }) {
         })}
       </section>
 
-      <DashboardCard title={t(`pages.accounts.${ACTION_OPTIONS.find((item) => item.id === activeAction)?.labelKey}`)}>
+      <DashboardCard title={t(`pages.accounts.${actionOptions.find((item) => item.id === activeAction)?.labelKey}`)}>
         <form onSubmit={handleSubmit} className="space-y-4">
           {activeAction === "transfer" ? (
             <div className="dda-bank-transfer-route">
@@ -537,7 +530,7 @@ export default function AccountDetailView({ accountId, onBack }) {
                         {getTransactionTitle(transaction, t)}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {formatAccountTransactionTime(transaction.createdAt)}
+                        {formatAccountTransactionTime(transaction.createdAt, locale)}
                       </p>
                       <div className="dda-bank-amount-input !py-2">
                         <input
@@ -585,7 +578,7 @@ export default function AccountDetailView({ accountId, onBack }) {
                           {getTransactionTitle(transaction, t)}
                         </span>
                         <span className="block truncate text-xs text-gray-500">
-                          {formatAccountTransactionTime(transaction.createdAt)}
+                          {formatAccountTransactionTime(transaction.createdAt, locale)}
                           {transaction.memo ? ` · ${transaction.memo}` : ""}
                         </span>
                       </span>
@@ -664,6 +657,7 @@ export default function AccountDetailView({ accountId, onBack }) {
       </DashboardCard>
 
       <RecurringCashflowPanel accountId={accountId} />
+      <WalletFundingTabs />
 
       {accountId === "escrow" ? (
         <EscrowBreakdown currentMember={currentMember} translateTier={translateTier} t={t} />

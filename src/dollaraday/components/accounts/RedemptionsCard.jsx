@@ -3,8 +3,9 @@ import { ArrowDown, CheckCircle2, Gift } from "lucide-react";
 import DashboardCard from "../layout/DashboardCard";
 import { formatPoolCurrency } from "../../data/mockData";
 import { useLocale } from "../../i18n/LocaleContext";
-import { getDadProfiles } from "../../lib/dadProfileStorage";
+import { getActiveDadProfile, getDadProfiles } from "../../lib/dadProfileStorage";
 import { findStoredMemberByProfileId } from "../../lib/memberRegistry";
+import { logProfileActivity } from "../../lib/profileActivity";
 import {
   redeemToMemberProfile,
   resolveMemberProfileId,
@@ -117,6 +118,17 @@ export default function RedemptionsCard() {
       return;
     }
 
+    const profile = getActiveDadProfile();
+    if (profile) {
+      logProfileActivity({
+        profileId: profile.id,
+        proId: profile.proId,
+        type: "redemption",
+        summary: `Sent ${formatPoolCurrency(parsed)} to ${recipientLabel}`,
+        payload: { recipientProfileId: selectedProfileId, amount: parsed, memo: redemptionMemo },
+      });
+    }
+
     setAmount("");
     setMemo("");
     setStatus(
@@ -166,7 +178,7 @@ export default function RedemptionsCard() {
                 id="redemption-profile"
                 value={selectedProfileId}
                 onChange={(event) => setSelectedProfileId(event.target.value)}
-                className="mt-1 w-full bg-transparent text-sm font-semibold text-white outline-none"
+                className="dda-bank-transfer-route__select w-full"
               >
                 {recipientOptions.map((option) => (
                   <option key={option.id} value={option.id} className="bg-dda-bg text-white">

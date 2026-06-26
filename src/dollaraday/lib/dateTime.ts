@@ -1,4 +1,10 @@
+import { getAppTimezone } from "./appSettings";
+
 export const DDA_TIMEZONE = "America/New_York";
+
+export function getActiveTimezone(): string {
+  return getAppTimezone();
+}
 
 export type DdaLocale = "en" | "es";
 
@@ -20,7 +26,7 @@ export function formatInEastern(
   const value = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(value.getTime())) return "";
   return new Intl.DateTimeFormat(resolveLocale(locale), {
-    timeZone: DDA_TIMEZONE,
+    timeZone: getActiveTimezone(),
     ...options,
   }).format(value);
 }
@@ -43,6 +49,50 @@ export function formatEasternMonthDay(date: Date | string | number = easternNow(
 
 export function formatEasternTime(date: Date | string | number = easternNow(), locale: DdaLocale = "en") {
   return formatInEastern(date, { hour: "numeric", minute: "2-digit", hour12: true }, locale);
+}
+
+export function getEasternTimezoneAbbreviation(
+  date: Date | string | number = easternNow(),
+  locale: DdaLocale = "en",
+): string {
+  const value = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(value.getTime())) return "ET";
+
+  const parts = new Intl.DateTimeFormat(resolveLocale(locale), {
+    timeZone: getActiveTimezone(),
+    timeZoneName: "short",
+  }).formatToParts(value);
+
+  return parts.find((part) => part.type === "timeZoneName")?.value ?? "ET";
+}
+
+export function formatEasternTimeWithZone(
+  date: Date | string | number = easternNow(),
+  locale: DdaLocale = "en",
+): string {
+  return formatInEastern(
+    date,
+    { hour: "numeric", minute: "2-digit", hour12: true, timeZoneName: "short" },
+    locale,
+  );
+}
+
+export function formatEasternLiveClock(
+  date: Date | string | number = easternNow(),
+  locale: DdaLocale = "en",
+  includeSeconds = true,
+): string {
+  return formatInEastern(
+    date,
+    {
+      hour: "numeric",
+      minute: "2-digit",
+      ...(includeSeconds ? { second: "2-digit" } : {}),
+      hour12: true,
+      timeZoneName: "short",
+    },
+    locale,
+  );
 }
 
 export function formatEasternDateTime(date: Date | string | number = easternNow(), locale: DdaLocale = "en") {
@@ -96,7 +146,7 @@ export function subtractDays(date: Date, days: number): Date {
 
 export function getEasternYmd(date: Date = easternNow()): { year: number; month: number; day: number } {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: DDA_TIMEZONE,
+    timeZone: getActiveTimezone(),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -208,9 +258,45 @@ export function getMissedEasternDays(
   return days;
 }
 
-function addEasternDays(ymd: string, delta: number): string {
+export function addEasternDays(ymd: string, delta: number): string {
   const [year, month, day] = ymd.split("-").map(Number);
   const base = easternDateAt(year, month, day, 12);
   base.setUTCDate(base.getUTCDate() + delta);
   return formatEasternIsoDate(base);
+}
+
+/** First calendar day of the next Eastern month after `ymd`. */
+export function getNextEasternMonthStart(ymd: string): string {
+  const [year, month] = ymd.split("-").map(Number);
+  if (month === 12) return `${year + 1}-01-01`;
+  return `${year}-${String(month + 1).padStart(2, "0")}-01`;
+}
+
+const MAX_CATCH_UP_MONTHS = 12;
+
+/** Eastern month-start accrual dates after `lastProcessed` through `today` (inclusive). */
+export function getMissedEasternMonthStarts(
+  lastProcessed: string | undefined,
+  purchasedDate: string,
+  today = formatEasternIsoDate(),
+  maturityDate?: string,
+): string[] {
+  if (!today || !purchasedDate) return [];
+
+  let cursor = getNextEasternMonthStart(purchasedDate);
+  if (lastProcessed?.trim()) {
+    const fromLast = getNextEasternMonthStart(lastProcessed);
+    if (fromLast > cursor) cursor = fromLast;
+  }
+
+  const dates: string[] = [];
+  while (cursor <= today && dates.length < MAX_CATCH_UP_MONTHS) {
+    if (cursor > purchasedDate && (!maturityDate || cursor <= maturityDate)) {
+      dates.push(cursor);
+    }
+    if (cursor === today) break;
+    cursor = getNextEasternMonthStart(cursor);
+  }
+
+  return dates;
 }

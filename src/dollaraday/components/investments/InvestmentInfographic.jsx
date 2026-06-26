@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Cell,
   Pie,
@@ -11,15 +11,30 @@ import { cn } from "@/lib/utils";
 import DashboardCard, { ProgressBar } from "../layout/DashboardCard";
 import { formatPoolCurrency } from "../../data/mockData";
 import { useLocale } from "../../i18n/LocaleContext";
+import {
+  formatPositionMaturity,
+  getPositionsForSleeve,
+  ALLOCATION_SLEEVE_META,
+} from "../../lib/allocationSleeves";
+import { getSleeveRoi } from "../../lib/allocationRoi";
+import AllocationStatsGrid from "./AllocationStatsGrid";
+import { isStockPosition } from "../../lib/stockAllocations";
+import { computeStockPositionMetrics, formatQuotePrice } from "../../lib/massiveMarket";
+import { resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
+import AllocationSleeveModal from "./AllocationSleeveModal";
+import AllocationPositionModal from "./AllocationPositionModal";
+import AllocationEntityModal from "./AllocationEntityModal";
+import StockAllocationModal from "./StockAllocationModal";
+import { ALLOCATION_SLEEVE_OPTIONS } from "./allocationSleeveOptions";
 
 function AllocationTooltip({ active, payload, t }) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
   return (
-    <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2 text-xs shadow-xl">
+    <div className="dda-chart-tooltip">
       <p className="font-semibold text-white">{item.name}</p>
       <p className="mt-0.5 tabular-nums text-dda-green-light">{formatPoolCurrency(item.allocated)}</p>
-      <p className="mt-0.5 text-gray-500">{t("investmentChart.percentDeployed", { percent: item.percent })}</p>
+      <p className="mt-0.5 text-gray-400">{t("investmentChart.percentDeployed", { percent: item.percent })}</p>
     </div>
   );
 }
@@ -32,13 +47,55 @@ const riskStyles = {
 
 export default function InvestmentInfographic({
   investments,
+  positions,
   totalAllocated,
   poolApy,
   selectedId,
   onSelect,
 }) {
   const { t } = useLocale();
+  const profileId = resolveMemberProfileId();
+  const ledger = useMemberAccounts(profileId);
+  const availableBalance = ledger.escrowBalance;
+
+  const [sleeveModalItem, setSleeveModalItem] = useState(null);
+  const [selectedPosition, setSelectedPosition] = useState(null);
+  const [activeSleeveId, setActiveSleeveId] = useState(null);
+  const [entityInitialMode, setEntityInitialMode] = useState("buy");
+  const [entityInitialSellId, setEntityInitialSellId] = useState("");
+
+  const activeSleeve = ALLOCATION_SLEEVE_OPTIONS.find((item) => item.id === activeSleeveId);
+
+  const openBuyModal = (sleeveId, { mode = "buy", sellPositionId = "" } = {}) => {
+    setEntityInitialMode(mode);
+    setEntityInitialSellId(sellPositionId);
+    setActiveSleeveId(sleeveId);
+  };
+
+  const closeBuyModal = () => {
+    setActiveSleeveId(null);
+    setEntityInitialMode("buy");
+    setEntityInitialSellId("");
+  };
+
+  const openSleeveModal = (item) => {
+    onSelect(item.id);
+    setSleeveModalItem(item);
+  };
+
+  const handlePositionClick = (position) => {
+    setSleeveModalItem(null);
+    setSelectedPosition(position);
+  };
+
   const selected = investments.find((item) => item.id === selectedId) ?? investments[0];
+  const sleeveModalPositions = sleeveModalItem?.key
+    ? getPositionsForSleeve(sleeveModalItem.key, positions)
+    : [];
+  const selectedPositions = selected?.key
+    ? getPositionsForSleeve(selected.key, positions)
+    : [];
+  const selectedSleeveRoi = getSleeveRoi(selectedPositions);
   const hasDeployedCapital = totalAllocated > 0;
   const chartData = useMemo(
     () =>
@@ -50,12 +107,20 @@ export default function InvestmentInfographic({
   );
 
   return (
+    <>
     <DashboardCard noPadding>
       <div className="grid gap-5 p-5 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-5">
-          <div>
-            <p className="text-sm text-gray-400">{t("investmentChart.totalDeployed")}</p>
-            <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">
+          <DashboardCard
+            title={t("investmentChart.totalDeployed")}
+            subtitle={formatPoolCurrency(totalAllocated)}
+            compact
+            collapsible
+            defaultCollapsed
+            collapseAriaLabel={t("pages.investments.collapseTotalDeployed")}
+            expandAriaLabel={t("pages.investments.expandTotalDeployed")}
+          >
+            <p className="text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">
               {formatPoolCurrency(totalAllocated)}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -68,100 +133,101 @@ export default function InvestmentInfographic({
                 {t("investmentChart.sleevesBadge", { count: investments.length })}
               </span>
             </div>
-          </div>
 
-          <div className="dda-panel rounded-xl p-4">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-white">{t("investmentChart.funnel")}</p>
-              <p className="text-xs text-gray-500">{t("investmentChart.tapSegment")}</p>
-            </div>
+            <div className="dda-panel mt-5 rounded-xl p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-white">{t("investmentChart.funnel")}</p>
+                <p className="text-xs text-gray-500">{t("investmentChart.tapSegment")}</p>
+              </div>
 
-            <div className="flex h-10 overflow-hidden rounded-full bg-white/5 ring-1 ring-white/10">
-              {hasDeployedCapital ? (
-                investments.map((item) => {
+              <div className="flex h-10 overflow-hidden rounded-full bg-white/5 ring-1 ring-white/10">
+                {hasDeployedCapital ? (
+                  investments.map((item) => {
+                    const active = item.id === selectedId;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => openSleeveModal(item)}
+                        title={item.name}
+                        className={cn(
+                          "relative transition-all duration-300 hover:brightness-110",
+                          active && "z-10 ring-2 ring-white/80 ring-offset-2 ring-offset-[#071013]",
+                        )}
+                        style={{
+                          width: `${item.percent}%`,
+                          backgroundColor: item.color,
+                        }}
+                      >
+                        {item.percent >= 12 ? (
+                          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-dda-ink/80">
+                            {item.percent}%
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center px-3 text-[11px] text-gray-500">
+                    {t("investmentChart.noDeployment")}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {investments.map((item) => {
                   const active = item.id === selectedId;
                   return (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => onSelect(item.id)}
-                      title={item.name}
+                      onClick={() => openSleeveModal(item)}
                       className={cn(
-                        "relative transition-all duration-300 hover:brightness-110",
-                        active && "z-10 ring-2 ring-white/80 ring-offset-2 ring-offset-[#071013]",
+                        "group w-full text-left transition",
+                        active ? "opacity-100" : "opacity-80 hover:opacity-100"
                       )}
-                      style={{
-                        width: `${item.percent}%`,
-                        backgroundColor: item.color,
-                      }}
                     >
-                      {item.percent >= 12 ? (
-                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-dda-ink/80">
-                          {item.percent}%
+                      <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+                        <span className={cn("font-medium", active ? "text-white" : "text-gray-300")}>
+                          {item.name}
                         </span>
-                      ) : null}
+                        <span className="tabular-nums text-dda-green-light">
+                          {item.percent}% · {formatPoolCurrency(item.allocated)}
+                        </span>
+                      </div>
+                      <div className="h-8 w-full overflow-hidden rounded-lg bg-white/5 transition-all duration-300">
+                        <div
+                          className={cn(
+                            "flex h-full items-center rounded-lg px-3 text-xs font-semibold text-dda-ink transition-all duration-500",
+                            item.allocated <= 0 && "bg-transparent",
+                          )}
+                          style={{
+                            width: item.allocated > 0 ? `${item.percent}%` : "0%",
+                            backgroundColor: item.allocated > 0 ? item.color : undefined,
+                          }}
+                        >
+                          {active && item.allocated > 0 ? item.name : null}
+                        </div>
+                      </div>
                     </button>
                   );
-                })
-              ) : (
-                <div className="flex h-full w-full items-center justify-center px-3 text-[11px] text-gray-500">
-                  {t("investmentChart.noDeployment")}
-                </div>
-              )}
+                })}
+              </div>
             </div>
+          </DashboardCard>
 
-            <div className="mt-4 space-y-3">
-              {investments.map((item, index) => {
-                const active = item.id === selectedId;
-                const widthScale = 100 - index * 12;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => onSelect(item.id)}
-                    className={cn(
-                      "group w-full text-left transition",
-                      active ? "opacity-100" : "opacity-80 hover:opacity-100"
-                    )}
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                      <span className={cn("font-medium", active ? "text-white" : "text-gray-300")}>
-                        {item.name}
-                      </span>
-                      <span className="tabular-nums text-dda-green-light">
-                        {item.percent}% · {formatPoolCurrency(item.allocated)}
-                      </span>
-                    </div>
-                    <div
-                      className="h-8 overflow-hidden rounded-lg bg-white/5 transition-all duration-300"
-                      style={{ width: `${widthScale}%` }}
-                    >
-                      <div
-                        className={cn(
-                          "flex h-full items-center rounded-lg px-3 text-xs font-semibold text-dda-ink transition-all duration-500",
-                          item.allocated <= 0 && "bg-transparent",
-                        )}
-                        style={{
-                          width: item.allocated > 0 ? `${item.percent}%` : "0%",
-                          backgroundColor: item.allocated > 0 ? item.color : undefined,
-                        }}
-                      >
-                        {active && item.allocated > 0 ? item.name : null}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="dda-glass rounded-2xl p-4">
+          <DashboardCard
+            title={t("pages.investments.selectedSleeve")}
+            subtitle={selected.name}
+            compact
+            collapsible
+            defaultCollapsed
+            collapseAriaLabel={t("pages.investments.collapseSelectedSleeve")}
+            expandAriaLabel={t("pages.investments.expandSelectedSleeve")}
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  {t("pages.investments.selectedSleeve")}
-                </p>
-                <h3 className="mt-1 text-lg font-bold text-white">{selected.name}</h3>
+                <h3 className="text-lg font-bold text-white">{selected.name}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-gray-400">{selected.description}</p>
               </div>
               <span
@@ -176,23 +242,15 @@ export default function InvestmentInfographic({
               </span>
             </div>
 
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <div className="dda-panel rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wide text-gray-500">{t("investmentChart.allocated")}</p>
-                <p className="mt-1 text-sm font-bold tabular-nums text-white">
-                  {formatPoolCurrency(selected.allocated)}
-                </p>
-              </div>
-              <div className="dda-panel rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wide text-gray-500">{t("investmentChart.apy")}</p>
-                <p className="mt-1 text-sm font-bold tabular-nums text-dda-green-light">
-                  {selected.returnPct}%
-                </p>
-              </div>
-              <div className="dda-panel rounded-xl p-3">
-                <p className="text-[10px] uppercase tracking-wide text-gray-500">{t("investmentChart.liquidity")}</p>
-                <p className="mt-1 text-sm font-bold text-white">{selected.liquidity}</p>
-              </div>
+            <div className="mt-4">
+              <AllocationStatsGrid
+                allocated={selected.allocated}
+                apy={selected.returnPct}
+                liquidity={selected.liquidity}
+                roiAmount={selectedSleeveRoi.amount}
+                roiPct={selectedSleeveRoi.pct}
+                t={t}
+              />
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -219,14 +277,79 @@ export default function InvestmentInfographic({
               </div>
               <ProgressBar value={selected.percent} />
             </div>
-          </div>
+
+            {selectedPositions.length ? (
+              <div className="mt-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
+                  {t("pages.investments.sleeveAllocations")}
+                </p>
+                <ul className="space-y-2">
+                  {selectedPositions.map((position) => {
+                    const stock = isStockPosition(position);
+                    const entry =
+                      position.entryPrice ??
+                      (position.contracts > 0 ? position.principal / position.contracts : 0);
+                    const market = position.marketPrice ?? entry;
+                    const stockMetrics = stock
+                      ? computeStockPositionMetrics(position.contracts, entry, market)
+                      : null;
+                    const gain = stockMetrics ? stockMetrics.pnl >= 0 : true;
+
+                    return (
+                    <li key={position.id}>
+                      <button
+                        type="button"
+                        onClick={() => handlePositionClick(position)}
+                        className="dda-glass-btn flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition hover:border-white/15"
+                      >
+                      <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-white">{position.contractLabel}</p>
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            {stock
+                              ? `${position.contracts} ${t("pages.investments.stockSharesUnit")} · ${t("pages.investments.stockCostBasis")} ${formatQuotePrice(entry)}`
+                              : t("pages.investments.positionMaturity", {
+                                  date: formatPositionMaturity(position.maturityDate),
+                                })}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="font-bold tabular-nums text-white">
+                            {formatPoolCurrency(stockMetrics?.marketValue ?? position.principal)}
+                          </p>
+                          <p
+                            className={cn(
+                              "mt-0.5 text-xs tabular-nums",
+                              stock
+                                ? gain
+                                  ? "text-dda-green-light"
+                                  : "text-red-400"
+                                : "text-dda-green-light",
+                            )}
+                          >
+                            {stock && stockMetrics
+                              ? `${gain ? "+" : ""}${formatPoolCurrency(stockMetrics.pnl)} (${gain ? "+" : ""}${stockMetrics.pnlPct.toFixed(2)}%)`
+                              : `${position.annualYieldPct}% APR`}
+                          </p>
+                        </div>
+                      </div>
+                      </button>
+                    </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : (
+              <p className="mt-4 text-xs text-gray-500">{t("pages.investments.noSleeveAllocations")}</p>
+            )}
+          </DashboardCard>
         </div>
 
         <div className="flex flex-col gap-4">
           <div className="dda-panel relative flex flex-1 flex-col rounded-xl p-4">
             <p className="mb-2 text-sm font-medium text-white">{t("investmentChart.capitalMix")}</p>
-            <div className="relative h-48 w-full sm:h-52">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="dda-donut-chart relative h-48 w-full sm:h-52">
+              <ResponsiveContainer width="100%" height="100%" className="dda-donut-chart__plot">
                 <PieChart>
                   <Pie
                     data={chartData}
@@ -238,7 +361,12 @@ export default function InvestmentInfographic({
                     dataKey="value"
                     stroke="#071013"
                     strokeWidth={2}
-                    onClick={(data) => data?.id && onSelect(data.id)}
+                    onClick={(slice) => {
+                      const entry = slice?.payload ?? slice;
+                      if (!entry?.id) return;
+                      const item = investments.find((inv) => inv.id === entry.id) ?? entry;
+                      openSleeveModal(item);
+                    }}
                     className="cursor-pointer outline-none"
                   >
                     {chartData.map((entry) => (
@@ -251,10 +379,13 @@ export default function InvestmentInfographic({
                       />
                     ))}
                   </Pie>
-                  <Tooltip content={<AllocationTooltip t={t} />} />
+                  <Tooltip
+                    content={<AllocationTooltip t={t} />}
+                    wrapperStyle={{ zIndex: 50, outline: "none" }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <div className="dda-donut-chart__center pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                 <CircleDollarSign className="h-5 w-5 text-dda-green-light" />
                 <span className="mt-1 text-xs font-bold tabular-nums text-white">
                   {selected.percent}%
@@ -270,7 +401,7 @@ export default function InvestmentInfographic({
                   <li key={item.id}>
                     <button
                       type="button"
-                      onClick={() => onSelect(item.id)}
+                      onClick={() => openSleeveModal(item)}
                       className={cn(
                         "dda-glass-btn flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm transition",
                         active && "border-dda-green-light/25 ring-1 ring-dda-green-light/15"
@@ -294,14 +425,60 @@ export default function InvestmentInfographic({
               })}
             </ul>
           </div>
-
-          <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs leading-relaxed text-gray-400">
-            <p className="font-semibold text-gray-300">{t("pages.investments.allocationPolicy")}</p>
-            <p className="mt-2">{t("pages.investments.policyCopy1")}</p>
-            <p className="mt-2">{t("investmentChart.policyRebalance")}</p>
-          </div>
         </div>
       </div>
     </DashboardCard>
+
+    <AllocationSleeveModal
+      investment={sleeveModalItem}
+      positions={sleeveModalPositions}
+      accent={
+        sleeveModalItem?.color ??
+        (sleeveModalItem?.key
+          ? (ALLOCATION_SLEEVE_META[sleeveModalItem.key]?.color ?? "#38bdf8")
+          : "#38bdf8")
+      }
+      open={Boolean(sleeveModalItem)}
+      onClose={() => setSleeveModalItem(null)}
+      onPositionClick={handlePositionClick}
+      onBuy={(sleeveKey) => openBuyModal(sleeveKey, { mode: "buy" })}
+      onSell={(sleeveKey) => openBuyModal(sleeveKey, { mode: "sell" })}
+    />
+
+    <AllocationPositionModal
+      position={selectedPosition}
+      accent={
+        selectedPosition
+          ? (ALLOCATION_SLEEVE_META[selectedPosition.sleeveKey]?.color ?? "#38bdf8")
+          : "#38bdf8"
+      }
+      open={Boolean(selectedPosition)}
+      onClose={() => setSelectedPosition(null)}
+      onBuyMore={(sleeveKey) => openBuyModal(sleeveKey, { mode: "buy" })}
+      onSell={(position) =>
+        openBuyModal(position.sleeveKey, { mode: "sell", sellPositionId: position.id })
+      }
+    />
+
+    {activeSleeve?.id === "stocks" ? (
+      <StockAllocationModal
+        sleeve={activeSleeve}
+        open={Boolean(activeSleeveId)}
+        availableBalance={availableBalance}
+        onClose={closeBuyModal}
+        initialMode={entityInitialMode}
+        initialSellPositionId={entityInitialSellId}
+      />
+    ) : activeSleeve ? (
+      <AllocationEntityModal
+        sleeve={activeSleeve}
+        open={Boolean(activeSleeveId)}
+        availableBalance={availableBalance}
+        onClose={closeBuyModal}
+        initialMode={entityInitialMode}
+        initialSellPositionId={entityInitialSellId}
+      />
+    ) : null}
+    </>
   );
 }

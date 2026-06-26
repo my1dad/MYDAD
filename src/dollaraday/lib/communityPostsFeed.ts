@@ -37,7 +37,9 @@ export interface CommunityBoardPost {
   id: string;
   author: string;
   handle: string;
+  profileId?: string;
   time: string;
+  publishedAt?: string;
   title?: string;
   body: string;
   channelLabel?: string;
@@ -57,6 +59,9 @@ function storedRecordToPost(record: StoredRecord): CommunityBoardPost | null {
     id: record.id,
     author: typeof payload.author === "string" ? payload.author : "Member",
     handle: typeof payload.handle === "string" ? payload.handle : "",
+    profileId: typeof payload.profileId === "string" ? payload.profileId : undefined,
+    publishedAt:
+      typeof payload.publishedAt === "string" ? payload.publishedAt : record.createdAt,
     time: formatRelativeTime(
       typeof payload.publishedAt === "string" ? payload.publishedAt : record.createdAt
     ),

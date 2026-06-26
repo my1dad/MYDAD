@@ -130,6 +130,14 @@ function schedulePersist(binId: string): void {
     } catch (err) {
       console.warn(`[internalDatabase] Could not save ${binId} to localStorage:`, err);
     }
+    const payload = cache[binId];
+    if (payload) {
+      queueMicrotask(() => {
+        void import("./supabase/cloudSync").then(({ scheduleCloudBinPush }) => {
+          scheduleCloudBinPush(binId, payload);
+        });
+      });
+    }
     notifyListeners();
     return;
   }
@@ -204,6 +212,20 @@ export function writeDataBin(key: DataBinKey, document: DataBinDocument): void {
   schedulePersist(binId);
 }
 
+export function applyExternalBinDocument(
+  binId: string,
+  key: DataBinKey,
+  document: DataBinDocument,
+): void {
+  cache[binId] = normalizeBinDocument(key, document);
+  try {
+    localStorage.setItem(localStorageKey(binId), JSON.stringify(cache[binId]));
+  } catch (err) {
+    console.warn(`[internalDatabase] Could not cache remote ${binId}:`, err);
+  }
+  notifyListeners();
+}
+
 export function appendDataRecord(
   key: DataBinKey,
   source: string,
@@ -263,6 +285,34 @@ export function upsertDataRecord(
     records: [created, ...bin.records],
   });
   return created;
+}
+
+export function removeDataRecord(key: DataBinKey, recordId: string): boolean {
+  const bin = readDataBin(key);
+  const nextRecords = bin.records.filter((item) => item.id !== recordId);
+  if (nextRecords.length === bin.records.length) return false;
+
+  writeDataBin(key, {
+    ...bin,
+    records: nextRecords,
+  });
+  return true;
+}
+
+export function removeDataRecordsByPayload(
+  key: DataBinKey,
+  predicate: (payload: Record<string, unknown>) => boolean,
+): number {
+  const bin = readDataBin(key);
+  const nextRecords = bin.records.filter((item) => !predicate(item.payload));
+  const removed = bin.records.length - nextRecords.length;
+  if (!removed) return 0;
+
+  writeDataBin(key, {
+    ...bin,
+    records: nextRecords,
+  });
+  return removed;
 }
 
 export function clearDataBin(key: DataBinKey): void {

@@ -26,45 +26,30 @@ function SecondaryStatCard({ statKey, label, value, hint }) {
   const config = secondaryStatConfig[statKey];
   const Icon = config?.icon ?? CircleDollarSign;
   const accent = config?.accent ?? DDA_THEME.greenLight;
+  const title = hint ? `${label}: ${value} — ${hint}` : `${label}: ${value}`;
 
   return (
-    <div className="dda-glass-btn group relative flex min-w-0 flex-1 flex-col p-3 sm:p-5">
-      <div className="relative flex items-start justify-between gap-2">
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset transition group-hover:scale-105 sm:h-10 sm:w-10"
-          style={{
-            backgroundColor: `${accent}18`,
-            color: accent,
-            boxShadow: `inset 0 0 0 1px ${accent}33`,
-          }}
-        >
-          <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" strokeWidth={2.25} />
-        </span>
-        <span
-          className="mt-1 h-2 w-2 shrink-0 rounded-full opacity-90"
-          style={{ backgroundColor: accent }}
-          aria-hidden="true"
-        />
-      </div>
-
-      <p className="relative mt-3 text-[10px] font-semibold uppercase tracking-wide text-gray-500 sm:text-[11px]">
-        {label}
-      </p>
-      <p className="relative mt-1 truncate text-lg font-bold tabular-nums leading-none text-white sm:mt-1.5 sm:text-2xl">
-        {value}
-      </p>
-      {hint ? (
-        <p className="relative mt-2 hidden text-[11px] text-gray-500 sm:block">{hint}</p>
-      ) : null}
-
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-px opacity-60"
+    <button
+      type="button"
+      title={title}
+      className="dda-pool-metric-btn dda-glass-btn group"
+      style={{ "--pool-metric-accent": accent }}
+    >
+      <span
+        className="dda-pool-metric-btn__icon"
         style={{
-          background: `linear-gradient(90deg, transparent, ${accent}66, transparent)`,
+          backgroundColor: `color-mix(in srgb, ${accent} 14%, transparent)`,
+          color: accent,
+          boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${accent} 28%, transparent)`,
         }}
-        aria-hidden="true"
-      />
-    </div>
+      >
+        <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+      </span>
+      <span className="dda-pool-metric-btn__copy">
+        <span className="dda-pool-metric-btn__label">{label}</span>
+        <span className="dda-pool-metric-btn__value">{value}</span>
+      </span>
+    </button>
   );
 }
 
@@ -80,6 +65,7 @@ export default function DashboardCard({
   defaultCollapsed = false,
   collapseAriaLabel,
   expandAriaLabel,
+  scrollable = false,
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
@@ -106,7 +92,7 @@ export default function DashboardCard({
             <button
               type="button"
               onClick={() => setCollapsed((open) => !open)}
-              className="dda-card-collapse-trigger flex min-w-0 flex-1 items-start gap-2 text-left"
+              className="dda-card-collapse-trigger flex min-w-0 flex-1 items-start text-left"
               aria-expanded={!collapsed}
               aria-label={collapsed ? expandAriaLabel : collapseAriaLabel}
             >
@@ -126,7 +112,13 @@ export default function DashboardCard({
         </div>
       )}
       {!collapsed ? (
-        <div className={noPadding ? undefined : compact ? "p-4" : "p-5"}>{children}</div>
+        <div className={noPadding ? undefined : compact ? "p-4" : "p-5"}>
+          {scrollable ? (
+            <div className="dda-card-scroll">{children}</div>
+          ) : (
+            children
+          )}
+        </div>
       ) : null}
     </section>
   );
@@ -155,7 +147,7 @@ export function PoolSecondaryStats({ stats, hints }) {
   ];
 
   return (
-    <section className="grid grid-cols-3 gap-2 sm:gap-4">
+    <section className="dda-pool-secondary-stats">
       {items.map((stat) => (
         <SecondaryStatCard
           key={stat.key}
@@ -190,7 +182,7 @@ export function FeatureCard({ title, desc, onClick, className }) {
   );
 }
 
-export function MemberAvatar({ initials, size = "md" }) {
+export function MemberAvatar({ initials, imageUrl, size = "md" }) {
   const sizes = {
     sm: "h-8 w-8 text-[10px]",
     md: "h-10 w-10 text-xs",
@@ -200,11 +192,15 @@ export function MemberAvatar({ initials, size = "md" }) {
   return (
     <div
       className={cn(
-        "dda-avatar",
+        "dda-avatar overflow-hidden",
         sizes[size]
       )}
     >
-      {initials}
+      {imageUrl ? (
+        <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        initials
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { getActiveDadProfile } from "./dadProfileStorage";
 import { readDataBin, subscribeInternalDatabase, upsertDataRecord } from "./internalDatabase";
-import { easternNow, formatEasternTime } from "./dateTime";
+import { easternNow, formatEasternTimeWithZone, type DdaLocale } from "./dateTime";
 import { getPoolState, syncMemberEscrowToLiquidityPool } from "./poolState";
 
 export type MemberAccountId = "checking" | "escrow";
@@ -98,6 +98,14 @@ export function hydrateMemberAccounts(profileId: string): MemberAccountLedger {
   const ledger = record?.payload ? normalizeLedger(record.payload) : createEmptyLedger();
   ledgers.set(profileId, ledger);
   return ledger;
+}
+
+export function invalidateMemberAccountsCache(profileId?: string): void {
+  if (profileId) {
+    ledgers.delete(profileId);
+    return;
+  }
+  ledgers.clear();
 }
 
 function appendTransaction(
@@ -408,11 +416,11 @@ export function useMemberAccounts(profileId = resolveMemberProfileId()): MemberA
   );
 }
 
-export function formatAccountTransactionTime(iso: string): string {
+export function formatAccountTransactionTime(iso: string, locale: DdaLocale = "en"): string {
   try {
-    return formatEasternTime(new Date(iso));
+    return formatEasternTimeWithZone(new Date(iso), locale);
   } catch {
-    return formatEasternTime(easternNow());
+    return formatEasternTimeWithZone(easternNow(), locale);
   }
 }
 

@@ -1,13 +1,21 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { isAdminProfile } from "../../config/admin";
 import {
   authenticateDadProfile,
   createDadProfile,
+  findDadProfileByUsername,
   getActiveDadProfile,
   getDadSessionId,
+  isProfileDenied,
+  isProfilePendingApproval,
+  isProfileSuspended,
   loginDadAdmin,
   setDadSessionId,
+  subscribeDadProfiles,
 } from "../lib/dadProfileStorage";
+import { clearPendingDmPartnerId } from "../lib/communityDmNavigation";
+import { logProfileActivity } from "../lib/profileActivity";
+import { syncProfileToMemberRegistry } from "../lib/profileRegistry";
 import { persistMemberFromProfile } from "../lib/memberRegistry";
 
 const DadAuthContext = createContext(null);
@@ -18,9 +26,32 @@ function resetShellScroll() {
   document.body.scrollTop = 0;
 }
 
-function beginAuthenticatedSession(profile) {
-  persistMemberFromProfile(profile);
-  setDadSessionId(profile.id);
+function beginAuthenticatedSession(profile, activityType, remember = false) {
+  persistMemberFromProfile(profile, { isNew: activityType === "register" });
+  syncProfileToMemberRegistry(profile);
+  logProfileActivity({
+    profileId: profile.id,
+    proId: profile.proId,
+    type: activityType,
+    summary:
+      activityType === "register"
+        ? `Registered with promo code ${profile.proId}`
+        : "Signed in to dashboard",
+    payload:
+      activityType === "register" && profile.referredByProId
+        ? { referredByProId: profile.referredByProId }
+        : undefined,
+  });
+  if (activityType === "register" && profile.referredByProId) {
+    logProfileActivity({
+      profileId: profile.id,
+      proId: profile.proId,
+      type: "referral",
+      summary: `Joined using referral code ${profile.referredByProId}`,
+      payload: { referredByProId: profile.referredByProId },
+    });
+  }
+  setDadSessionId(profile.id, { remember });
   window.location.hash = "";
   resetShellScroll();
   return profile;
@@ -30,20 +61,40 @@ export function DadAuthProvider({ children }) {
   const [profile, setProfile] = useState(() => getActiveDadProfile());
   const [authEntryTick, setAuthEntryTick] = useState(0);
 
-  const login = useCallback((username, password) => {
+  useEffect(() => {
+    return subscribeDadProfiles(() => {
+      setProfile(getActiveDadProfile());
+    });
+  }, []);
+
+  const login = useCallback((username, password, options = {}) => {
+    const rememberMe = Boolean(options.rememberMe);
+
     const adminMatch = loginDadAdmin(username, password);
     if (adminMatch) {
-      setProfile(beginAuthenticatedSession(adminMatch));
+      setProfile(beginAuthenticatedSession(adminMatch, "login", rememberMe));
       setAuthEntryTick((tick) => tick + 1);
       return { ok: true };
     }
 
     const matched = authenticateDadProfile(username, password);
     if (!matched) {
+      const existing = findDadProfileByUsername(username);
+      if (existing && existing.password === password.trim()) {
+        if (isProfilePendingApproval(existing)) {
+          return { ok: false, error: "pendingApproval" };
+        }
+        if (isProfileDenied(existing)) {
+          return { ok: false, error: "denied" };
+        }
+        if (isProfileSuspended(existing)) {
+          return { ok: false, error: "suspended" };
+        }
+      }
       return { ok: false, error: "Invalid username or password." };
     }
 
-    setProfile(beginAuthenticatedSession(matched));
+    setProfile(beginAuthenticatedSession(matched, "login", rememberMe));
     setAuthEntryTick((tick) => tick + 1);
     return { ok: true };
   }, []);
@@ -55,17 +106,33 @@ export function DadAuthProvider({ children }) {
     }
 
     persistMemberFromProfile(result.profile, { isNew: true });
-    setDadSessionId(result.profile.id);
-    window.location.hash = "";
-    resetShellScroll();
-    setProfile(result.profile);
-    setAuthEntryTick((tick) => tick + 1);
-    return { ok: true };
+    syncProfileToMemberRegistry(result.profile);
+    logProfileActivity({
+      profileId: result.profile.id,
+      proId: result.profile.proId,
+      type: "register",
+      summary: "Submitted membership request — awaiting admin approval",
+      payload: result.profile.referredByProId
+        ? { referredByProId: result.profile.referredByProId }
+        : undefined,
+    });
+    if (result.profile.referredByProId) {
+      logProfileActivity({
+        profileId: result.profile.id,
+        proId: result.profile.proId,
+        type: "referral",
+        summary: `Joined using referral code ${result.profile.referredByProId}`,
+        payload: { referredByProId: result.profile.referredByProId },
+      });
+    }
+    return { ok: true, pendingApproval: true };
   }, []);
 
   const logout = useCallback(() => {
+    clearPendingDmPartnerId();
     setDadSessionId(null);
     setProfile(null);
+    setAuthEntryTick((tick) => tick + 1);
   }, []);
 
   const value = useMemo(

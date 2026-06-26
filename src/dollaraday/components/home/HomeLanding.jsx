@@ -1,7 +1,14 @@
-import { DOLLARADAY_LOGO_URL, APPLE_PAY_LOGO_URL, APPLE_PAY_LEARN_URL, ZELLE_LOGO_URL, ZELLE_URL } from "@/lib/assetUrl";
+import { DOLLARADAY_LOGO_URL } from "@/lib/assetUrl";
 import LanguageToggle from "../layout/LanguageToggle";
 import PoolDigitalDisplay from "./PoolDigitalDisplay.jsx";
+import ContributeTodaySection from "./ContributeTodaySection.jsx";
+import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocale } from "../../i18n/LocaleContext";
+
+function getProfileFullName(profile) {
+  if (!profile) return "";
+  return profile.fullName?.trim() || profile.displayName?.trim() || "";
+}
 
 function WelcomeCopy() {
   const { t } = useLocale();
@@ -29,35 +36,43 @@ export default function HomeLanding({
   onPoolClick,
 }) {
   const { t } = useLocale();
-
-  const contributeOptions = [
-    { label: t("pages.dashboard.weekly"), onClick: onContributeWeekly },
-    { label: t("pages.dashboard.monthly"), onClick: onContributeMonthly },
-    { label: t("pages.dashboard.yearly"), onClick: onContributeYearly },
-    { label: t("pages.dashboard.otherAmount"), onClick: onContributeOther, showPayments: true },
-  ];
+  const { profile } = useDadAuth();
+  const userFullName = getProfileFullName(profile);
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-6 pb-2 sm:max-w-xl sm:gap-7">
-      <div className="flex justify-end">
-        <LanguageToggle />
-      </div>
+      <header className="dda-home-hero">
+        <div className="dda-accent-bar" />
+        <div className="dda-home-hero__inner">
+          <div className="dda-home-hero__top">
+            {userFullName ? (
+              <p className="dda-home-greeting">
+                <span className="dda-home-greeting__label">{t("pages.dashboard.welcomeLabel")}</span>{" "}
+                <span className="dda-home-greeting__name">{userFullName}</span>
+              </p>
+            ) : (
+              <span className="dda-home-greeting dda-home-greeting--empty" aria-hidden="true" />
+            )}
+            <LanguageToggle className="dda-home-hero__lang shrink-0" />
+          </div>
 
-      <header className="flex items-center gap-4 sm:gap-5">
-        <img
-          src={DOLLARADAY_LOGO_URL}
-          alt=""
-          draggable={false}
-          className="h-28 w-auto shrink-0 object-contain sm:h-32"
-        />
-        <div className="min-w-0 flex-1">
-          <p className="text-xl font-extrabold leading-none tracking-tight text-white sm:text-2xl">
-            {t("pages.dashboard.brandLine1")}
-          </p>
-          <hr className="dda-home-brand-line" />
-          <p className="text-sm font-bold uppercase tracking-[0.35em] text-dda-green-light sm:text-base">
-            {t("pages.dashboard.brandLine2")}
-          </p>
+          <div className="dda-home-hero__brand">
+            <img
+              src={DOLLARADAY_LOGO_URL}
+              alt=""
+              draggable={false}
+              className="dda-home-hero__logo"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-xl font-extrabold leading-none tracking-tight text-white sm:text-2xl">
+                {t("pages.dashboard.brandLine1")}
+              </p>
+              <hr className="dda-home-brand-line" />
+              <p className="text-sm font-bold uppercase tracking-[0.35em] text-dda-green-light sm:text-base">
+                {t("pages.dashboard.brandLine2")}
+              </p>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -66,53 +81,12 @@ export default function HomeLanding({
         <WelcomeCopy />
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-center text-base font-extrabold tracking-[0.12em] text-white sm:text-lg">
-          {t("pages.dashboard.contributeToday")}
-        </h2>
-
-        <div className="space-y-2">
-          {contributeOptions.map((option) => (
-            <div key={option.label}>
-              <button type="button" onClick={option.onClick} className="dda-home-contribute-btn">
-                {option.label}
-              </button>
-              {option.showPayments ? (
-                <div className="dda-home-payment-logos" aria-label={t("pages.dashboard.paymentMethods")}>
-                  <a
-                    href={APPLE_PAY_LEARN_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="dda-home-payment-logo-link"
-                    aria-label="Learn about Apple Pay"
-                  >
-                    <img
-                      src={APPLE_PAY_LOGO_URL}
-                      alt=""
-                      className="dda-home-payment-logo dda-home-payment-logo--apple"
-                      draggable={false}
-                    />
-                  </a>
-                  <a
-                    href={ZELLE_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="dda-home-payment-logo-link"
-                    aria-label="Visit Zelle"
-                  >
-                    <img
-                      src={ZELLE_LOGO_URL}
-                      alt=""
-                      className="dda-home-payment-logo dda-home-payment-logo--zelle"
-                      draggable={false}
-                    />
-                  </a>
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </section>
+      <ContributeTodaySection
+        onContributeWeekly={onContributeWeekly}
+        onContributeMonthly={onContributeMonthly}
+        onContributeYearly={onContributeYearly}
+        onContributeOther={onContributeOther}
+      />
 
       <PoolDigitalDisplay
         amount={poolTotal}

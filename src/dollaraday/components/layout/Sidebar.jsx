@@ -6,46 +6,86 @@ import {
   MessageSquare,
   PiggyBank,
   Shield,
+  Settings,
   TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocale } from "../../i18n/LocaleContext";
+import EasternLiveClock from "./EasternLiveClock";
+import HeaderActions from "./HeaderActions";
+
+const navItemById = {
+  dashboard: { id: "dashboard", icon: LayoutDashboard },
+  allocations: { id: "allocations", icon: CalendarClock },
+  members: { id: "members", icon: Users },
+  pool: { id: "pool", icon: PiggyBank },
+  investments: { id: "investments", icon: TrendingUp },
+  accounts: { id: "accounts", icon: Wallet },
+  community: { id: "community", icon: MessageSquare },
+  admin: { id: "admin", icon: Shield },
+  loans: { id: "loans", icon: Banknote },
+};
 
 export const navItems = [
-  { id: "dashboard", icon: LayoutDashboard },
-  { id: "allocations", icon: CalendarClock },
-  { id: "members", icon: Users },
-  { id: "pool", icon: PiggyBank },
-  { id: "investments", icon: TrendingUp },
-  { id: "accounts", icon: Wallet },
-  { id: "community", icon: MessageSquare },
-  { id: "admin", icon: Shield },
+  navItemById.dashboard,
+  navItemById.allocations,
+  navItemById.members,
+  navItemById.pool,
+  navItemById.investments,
+  navItemById.accounts,
+  navItemById.community,
+  navItemById.admin,
 ];
 
 export const mobileNavItems = [
-  { id: "dashboard", icon: LayoutDashboard },
-  { id: "pool", icon: PiggyBank },
-  { id: "investments", icon: TrendingUp },
-  { id: "accounts", icon: Wallet },
+  navItemById.dashboard,
+  navItemById.pool,
+  navItemById.investments,
+  navItemById.accounts,
 ];
 
 export const mobileMoreItems = [
-  { id: "allocations", icon: CalendarClock },
-  { id: "members", icon: Users },
-  { id: "loans", icon: Banknote },
-  { id: "community", icon: MessageSquare },
-  { id: "admin", icon: Shield },
+  navItemById.allocations,
+  navItemById.members,
+  navItemById.loans,
+  navItemById.community,
+  navItemById.admin,
 ];
+
+const ADMIN_NAV_IDS = ["dashboard", "allocations", "members", "pool", "investments", "accounts", "community", "admin"];
+const MEMBER_NAV_IDS = ["dashboard", "allocations", "members", "pool", "accounts", "community", "admin"];
+const ADMIN_MOBILE_NAV_IDS = ["dashboard", "pool", "investments", "accounts"];
+const MEMBER_MOBILE_NAV_IDS = ["dashboard", "pool", "accounts", "community"];
+const ADMIN_MOBILE_MORE_IDS = ["allocations", "members", "loans", "community", "admin"];
+const MEMBER_MOBILE_MORE_IDS = ["allocations", "members", "loans", "admin"];
 
 const mobileNavLabels = {
   dashboard: "home",
   investments: "invest",
 };
 
+export function getVisibleNavItems(isAdmin) {
+  const ids = isAdmin ? ADMIN_NAV_IDS : MEMBER_NAV_IDS;
+  return ids.map((id) => navItemById[id]).filter(Boolean);
+}
+
+export function getVisibleMobileNavItems(isAdmin) {
+  const ids = isAdmin ? ADMIN_MOBILE_NAV_IDS : MEMBER_MOBILE_NAV_IDS;
+  return ids.map((id) => navItemById[id]).filter(Boolean);
+}
+
+export function getVisibleMobileMoreItems(isAdmin) {
+  const ids = isAdmin ? ADMIN_MOBILE_MORE_IDS : MEMBER_MOBILE_MORE_IDS;
+  return ids.map((id) => navItemById[id]).filter(Boolean);
+}
+
 export default function Sidebar({ activePage, onNavigate }) {
   const { t } = useLocale();
+  const { isAdmin } = useDadAuth();
+  const visibleNavItems = getVisibleNavItems(isAdmin);
 
   return (
     <aside className="dda-scroll hidden h-full min-h-0 w-56 shrink-0 flex-col overflow-y-auto border-r border-white/10 bg-dda-bg px-3 py-4 lg:flex">
@@ -62,8 +102,9 @@ export default function Sidebar({ activePage, onNavigate }) {
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5">
-        {navItems.map(({ id, icon: Icon }) => {
+        {visibleNavItems.map(({ id, icon: DefaultIcon }) => {
           const active = activePage === id;
+          const Icon = getNavItemIcon(id, DefaultIcon, isAdmin);
           return (
             <button
               key={id}
@@ -75,16 +116,34 @@ export default function Sidebar({ activePage, onNavigate }) {
               )}
             >
               <Icon className="h-4 w-4 shrink-0" strokeWidth={active ? 2.25 : 2} />
-              {t(`nav.${id}`)}
+              {getNavItemLabel(id, t, isAdmin)}
             </button>
           );
         })}
       </nav>
+
+      <div className="mt-auto border-t border-white/10 px-2 pt-3">
+        <div className="flex items-start justify-between gap-2">
+          <HeaderActions onNavigate={onNavigate} />
+          <EasternLiveClock variant="sidebar" className="min-w-0 flex-1 text-right" />
+        </div>
+      </div>
     </aside>
   );
 }
 
-export function getMobileNavLabel(id, t) {
+export function getNavItemLabel(id, t, isAdmin) {
+  if (id === "admin" && !isAdmin) return t("nav.settings");
+  if (id === "accounts" && !isAdmin) return t("nav.wallet");
   const key = mobileNavLabels[id] ?? id;
   return t(`nav.${key}`);
+}
+
+export function getNavItemIcon(id, DefaultIcon, isAdmin) {
+  if (id === "admin" && !isAdmin) return Settings;
+  return DefaultIcon;
+}
+
+export function getMobileNavLabel(id, t, isAdmin) {
+  return getNavItemLabel(id, t, isAdmin);
 }

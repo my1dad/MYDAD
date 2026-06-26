@@ -1,10 +1,20 @@
 import { ArrowLeft, Database } from "lucide-react";
 import PageHeader from "../components/layout/PageHeader";
 import AdminDataBinsPanel from "../components/admin/AdminDataBinsPanel";
+import { useDadAuth } from "../context/DadAuthContext";
 import { useLocale } from "../i18n/LocaleContext";
 
 export default function AdminDataBinsPage({ onNavigate }) {
   const { t } = useLocale();
+  const { isAdmin } = useDadAuth();
+
+  if (!isAdmin) {
+    return (
+      <div className="dda-glass rounded-2xl p-6 text-sm text-gray-400">
+        {t("pages.admin.masterOnly")}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">

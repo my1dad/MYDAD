@@ -1,5 +1,6 @@
 import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import DashboardCard from "../layout/DashboardCard";
 import { formatPoolCurrency } from "../../data/mockData";
 import { useLocale } from "../../i18n/LocaleContext";
 
@@ -69,10 +70,20 @@ export default function InvestmentHighlights({ highlights }) {
   const { t } = useLocale();
 
   return (
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {highlights.map((item) => (
-        <HighlightCard key={item.id} item={item} t={t} />
-      ))}
-    </section>
+    <DashboardCard
+      title={t("pages.investments.highlightsTitle")}
+      subtitle={t("pages.investments.highlightsSub")}
+      compact
+      collapsible
+      defaultCollapsed
+      collapseAriaLabel={t("pages.investments.collapseHighlights")}
+      expandAriaLabel={t("pages.investments.expandHighlights")}
+    >
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {highlights.map((item) => (
+          <HighlightCard key={item.id} item={item} t={t} />
+        ))}
+      </section>
+    </DashboardCard>
   );
 }

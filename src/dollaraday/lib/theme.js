@@ -20,3 +20,10 @@ export const DDA_CHART = {
   grid: "#6b7280",
   tooltipBg: "rgba(7, 16, 19, 0.95)",
 };
+
+/** Deployed / escrow / available — used on Liquidity Pool capital allocation visuals. */
+export const POOL_CAPITAL_COLORS = {
+  deployed: "#34d399",
+  escrow: "#38bdf8",
+  available: "#fbbf24",
+};

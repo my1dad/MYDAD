@@ -1,10 +1,19 @@
 import { useEffect, useState } from "react";
-import { getActiveDadProfile } from "../lib/dadProfileStorage";
+import {
+  ensureProfileProIds,
+  getActiveDadProfile,
+  getDadProfiles,
+  replaceAllDadProfiles,
+} from "../lib/dadProfileStorage";
+import { syncAllProfilesToMemberRegistry } from "../lib/profileRegistry";
 import { initInternalDatabase } from "../lib/internalDatabase";
-import { persistMemberFromProfile } from "../lib/memberRegistry";
+import { initCloudSync } from "../lib/supabase/cloudSync";
+import { persistMemberFromProfile, pruneDuplicateAdminMemberRecords } from "../lib/memberRegistry";
 import { hydratePoolStateFromStorage } from "../lib/poolState";
+import { syncAllocationPoolMetrics } from "../lib/allocationApy";
 import { startRecurringAutomation } from "../lib/recurringContributions";
 import { startRecurringCashflowAutomation } from "../lib/recurringCashflow";
+import { startAllocationYieldAutomation } from "../lib/allocationYieldAccrual";
 
 const INIT_TIMEOUT_MS = 8000;
 
@@ -30,18 +39,38 @@ export default function DdaStorageBootstrap({ children, fallback = <StorageLoadi
     let alive = true;
     let cleanupRecurring = null;
     let cleanupCashflow = null;
+    let cleanupAllocationYield = null;
+
+    let cleanupCloud = null;
 
     (async () => {
       try {
         const result = await Promise.race([
           (async () => {
             await initInternalDatabase();
+            cleanupCloud = await initCloudSync({
+              getLocalProfiles: getDadProfiles,
+              replaceLocalProfiles: (profiles) => {
+                replaceAllDadProfiles(profiles);
+                syncAllProfilesToMemberRegistry();
+              },
+              onProfilesChanged: (profiles) => {
+                replaceAllDadProfiles(profiles);
+                syncAllProfilesToMemberRegistry();
+                hydratePoolStateFromStorage();
+              },
+            });
+            pruneDuplicateAdminMemberRecords();
+            ensureProfileProIds();
+            syncAllProfilesToMemberRegistry();
             hydratePoolStateFromStorage();
+            syncAllocationPoolMetrics();
             const profile = getActiveDadProfile();
             if (profile) {
               persistMemberFromProfile(profile);
             }
             cleanupCashflow = startRecurringCashflowAutomation();
+            cleanupAllocationYield = startAllocationYieldAutomation();
             return startRecurringAutomation();
           })(),
           new Promise((_, reject) => {
@@ -66,6 +95,12 @@ export default function DdaStorageBootstrap({ children, fallback = <StorageLoadi
       }
       if (typeof cleanupCashflow === "function") {
         cleanupCashflow();
+      }
+      if (typeof cleanupAllocationYield === "function") {
+        cleanupAllocationYield();
+      }
+      if (typeof cleanupCloud === "function") {
+        cleanupCloud();
       }
     };
   }, []);

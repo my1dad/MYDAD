@@ -38,7 +38,7 @@ function hashForPage(page) {
 }
 
 export default function App() {
-  const { authEntryTick } = useDadAuth();
+  const { authEntryTick, isAdmin } = useDadAuth();
   const [activePage, setActivePage] = useState(() => "dashboard");
   const [scrollKey, setScrollKey] = useState(0);
 
@@ -71,6 +71,13 @@ export default function App() {
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    if (activePage === "admin-bins" || activePage === "investments") {
+      navigate("dashboard");
+    }
+  }, [activePage, isAdmin, navigate]);
 
   useEffect(() => {
     if (authEntryTick) return;

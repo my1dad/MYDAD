@@ -2,15 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { LogOut, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logoutDollarADay } from "../../lib/logout";
+import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocale } from "../../i18n/LocaleContext";
-import { mobileMoreItems, mobileNavItems, getMobileNavLabel } from "./Sidebar";
+import {
+  getMobileNavLabel,
+  getNavItemIcon,
+  getNavItemLabel,
+  getVisibleMobileMoreItems,
+  getVisibleMobileNavItems,
+} from "./Sidebar";
 
 export default function BottomNav({ activePage, onNavigate }) {
   const { t } = useLocale();
+  const { isAdmin } = useDadAuth();
+  const visibleNavItems = getVisibleMobileNavItems(isAdmin);
+  const visibleMoreItems = getVisibleMobileMoreItems(isAdmin);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreMenuRef = useRef(null);
   const moreTriggerRef = useRef(null);
-  const moreActive = mobileMoreItems.some((item) => item.id === activePage);
+  const moreActive = visibleMoreItems.some((item) => item.id === activePage);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -38,7 +48,7 @@ export default function BottomNav({ activePage, onNavigate }) {
 
       <nav className="relative z-50 shrink-0 border-t border-white/10 bg-dda-bg/95 px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm lg:hidden">
         <div className="mx-auto flex max-w-lg justify-around text-xs text-gray-300">
-          {mobileNavItems.map(({ id, icon: Icon }) => {
+          {visibleNavItems.map(({ id, icon: Icon }) => {
             const active = activePage === id;
             return (
               <button
@@ -51,7 +61,7 @@ export default function BottomNav({ activePage, onNavigate }) {
                 )}
               >
                 <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
-                <span>{getMobileNavLabel(id, t)}</span>
+                <span>{getMobileNavLabel(id, t, isAdmin)}</span>
               </button>
             );
           })}
@@ -77,7 +87,9 @@ export default function BottomNav({ activePage, onNavigate }) {
                 role="menu"
                 className="absolute bottom-full right-0 z-50 mb-2 w-48 overflow-hidden rounded-xl border border-white/10 bg-dda-bg py-1 shadow-xl"
               >
-                {mobileMoreItems.map(({ id, icon: Icon }) => (
+                {visibleMoreItems.map(({ id, icon: DefaultIcon }) => {
+                  const Icon = getNavItemIcon(id, DefaultIcon, isAdmin);
+                  return (
                   <button
                     key={id}
                     type="button"
@@ -94,9 +106,10 @@ export default function BottomNav({ activePage, onNavigate }) {
                     )}
                   >
                     <Icon className="h-4 w-4" />
-                    {t(`nav.${id}`)}
+                    {getNavItemLabel(id, t, isAdmin)}
                   </button>
-                ))}
+                  );
+                })}
                 <div className="my-1 border-t border-white/10" />
                 <button
                   type="button"

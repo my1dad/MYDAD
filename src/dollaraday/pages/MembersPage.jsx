@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, Star, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import DashboardCard from "../components/layout/DashboardCard";
-import OpenChatRoomButton from "../components/community/OpenChatRoomButton";
 import MemberDetailModal from "../components/members/MemberDetailModal";
 import { getMemberInitials } from "../lib/memberDetails";
+import { useDadAuth } from "../context/DadAuthContext";
+import { isMemberProfile } from "../../config/memberProfile";
+import { setPendingAdminProfileId } from "../lib/adminProfileNavigation";
 import { useFeaturedMembers, useMembers } from "../lib/memberRegistry";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
@@ -64,13 +66,37 @@ function MemberStatCard({ title, value, icon: Icon, accent, bg, bgDeep, border }
   );
 }
 
-export default function MembersPage() {
+export default function MembersPage({ onNavigate }) {
   const { t } = useLocale();
+  const { isAdmin, profile } = useDadAuth();
   const { translateStatus } = useLocalizedData();
   const [selectedMember, setSelectedMember] = useState(null);
   const { poolSummary } = usePoolState();
   const members = useMembers();
   const featuredMembers = useFeaturedMembers(3);
+
+  const myMember = useMemo(
+    () =>
+      profile
+        ? members.find(
+            (member) => member.profileId === profile.id || member.id === profile.id,
+          )
+        : null,
+    [members, profile],
+  );
+
+  const isOwnProfileOpen =
+    Boolean(selectedMember) &&
+    Boolean(profile) &&
+    isMemberProfile(profile) &&
+    (selectedMember.profileId === profile.id || selectedMember.id === profile.id);
+
+  const handleOpenProfileRegistry = (member) => {
+    const profileId = member.profileId ?? member.id;
+    setPendingAdminProfileId(profileId);
+    setSelectedMember(null);
+    onNavigate?.("admin");
+  };
 
   const memberStats = [
     {
@@ -117,8 +143,40 @@ export default function MembersPage() {
       <PageHeader
         title={t("pages.members.title")}
         description={t("pages.members.description")}
-        titleAction={<OpenChatRoomButton />}
       />
+
+      {!isAdmin && myMember ? (
+        <DashboardCard
+          title={t("pages.members.myProfile")}
+          subtitle={t("pages.members.myProfileSub")}
+        >
+          <button
+            type="button"
+            onClick={() => setSelectedMember(myMember)}
+            className="dda-glass-btn flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:border-dda-green-light/25"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-dda-green-light/25 to-dda-green/10 text-sm font-bold text-dda-green-soft ring-1 ring-dda-green-light/30">
+                {getMemberInitials(myMember.name)}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-base font-semibold text-white">{myMember.name}</span>
+                <span className="block truncate text-sm text-gray-500">
+                  {myMember.handle} · {t("pages.members.myProfileHint")}
+                </span>
+              </span>
+            </span>
+            <span className="shrink-0 text-right">
+              <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                {t("common.equity")}
+              </span>
+              <span className="font-semibold tabular-nums text-dda-green-light">
+                ${myMember.equity.toLocaleString()}
+              </span>
+            </span>
+          </button>
+        </DashboardCard>
+      ) : null}
 
       <section className="grid grid-cols-3 gap-2 sm:gap-4">
         {memberStats.map((stat) => (
@@ -129,6 +187,7 @@ export default function MembersPage() {
       <DashboardCard
         title={t("pages.members.directory")}
         subtitle={t("pages.members.directorySubtitle", { count: members.length.toLocaleString() })}
+        scrollable
       >
         <div className="dda-members-list" role="list">
           {members.map((member) => (
@@ -182,7 +241,11 @@ export default function MembersPage() {
         </div>
       </DashboardCard>
 
-      <DashboardCard title={t("pages.members.featured")} subtitle={t("pages.members.featuredSubtitle")}>
+      <DashboardCard
+        title={t("pages.members.featured")}
+        subtitle={t("pages.members.featuredSubtitle")}
+        scrollable
+      >
         <div className="space-y-2">
           {featuredMembers.map((member, index) => {
             const fullMember = members.find((m) => m.id === member.id) ?? member;
@@ -224,6 +287,9 @@ export default function MembersPage() {
         member={selectedMember}
         open={Boolean(selectedMember)}
         onClose={() => setSelectedMember(null)}
+        isAdmin={isAdmin}
+        isOwnProfile={isOwnProfileOpen}
+        onOpenProfileRegistry={handleOpenProfileRegistry}
       />
     </div>
   );

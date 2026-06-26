@@ -9,7 +9,7 @@ import {
   formatEasternMonthDay,
   formatEasternMonthShort,
   formatEasternNowLabel,
-  formatEasternTime,
+  formatEasternTimeWithZone,
   formatEasternTodayLabel,
   formatEasternWeekdayShort,
   formatRelativeTimeFromNow,
@@ -22,13 +22,13 @@ const DONATION_MINUTE_OFFSETS = [4, 11, 18, 26, 33, 41, 52, 63, 74, 82, 95, 108,
 
 function formatEasternHourLabel(hour: number, locale: DdaLocale = "en"): string {
   const { year, month, day } = getEasternYmd(easternNow());
-  return formatEasternTime(easternDateAt(year, month, day, hour), locale);
+  return formatEasternTimeWithZone(easternDateAt(year, month, day, hour), locale);
 }
 
 export function buildEasternDonationTimes(locale: DdaLocale = "en"): string[] {
   const midnight = easternMidnight();
   return DONATION_MINUTE_OFFSETS.map((minutes) =>
-    formatEasternTime(new Date(midnight.getTime() + minutes * 60_000), locale),
+    formatEasternTimeWithZone(new Date(midnight.getTime() + minutes * 60_000), locale),
   );
 }
 
@@ -93,7 +93,7 @@ export function buildEasternDailyAllocationSummary(locale: DdaLocale = "en") {
   const now = easternNow();
   return {
     dateLabel: formatEasternLongDate(now, locale),
-    lastUpdated: formatRelativeTimeFromNow(new Date(now.getTime() - 2 * 60_000), (key, vars) => {
+    lastUpdated: formatRelativeTimeFromNow(now, (key, vars) => {
       if (key === "common.minutesAgo") return locale === "es" ? `hace ${vars?.count} min` : `${vars?.count} min ago`;
       if (key === "common.justNow") return locale === "es" ? "ahora mismo" : "Just now";
       return key;

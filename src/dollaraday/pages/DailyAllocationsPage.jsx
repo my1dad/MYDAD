@@ -2,14 +2,16 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import DashboardCard from "../components/layout/DashboardCard";
-import AllocationAnalyticsGrid from "../components/allocations/AllocationAnalyticsGrid";
+import ContributeTodaySection from "../components/home/ContributeTodaySection";
+import ContributeOnboardingModal from "../components/onboarding/ContributeOnboardingModal";
 import MemberDetailModal from "../components/members/MemberDetailModal";
 import { useMembers } from "../lib/memberRegistry";
 import { resolveMemberFromDonation } from "../lib/memberDetails";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
-import { easternNow, formatEasternLongDate, formatRelativeTimeFromNow } from "../lib/dateTime";
+import { useEasternLiveTime, useLiveRelativeTime } from "../context/EasternTimeContext";
 import { usePoolState } from "../lib/poolState";
+import { saveContribution } from "../lib/storageWrites";
 import { formatPoolCurrency } from "../data/mockData";
 
 const statusStyles = {
@@ -19,21 +21,28 @@ const statusStyles = {
 };
 
 export default function DailyAllocationsPage() {
-  const { t, locale } = useLocale();
-  const { allocationComparisons, translateStatus } = useLocalizedData();
+  const { t } = useLocale();
+  const { translateStatus } = useLocalizedData();
   const { todaysDonations, dailyAllocationSummary, currentMember } = usePoolState();
   const members = useMembers();
   const [selectedMember, setSelectedMember] = useState(null);
+  const [contributeOpen, setContributeOpen] = useState(false);
+  const [contributeSeed, setContributeSeed] = useState({
+    amount: null,
+    custom: false,
+    frequency: "weekly",
+  });
   const completedCount = todaysDonations.filter((d) => d.status === "completed").length;
-  const todayLabel = formatEasternLongDate(easternNow(), locale);
-  const lastUpdatedLabel = formatRelativeTimeFromNow(
-    dailyAllocationSummary.lastUpdatedAt ?? easternNow(),
-    t,
-    locale,
-  );
+  const { longDate: todayLabel } = useEasternLiveTime();
+  const lastUpdatedLabel = useLiveRelativeTime(dailyAllocationSummary.lastUpdatedAt);
 
   const openMemberDetail = (donation) => {
     setSelectedMember(resolveMemberFromDonation(donation, members, currentMember));
+  };
+
+  const openContribute = (amount = null, { custom = false, frequency = "weekly" } = {}) => {
+    setContributeSeed({ amount, custom, frequency });
+    setContributeOpen(true);
   };
 
   return (
@@ -152,7 +161,24 @@ export default function DailyAllocationsPage() {
         </div>
       </DashboardCard>
 
-      <AllocationAnalyticsGrid comparisons={allocationComparisons} />
+      <ContributeTodaySection
+        className="mx-auto w-full max-w-lg sm:max-w-xl"
+        onContributeWeekly={() => openContribute(7, { frequency: "weekly" })}
+        onContributeMonthly={() => openContribute(31, { frequency: "monthly" })}
+        onContributeYearly={() => openContribute(365, { frequency: "yearly" })}
+        onContributeOther={() => openContribute(null, { custom: true, frequency: "weekly" })}
+      />
+
+      <ContributeOnboardingModal
+        open={contributeOpen}
+        onClose={() => setContributeOpen(false)}
+        initialAmount={contributeSeed.amount}
+        startOnCustom={contributeSeed.custom}
+        contributionFrequency={contributeSeed.frequency}
+        onComplete={({ reminderEnabled, recurringEnabled, amount, frequency }) => {
+          saveContribution({ amount, reminderEnabled, recurringEnabled, frequency });
+        }}
+      />
 
       <MemberDetailModal
         member={selectedMember}

@@ -1,48 +1,54 @@
-import { useMemo, useState } from "react";
-import { Layers, Percent, PiggyBank, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import InvestmentHighlights from "../components/investments/InvestmentHighlights";
+import BuyAllocationsCard from "../components/investments/BuyAllocationsCard";
 import InvestmentInfographic from "../components/investments/InvestmentInfographic";
 import InvestmentYieldChart from "../components/investments/InvestmentYieldChart";
+import DashboardCard from "../components/layout/DashboardCard";
 import { formatPoolCurrency } from "../data/mockData";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
+import {
+  buildLiveInvestmentHighlights,
+  summarizeSleeveAllocations,
+  useLiveSleeveInvestments,
+} from "../lib/allocationSleeves";
+import { useAllocationPositions } from "../lib/allocationPositions";
+import { isStockPosition, syncStockMarketPrices } from "../lib/stockAllocations";
+import { useStockQuotes } from "../hooks/useStockMarketData";
 import { usePoolState } from "../lib/poolState";
 
-function HeroStatCard({ title, value, icon: Icon, accent }) {
+function InvestmentSheetStats({ rows, metricLabel, valueLabel }) {
   return (
-    <div className="dda-glass-btn group relative flex min-w-0 flex-1 flex-col p-3 sm:p-5">
-      <div className="relative flex items-start justify-between gap-2">
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset transition group-hover:scale-105 sm:h-10 sm:w-10"
-          style={{
-            backgroundColor: `${accent}18`,
-            color: accent,
-            boxShadow: `inset 0 0 0 1px ${accent}33`,
-          }}
-        >
-          <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" strokeWidth={2.25} />
-        </span>
-        <span
-          className="mt-1 h-2 w-2 shrink-0 rounded-full opacity-90"
-          style={{ backgroundColor: accent }}
-          aria-hidden="true"
-        />
-      </div>
-      <p className="relative mt-3 text-[10px] font-semibold uppercase tracking-wide text-gray-500 sm:text-[11px]">
-        {title}
-      </p>
-      <p className="relative mt-1 truncate text-lg font-bold tabular-nums leading-none text-white sm:mt-1.5 sm:text-2xl">
-        {value}
-      </p>
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-px opacity-60"
-        style={{
-          background: `linear-gradient(90deg, transparent, ${accent}66, transparent)`,
-        }}
-        aria-hidden="true"
-      />
+    <div className="dda-sheet-table">
+      <table className="dda-sheet-table__grid">
+        <thead>
+          <tr>
+            <th scope="col" className="dda-sheet-table__head">
+              {metricLabel}
+            </th>
+            <th scope="col" className="dda-sheet-table__head dda-sheet-table__head--value">
+              {valueLabel}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr
+              key={row.key}
+              className={cn(
+                index % 2 === 0 ? "dda-sheet-table__row--even" : "dda-sheet-table__row--odd",
+              )}
+            >
+              <td className="dda-sheet-table__label">{row.title}</td>
+              <td className="dda-sheet-table__value" data-metric={row.key}>
+                {row.value}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -51,53 +57,77 @@ export default function InvestmentsPage() {
   const { t } = useLocale();
   const { investments, investmentHighlights } = useLocalizedData();
   const { poolSummary } = usePoolState();
-
-  const sleeveInvestments = useMemo(
+  const positions = useAllocationPositions();
+  const stockSymbols = useMemo(
     () =>
-      investments.map((item) => ({
-        ...item,
-        allocated: Math.round((poolSummary.deployedCapital * item.percent) / 100),
-      })),
-    [investments, poolSummary.deployedCapital],
+      positions
+        .filter((position) => isStockPosition(position) && !position.matured)
+        .map((position) => position.marketSymbol ?? position.contractId),
+    [positions],
+  );
+  const { quotes: stockQuotes } = useStockQuotes(stockSymbols, stockSymbols.length > 0);
+  const stockQuotesFingerprint = useMemo(
+    () =>
+      Object.entries(stockQuotes)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([symbol, quote]) => `${symbol}:${quote.price}`)
+        .join("|"),
+    [stockQuotes],
+  );
+
+  useEffect(() => {
+    if (!stockQuotesFingerprint) return;
+    syncStockMarketPrices(stockQuotes);
+  }, [stockQuotesFingerprint, stockQuotes]);
+
+  const sleeveInvestments = useLiveSleeveInvestments(investments);
+  const sleeveSummaries = useMemo(
+    () => summarizeSleeveAllocations(positions),
+    [positions],
   );
 
   const [selectedId, setSelectedId] = useState(sleeveInvestments[0]?.id);
 
-  const totalAllocated = poolSummary.deployedCapital;
+  useEffect(() => {
+    const current = sleeveInvestments.find((item) => item.id === selectedId);
+    if (current?.allocated > 0) return;
+    const withAllocation = sleeveInvestments.find((item) => item.allocated > 0);
+    if (withAllocation) {
+      setSelectedId(withAllocation.id);
+    }
+  }, [sleeveInvestments, selectedId]);
 
-  const selectedInvestment = useMemo(
-    () => sleeveInvestments.find((item) => item.id === selectedId) ?? sleeveInvestments[0],
-    [sleeveInvestments, selectedId],
+  const totalAllocated = sleeveSummaries.reduce((sum, item) => sum + item.principal, 0);
+
+  const liveHighlights = useMemo(
+    () => buildLiveInvestmentHighlights(investmentHighlights, sleeveSummaries),
+    [investmentHighlights, sleeveSummaries],
   );
+
+  const activeSleeveCount = sleeveSummaries.filter((item) => item.positionCount > 0).length;
 
   const heroStats = [
     {
       key: "deployed",
       title: t("pages.investments.totalDeployed"),
-      icon: PiggyBank,
-      accent: "var(--color-dda-green)",
       value: formatPoolCurrency(totalAllocated),
     },
     {
       key: "apy",
       title: t("pages.investments.blendedApy"),
-      icon: Percent,
-      accent: "#38bdf8",
       value: `${poolSummary.poolApy}%`,
     },
     {
       key: "sleeves",
       title: t("pages.investments.allocationSleeves"),
-      icon: Layers,
-      accent: "#8b5cf6",
-      value: String(investments.length),
+      value: String(activeSleeveCount || sleeveInvestments.length),
     },
     {
       key: "growth",
       title: t("pages.investments.ytdGrowth"),
-      icon: TrendingUp,
-      accent: "var(--color-dda-gold-light)",
-      value: `+${poolSummary.ytdGrowthPct}%`,
+      value: totalAllocated > 0
+        ? `${poolSummary.ytdGrowthPct >= 0 ? "+" : ""}${poolSummary.ytdGrowthPct}%`
+        : "+0%",
     },
   ];
 
@@ -110,20 +140,17 @@ export default function InvestmentsPage() {
         variant="hero"
       />
 
-      <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
-        {heroStats.map((stat) => (
-          <HeroStatCard
-            key={stat.key}
-            title={stat.title}
-            value={stat.value}
-            icon={stat.icon}
-            accent={stat.accent}
-          />
-        ))}
-      </section>
+      <InvestmentSheetStats
+        rows={heroStats}
+        metricLabel={t("pages.investments.sheetMetric")}
+        valueLabel={t("pages.investments.sheetValue")}
+      />
+
+      <BuyAllocationsCard />
 
       <InvestmentInfographic
         investments={sleeveInvestments}
+        positions={positions}
         totalAllocated={totalAllocated}
         poolApy={poolSummary.poolApy}
         selectedId={selectedId}
@@ -132,14 +159,20 @@ export default function InvestmentsPage() {
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <InvestmentYieldChart
-          selectedInvestment={selectedInvestment}
+          investments={sleeveInvestments}
           blendedApy={poolSummary.poolApy}
         />
 
-        <div className="dda-glass rounded-2xl p-4 sm:p-5">
-          <p className="text-sm font-medium text-white">{t("pages.investments.sleeveComparison")}</p>
-          <p className="mt-1 text-xs text-gray-500">{t("pages.investments.sleeveComparisonSub")}</p>
-          <ul className="mt-4 space-y-2">
+        <DashboardCard
+          title={t("pages.investments.sleeveComparison")}
+          subtitle={t("pages.investments.sleeveComparisonSub")}
+          compact
+          collapsible
+          defaultCollapsed
+          collapseAriaLabel={t("pages.investments.collapseSleeveComparison")}
+          expandAriaLabel={t("pages.investments.expandSleeveComparison")}
+        >
+          <ul className="space-y-2">
             {[...sleeveInvestments]
               .sort((a, b) => b.allocated - a.allocated)
               .map((item, index) => {
@@ -182,10 +215,10 @@ export default function InvestmentsPage() {
                 );
               })}
           </ul>
-        </div>
+        </DashboardCard>
       </div>
 
-      <InvestmentHighlights highlights={investmentHighlights} />
+      <InvestmentHighlights highlights={liveHighlights} />
     </div>
   );
 }

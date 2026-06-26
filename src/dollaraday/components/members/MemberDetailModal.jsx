@@ -16,14 +16,17 @@ import {
   Calendar,
   CircleDollarSign,
   History,
+  Settings,
   TrendingUp,
   Wallet,
+  Wrench,
   X,
 } from "lucide-react";
 import { lockBodyScroll } from "@/lib/modalBodyLock";
 import { cn } from "@/lib/utils";
 import { Badge, ProgressBar } from "../layout/DashboardCard";
 import { buildMemberDetail } from "../../lib/memberDetails";
+import MemberSettingsCard from "./MemberSettingsCard";
 import { useLocale } from "../../i18n/LocaleContext";
 import { useLocalizedData } from "../../i18n/localizedData";
 
@@ -54,7 +57,14 @@ function AccountTooltip({ active, payload }) {
   );
 }
 
-export default function MemberDetailModal({ member, open, onClose }) {
+export default function MemberDetailModal({
+  member,
+  open,
+  onClose,
+  isAdmin = false,
+  isOwnProfile = false,
+  onOpenProfileRegistry,
+}) {
   const { t } = useLocale();
   const { translateTier, translateStatus } = useLocalizedData();
   const tabs = [
@@ -62,6 +72,9 @@ export default function MemberDetailModal({ member, open, onClose }) {
     { id: "history", label: t("memberModal.history"), icon: History },
     { id: "accounts", label: t("memberModal.accounts"), icon: Wallet },
     { id: "loans", label: t("memberModal.loans"), icon: Banknote },
+    ...(isOwnProfile
+      ? [{ id: "settings", label: t("memberModal.settings"), icon: Settings }]
+      : []),
   ];
   const [activeTab, setActiveTab] = useState("overview");
   const detail = useMemo(() => (member ? buildMemberDetail(member) : null), [member]);
@@ -110,9 +123,22 @@ export default function MemberDetailModal({ member, open, onClose }) {
               {detail.initials}
             </span>
             <div className="min-w-0">
-              <h2 id="member-detail-title" className="truncate text-lg font-bold text-white">
-                {detail.name}
-              </h2>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <h2 id="member-detail-title" className="truncate text-lg font-bold text-white">
+                  {detail.name}
+                </h2>
+                {isAdmin && member?.profileId && onOpenProfileRegistry ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenProfileRegistry(member)}
+                    className="shrink-0 rounded-md p-1 text-amber-300/90 transition hover:bg-amber-400/10 hover:text-amber-200"
+                    aria-label={t("memberModal.openProfileRegistry")}
+                    title={t("memberModal.openProfileRegistry")}
+                  >
+                    <Wrench className="h-4 w-4" strokeWidth={2.25} />
+                  </button>
+                ) : null}
+              </div>
               <p className="text-sm text-gray-400">
                 {detail.handle} · {translateTier(detail.tier)}
               </p>
@@ -383,6 +409,10 @@ export default function MemberDetailModal({ member, open, onClose }) {
               )}
             </div>
           )}
+
+          {activeTab === "settings" && isOwnProfile ? (
+            <MemberSettingsCard embedded />
+          ) : null}
         </div>
       </div>
     </div>,

@@ -1,80 +1,124 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import {
-  Area,
-  AreaChart,
   CartesianGrid,
+  Legend,
   Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { cn } from "@/lib/utils";
-import { investmentIntervals, investmentYieldHistory } from "../../data/mockData";
+import { investmentIntervals } from "../../data/mockData";
+import {
+  buildCombinedYieldTrendHistory,
+  getYieldTrendRevision,
+  subscribeYieldTrend,
+} from "../../lib/allocationSleeves";
+import { useAllocationPositions } from "../../lib/allocationPositions";
+import { useLocale } from "../../i18n/LocaleContext";
 
-function YieldTooltip({ active, payload, label }) {
+function useYieldTrendRevision() {
+  return useSyncExternalStore(subscribeYieldTrend, getYieldTrendRevision, () => "");
+}
+
+const SLEEVE_SERIES = [
+  { key: "treasury", color: "#86efac" },
+  { key: "bonds", color: "#c4b5fd" },
+  { key: "stocks", color: "#93c5fd" },
+];
+
+function YieldTrendTooltip({ active, payload, label, seriesLabels }) {
   if (!active || !payload?.length) return null;
-  const point = payload[0].payload;
-  const prev = point.prevApy;
-  const delta = prev != null ? point.apy - prev : null;
 
   return (
     <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2.5 text-xs shadow-xl">
       <p className="font-medium text-gray-400">{label}</p>
-      <p className="mt-1 text-sm font-bold tabular-nums text-white">{point.apy.toFixed(2)}% APY</p>
-      {delta != null ? (
-        <p className={cn("mt-1 tabular-nums", delta >= 0 ? "text-dda-green-light" : "text-red-400")}>
-          {delta >= 0 ? "+" : ""}
-          {delta.toFixed(2)}% vs prior
-        </p>
-      ) : null}
+      <ul className="mt-2 space-y-1">
+        {payload.map((entry) => (
+          <li key={entry.dataKey} className="flex items-center justify-between gap-4">
+            <span className="inline-flex items-center gap-1.5 text-gray-400">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: entry.color }}
+              />
+              {seriesLabels[entry.dataKey]}
+            </span>
+            <span className="font-semibold tabular-nums text-white">
+              {Number(entry.value).toFixed(2)}%
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-export default function InvestmentYieldChart({ selectedInvestment, blendedApy }) {
+function ChartLegend({ payload, seriesLabels }) {
+  if (!payload?.length) return null;
+
+  return (
+    <ul className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+      {payload.map((entry) => (
+        <li key={entry.value} className="inline-flex items-center gap-1.5 text-[11px] text-gray-400">
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: entry.color }}
+          />
+          {seriesLabels[entry.value]}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export default function InvestmentYieldChart({ investments, blendedApy }) {
+  const { t } = useLocale();
   const [interval, setInterval] = useState("1m");
+  const positions = useAllocationPositions();
+  const yieldTrendRevision = useYieldTrendRevision();
 
-  const chartData = useMemo(() => {
-    const base = investmentYieldHistory[interval] ?? [];
-    const yieldOffset = (selectedInvestment.returnPct - blendedApy) * 0.35;
-    return base.map((point, index) => ({
-      ...point,
-      apy: Number((point.apy + yieldOffset).toFixed(2)),
-      prevApy: index > 0 ? Number((base[index - 1].apy + yieldOffset).toFixed(2)) : null,
-    }));
-  }, [interval, selectedInvestment.returnPct, blendedApy]);
+  const seriesLabels = useMemo(
+    () =>
+      Object.fromEntries(
+        SLEEVE_SERIES.map(({ key }) => [
+          key,
+          investments.find((item) => item.key === key)?.name ?? key,
+        ]),
+      ),
+    [investments],
+  );
 
-  const periodDelta = useMemo(() => {
-    if (chartData.length < 2) return null;
-    const first = chartData[0].apy;
-    const last = chartData[chartData.length - 1].apy;
-    return { change: last - first, pct: first ? ((last - first) / first) * 100 : 0 };
-  }, [chartData]);
+  const chartData = useMemo(
+    () => buildCombinedYieldTrendHistory(interval, positions),
+    [interval, positions, yieldTrendRevision],
+  );
 
   const yDomain = useMemo(() => {
-    const values = chartData.map((point) => point.apy);
+    const values = chartData.flatMap((point) =>
+      SLEEVE_SERIES.map(({ key }) => point[key]),
+    );
+    if (!values.length) return [0, 1];
     const min = Math.min(...values);
     const max = Math.max(...values);
-    const padding = (max - min) * 0.25 || 0.2;
+    const padding = (max - min) * 0.25 || 0.5;
     return [Number((min - padding).toFixed(2)), Number((max + padding).toFixed(2))];
+  }, [chartData]);
+
+  const currentBySleeve = useMemo(() => {
+    const lastPoint = chartData[chartData.length - 1];
+    return Object.fromEntries(
+      SLEEVE_SERIES.map(({ key }) => [key, lastPoint?.[key] ?? 0]),
+    );
   }, [chartData]);
 
   return (
     <div className="dda-panel rounded-xl p-4">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-white">Yield trend · {selectedInvestment.name}</p>
-          {periodDelta ? (
-            <p className="mt-0.5 text-xs text-gray-500">
-              <span className={periodDelta.change >= 0 ? "text-dda-green-light" : "text-red-400"}>
-                {periodDelta.change >= 0 ? "+" : ""}
-                {periodDelta.change.toFixed(2)}%
-              </span>{" "}
-              ({periodDelta.pct >= 0 ? "+" : ""}
-              {periodDelta.pct.toFixed(2)}%) in selected range
-            </p>
-          ) : null}
+          <p className="text-sm font-medium text-white">{t("pages.investments.yieldTrend")}</p>
+          <p className="mt-0.5 text-xs text-gray-500">{t("pages.investments.yieldTrendSub")}</p>
         </div>
 
         <div className="flex gap-1 rounded-lg bg-black/30 p-1">
@@ -89,25 +133,19 @@ export default function InvestmentYieldChart({ selectedInvestment, blendedApy })
                   "rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition sm:px-3 sm:text-xs",
                   active
                     ? "bg-dda-green-light/15 text-dda-green-light shadow-sm"
-                    : "text-gray-400 hover:text-white"
+                    : "text-gray-400 hover:text-white",
                 )}
               >
-                {item.label}
+                {t(`pages.investments.yieldInterval${item.id}`)}
               </button>
             );
           })}
         </div>
       </div>
 
-      <div className="h-48 w-full sm:h-56">
+      <div className="h-52 w-full sm:h-60">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-            <defs>
-              <linearGradient id="yieldAreaGlow" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={selectedInvestment.color} stopOpacity={0.28} />
-                <stop offset="100%" stopColor={selectedInvestment.color} stopOpacity={0} />
-              </linearGradient>
-            </defs>
+          <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
             <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" vertical={false} />
             <XAxis
               dataKey="label"
@@ -127,33 +165,42 @@ export default function InvestmentYieldChart({ selectedInvestment, blendedApy })
               tickFormatter={(value) => `${value}%`}
             />
             <Tooltip
-              content={<YieldTooltip />}
-              cursor={{ stroke: "rgba(52, 211, 153, 0.35)", strokeWidth: 1 }}
+              content={<YieldTrendTooltip seriesLabels={seriesLabels} />}
+              cursor={{ stroke: "rgba(255,255,255,0.12)", strokeWidth: 1 }}
             />
-            <Area
-              type="monotone"
-              dataKey="apy"
-              stroke="none"
-              fill="url(#yieldAreaGlow)"
-            />
-            <Line
-              type="monotone"
-              dataKey="apy"
-              stroke={selectedInvestment.color}
-              strokeWidth={2.5}
-              dot={{ r: 3, fill: "#071013", stroke: selectedInvestment.color, strokeWidth: 2 }}
-              activeDot={{ r: 5, fill: selectedInvestment.color, stroke: "#071013", strokeWidth: 2 }}
-            />
-          </AreaChart>
+            <Legend content={<ChartLegend seriesLabels={seriesLabels} />} />
+            {SLEEVE_SERIES.map(({ key, color }) => (
+              <Line
+                key={key}
+                type="monotone"
+                dataKey={key}
+                name={key}
+                stroke={color}
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: "#071013", stroke: color, strokeWidth: 2 }}
+                activeDot={{ r: 5, fill: color, stroke: "#071013", strokeWidth: 2 }}
+                connectNulls
+              />
+            ))}
+          </LineChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3 text-[11px] text-gray-500">
-        <span>
-          Current sleeve APY:{" "}
-          <span className="font-semibold text-dda-green-light">{selectedInvestment.returnPct}%</span>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3 text-[11px] text-gray-500">
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {SLEEVE_SERIES.map(({ key, color }) => (
+            <span key={key} className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+              <span>{seriesLabels[key]}:</span>
+              <span className="font-semibold tabular-nums text-white">
+                {currentBySleeve[key]}%
+              </span>
+            </span>
+          ))}
+        </div>
+        <span className="text-gray-600">
+          {t("pages.investments.yieldTrendBlended", { apy: blendedApy })}
         </span>
-        <span className="text-gray-600">Interactive range · hover for detail</span>
       </div>
     </div>
   );
