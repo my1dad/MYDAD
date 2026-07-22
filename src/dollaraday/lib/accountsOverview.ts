@@ -18,10 +18,12 @@ export interface AccountsOverviewStats {
   redemptionCount: number;
   recurringIncomeMonthly: number;
   recurringExpenseMonthly: number;
+  recurringTransferMonthly: number;
   recurringNetMonthly: number;
   recurringIncomeCount: number;
   recurringExpenseCount: number;
   recurringTransferCount: number;
+  recurringPaymentLabels: string[];
   segments: AccountsOverviewSegment[];
   snapshotTotal: number;
 }
@@ -33,6 +35,7 @@ const SEGMENT_COLORS = {
   redemptionsReceived: "#f59e0b",
   recurringIncome: "#34d399",
   recurringExpense: "#f87171",
+  recurringTransfer: "#a78bfa",
 } as const;
 
 export const ACCOUNTS_OVERVIEW_SEGMENT_IDS = [
@@ -42,6 +45,7 @@ export const ACCOUNTS_OVERVIEW_SEGMENT_IDS = [
   "redemptionsReceived",
   "recurringIncome",
   "recurringExpense",
+  "recurringTransfer",
 ] as const;
 
 export type AccountsOverviewSegmentId = (typeof ACCOUNTS_OVERVIEW_SEGMENT_IDS)[number];
@@ -98,12 +102,18 @@ function sumRedemptions(transactions: MemberAccountTransaction[]) {
   return { sent, received, count };
 }
 
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 function sumRecurringMonthly(schedules: RecurringCashflow[]) {
   let incomeMonthly = 0;
   let expenseMonthly = 0;
+  let transferMonthly = 0;
   let incomeCount = 0;
   let expenseCount = 0;
   let transferCount = 0;
+  const paymentLabels: string[] = [];
 
   for (const schedule of schedules) {
     if (!schedule.enabled || schedule.amount <= 0) continue;
@@ -118,16 +128,21 @@ function sumRecurringMonthly(schedules: RecurringCashflow[]) {
       expenseCount += 1;
     } else if (schedule.type === "transfer") {
       transferCount += 1;
+      transferMonthly += monthly;
+      const label = schedule.label?.trim() || "Recurring payment";
+      if (!paymentLabels.includes(label)) paymentLabels.push(label);
     }
   }
 
   return {
-    incomeMonthly,
-    expenseMonthly,
-    netMonthly: incomeMonthly - expenseMonthly,
+    incomeMonthly: roundMoney(incomeMonthly),
+    expenseMonthly: roundMoney(expenseMonthly),
+    transferMonthly: roundMoney(transferMonthly),
+    netMonthly: roundMoney(incomeMonthly - expenseMonthly),
     incomeCount,
     expenseCount,
     transferCount,
+    paymentLabels,
   };
 }
 
@@ -164,6 +179,11 @@ export function buildAccountsOverviewStats(profileId: string): AccountsOverviewS
       value: recurring.expenseMonthly,
       color: SEGMENT_COLORS.recurringExpense,
     },
+    {
+      id: "recurringTransfer",
+      value: recurring.transferMonthly,
+      color: SEGMENT_COLORS.recurringTransfer,
+    },
   ];
 
   const segments = rawSegments.filter((segment) => segment.value > 0);
@@ -178,10 +198,12 @@ export function buildAccountsOverviewStats(profileId: string): AccountsOverviewS
     redemptionCount: redemptions.count,
     recurringIncomeMonthly: recurring.incomeMonthly,
     recurringExpenseMonthly: recurring.expenseMonthly,
+    recurringTransferMonthly: recurring.transferMonthly,
     recurringNetMonthly: recurring.netMonthly,
     recurringIncomeCount: recurring.incomeCount,
     recurringExpenseCount: recurring.expenseCount,
     recurringTransferCount: recurring.transferCount,
+    recurringPaymentLabels: recurring.paymentLabels,
     segments,
     snapshotTotal,
   };

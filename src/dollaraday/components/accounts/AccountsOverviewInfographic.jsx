@@ -19,6 +19,7 @@ const SEGMENT_META = {
   redemptionsReceived: { labelKey: "overviewRedemptionsReceivedShort", color: "#f59e0b" },
   recurringIncome: { labelKey: "overviewRecurringIncome", color: "#34d399" },
   recurringExpense: { labelKey: "overviewRecurringExpense", color: "#f87171" },
+  recurringTransfer: { labelKey: "overviewRecurringPayments", color: "#a78bfa" },
 };
 
 function buildChartSlices(segments, t) {
@@ -234,6 +235,13 @@ export default function AccountsOverviewInfographic() {
               pct={segmentPct("recurringExpense", stats.recurringExpenseMonthly)}
               hint={t("pages.accounts.overviewPerMonth")}
             />
+            <MetricRow
+              label={t("pages.accounts.overviewRecurringPayments")}
+              value={formatPoolCurrency(stats.recurringTransferMonthly)}
+              accent={SEGMENT_META.recurringTransfer.color}
+              pct={segmentPct("recurringTransfer", stats.recurringTransferMonthly)}
+              hint={t("pages.accounts.overviewPerMonth")}
+            />
             <div
               className={cn(
                 "dda-accounts-overview__net",
@@ -250,9 +258,15 @@ export default function AccountsOverviewInfographic() {
             </div>
             {stats.recurringTransferCount > 0 ? (
               <p className="dda-accounts-overview__footnote">
-                {t("pages.accounts.overviewTransferCount", {
-                  count: stats.recurringTransferCount,
-                })}
+                {stats.recurringPaymentLabels.length
+                  ? t("pages.accounts.overviewTransferSummary", {
+                      count: stats.recurringTransferCount,
+                      labels: stats.recurringPaymentLabels.join(", "),
+                      amount: formatPoolCurrency(stats.recurringTransferMonthly),
+                    })
+                  : t("pages.accounts.overviewTransferCount", {
+                      count: stats.recurringTransferCount,
+                    })}
               </p>
             ) : null}
           </MetricGroup>
