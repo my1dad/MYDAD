@@ -310,19 +310,33 @@ export function hydratePoolStateFromStorage(): void {
     notifyPoolListeners();
   }
 
-  // Contributions may exist in cloud while member-accounts ledgers were lost —
-  // rebuild escrow from donations, then refresh pool capital for every viewer.
-  void import("./poolEscrowReconcile").then(({ reconcileMemberEscrowFromContributions }) => {
-    const changed = reconcileMemberEscrowFromContributions();
-    syncMemberEscrowToLiquidityPool();
-    if (!changed) return;
-    void import("./supabase/cloudSync").then(async ({ pushCloudBinsNow }) => {
+  // Contributions may exist in cloud while member-accounts / member stats were lost —
+  // rebuild escrow + member contributed/equity/streak, then refresh pool capital.
+  void Promise.all([
+    import("./poolEscrowReconcile"),
+    import("./memberRegistry"),
+  ]).then(
+    async ([
+      { reconcileMemberEscrowFromContributions },
+      { reconcileMembersFromContributions },
+    ]) => {
+      const escrowChanged = reconcileMemberEscrowFromContributions();
+      const membersChanged = reconcileMembersFromContributions();
+      syncMemberEscrowToLiquidityPool();
+      if (!escrowChanged && !membersChanged) return;
+
+      const { pushCloudBinsNow } = await import("./supabase/cloudSync");
       const { DATA_BIN_BY_KEY } = await import("./dataBins");
-      await pushCloudBinsNow([
-        { binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") },
-      ]);
-    });
-  });
+      const bins: { binId: string; document: ReturnType<typeof readDataBin> }[] = [];
+      if (escrowChanged) {
+        bins.push({ binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") });
+      }
+      if (membersChanged) {
+        bins.push({ binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") });
+      }
+      if (bins.length) await pushCloudBinsNow(bins);
+    },
+  );
 
   syncMemberEscrowToLiquidityPool();
 }
@@ -409,7 +423,6 @@ export function setPoolYtdGrowthFromYield(pct: number): void {
 
 export function registerContribution({
   amount,
-  memberId,
 }: {
   amount: number;
   reminderEnabled?: boolean;
@@ -422,14 +435,9 @@ export function registerContribution({
 }): void {
   if (!Number.isFinite(amount) || amount <= 0) return;
 
+  // Member contributed/equity/streak are owned by memberRegistry recompute from contributions.
+  // Only refresh pool inflow/donation lists here.
   syncPoolInflowMetrics();
-
-  if (state.currentMember.id === memberId) {
-    state.currentMember.totalContributed += amount;
-    state.currentMember.equityValue += amount;
-    state.currentMember.dailyContribution = amount;
-  }
-
   persistPoolState();
   notifyPoolListeners();
 }

@@ -226,16 +226,26 @@ export function applyExternalBinDocument(
   }
   notifyListeners();
 
-  // Remote settings/contributions must refresh member ledgers + liquidity pool totals.
+  // Remote settings/contributions must refresh member ledgers, member stats, and pool totals.
   if (key === "settings" || key === "contributions" || key === "members") {
     queueMicrotask(() => {
       void Promise.all([
         import("./memberAccounts"),
         import("./poolState"),
-      ]).then(([{ invalidateMemberAccountsCache }, { hydratePoolStateFromStorage }]) => {
-        invalidateMemberAccountsCache();
-        hydratePoolStateFromStorage();
-      });
+        import("./memberRegistry"),
+      ]).then(
+        ([
+          { invalidateMemberAccountsCache },
+          { hydratePoolStateFromStorage },
+          { reconcileMembersFromContributions },
+        ]) => {
+          invalidateMemberAccountsCache();
+          if (key === "contributions") {
+            reconcileMembersFromContributions();
+          }
+          hydratePoolStateFromStorage();
+        },
+      );
     });
   }
 }

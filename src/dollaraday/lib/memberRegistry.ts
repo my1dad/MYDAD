@@ -8,6 +8,7 @@ import {
 import { MEMBER_PROFILE_TEMPLATE } from "../../config/memberProfile";
 import type { DadProfile } from "./dadProfileStorage";
 import {
+  findDadProfileById,
   findDadProfileByUsername,
   getDadProfileRevision,
   getDadProfiles,
@@ -25,7 +26,12 @@ import {
   writeDataBin,
   type StoredRecord,
 } from "./internalDatabase";
-import { activateMemberSession, registerNewPoolMember } from "./poolState";
+import {
+  computeMemberStatsFromContributions,
+  listContributionProfileIds,
+  memberStatsEqual,
+} from "./memberContributionStats";
+import { activateMemberSession, getPoolState, registerNewPoolMember } from "./poolState";
 
 export interface Member {
   id: string;
@@ -483,26 +489,84 @@ export function persistMemberFromProfile(
   return member;
 }
 
-export function updateMemberAfterContribution(
-  profileId: string,
-  amount: number,
-): void {
-  const existing = findStoredMemberByProfileId(profileId);
-  if (!existing) return;
+function refreshPoolSessionFromMember(member: Member): void {
+  const current = getPoolState().currentMember;
+  const memberKey = member.profileId ?? member.id;
+  if (current.id !== memberKey && current.id !== member.id) return;
+
+  activateMemberSession({
+    ...current,
+    id: memberKey,
+    name: member.name || current.name,
+    handle: member.handle || current.handle,
+    totalContributed: member.contributed,
+    equityValue: member.equity,
+    streakDays: member.streak,
+    dailyContribution: member.days > 0 ? member.contributed / member.days : current.dailyContribution,
+    loanEligibilityScore: member.score,
+    loanStatus: member.score >= 70 ? "eligible" : current.loanStatus,
+  });
+}
+
+/**
+ * Rebuild contributed / equity / days / streak from the shared contributions bin
+ * so Members + Liquidity Pool stay aligned across devices.
+ */
+export function applyMemberStatsFromContributions(profileId: string): boolean {
+  if (!profileId) return false;
+
+  const stats = computeMemberStatsFromContributions(profileId);
+  const existing =
+    findStoredMemberByProfileId(profileId) ??
+    (() => {
+      const profile = findDadProfileById(profileId);
+      return profile ? profileToMember(profile) : undefined;
+    })();
+
+  if (!existing) return false;
+
+  if (memberStatsEqual(existing, stats)) {
+    return false;
+  }
 
   const updated: Member = {
     ...existing,
-    contributed: existing.contributed + amount,
-    equity: existing.equity + amount,
-    days: existing.days + 1,
-    streak: existing.streak + 1,
-    score: Math.min(100, existing.score + 1),
+    profileId: existing.profileId ?? profileId,
+    id: existing.profileId ?? profileId,
+    contributed: stats.contributed,
+    equity: stats.equity,
+    days: stats.days,
+    streak: stats.streak,
+    score: Math.min(100, Math.max(existing.score, stats.days > 0 ? 50 + stats.days : existing.score)),
   };
 
   upsertDataRecord(
     "members",
     memberRecordId(profileId),
-    "contribution-sync",
+    "contribution-stats-sync",
     memberToPayload(updated),
   );
+  refreshPoolSessionFromMember(updated);
+  return true;
+}
+
+/** Reconcile every member that has contribution history (and repair zeroed cloud rows). */
+export function reconcileMembersFromContributions(): boolean {
+  const profileIds = new Set<string>([
+    ...listContributionProfileIds(),
+    ...getStoredMembers().map((member) => member.profileId ?? member.id),
+  ]);
+
+  let changed = false;
+  profileIds.forEach((profileId) => {
+    if (applyMemberStatsFromContributions(profileId)) changed = true;
+  });
+  return changed;
+}
+
+export function updateMemberAfterContribution(
+  profileId: string,
+  _amount?: number,
+): void {
+  applyMemberStatsFromContributions(profileId);
 }

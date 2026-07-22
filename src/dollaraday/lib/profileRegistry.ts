@@ -9,6 +9,7 @@ import {
   resolveMemberStatus,
   type Member,
 } from "./memberRegistry";
+import { computeMemberStatsFromContributions } from "./memberContributionStats";
 import { getProfileActivityEvents } from "./profileActivity";
 import type { MemberAccountTransaction } from "./memberAccounts";
 
@@ -89,6 +90,19 @@ export function syncProfileToMemberRegistry(
 ): AdminMemberRecord {
   const stored = findStoredMemberByProfileId(profile.id);
   const record = toAdminMemberRecord(profile, stored);
+  const contributionStats = computeMemberStatsFromContributions(profile.id);
+
+  // Contributions bin is the worldwide source of truth for member capital metrics.
+  record.contributed = contributionStats.contributed;
+  record.equity = contributionStats.equity;
+  record.days = contributionStats.days;
+  record.streak = contributionStats.streak;
+  if (contributionStats.days > 0) {
+    record.score = Math.min(
+      100,
+      Math.max(record.score, 50 + contributionStats.days),
+    );
+  }
 
   if (extras.lastLogoutAt) {
     record.lastLogoutAt = extras.lastLogoutAt;

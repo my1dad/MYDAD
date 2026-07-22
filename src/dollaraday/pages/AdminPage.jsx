@@ -151,7 +151,13 @@ export default function AdminPage({ onNavigate }) {
                 <th className="w-[5.5rem] pb-2 pr-2 font-semibold">{t("pages.admin.proId")}</th>
                 <th className="w-[4.5rem] pb-2 pr-2 font-semibold">{t("pages.admin.memberStatus")}</th>
                 <th className="w-[3rem] pb-2 pr-2 text-right font-semibold sm:w-14">{t("common.days")}</th>
+                <th className="hidden w-[5rem] pb-2 pr-2 text-right font-semibold sm:table-cell sm:w-24">
+                  {t("memberModal.contributed")}
+                </th>
                 <th className="w-[5rem] pb-2 pr-2 text-right font-semibold sm:w-24">{t("common.equity")}</th>
+                <th className="hidden w-[3.5rem] pb-2 pr-2 text-right font-semibold md:table-cell">
+                  {t("memberModal.streak")}
+                </th>
                 <th className="w-[3rem] pb-2 text-right font-semibold sm:w-14">{t("common.score")}</th>
               </tr>
             </thead>
@@ -198,8 +204,14 @@ export default function AdminPage({ onNavigate }) {
                     </Badge>
                   </td>
                   <td className="py-2 pr-2 text-right tabular-nums text-gray-400">{member.days}</td>
+                  <td className="hidden py-2 pr-2 text-right text-xs tabular-nums text-white sm:table-cell sm:text-sm">
+                    ${member.contributed.toLocaleString()}
+                  </td>
                   <td className="py-2 pr-2 text-right text-xs tabular-nums text-dda-green-light sm:text-sm">
                     ${member.equity.toLocaleString()}
+                  </td>
+                  <td className="hidden py-2 pr-2 text-right tabular-nums text-white md:table-cell">
+                    {member.streak}
                   </td>
                   <td className="py-2 text-right tabular-nums text-white">{member.score}</td>
                 </tr>

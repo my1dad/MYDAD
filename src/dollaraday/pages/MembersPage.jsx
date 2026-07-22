@@ -168,6 +168,12 @@ export default function MembersPage({ onNavigate }) {
             </span>
             <span className="shrink-0 text-right">
               <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                {t("memberModal.contributed")}
+              </span>
+              <span className="font-semibold tabular-nums text-white">
+                ${myMember.contributed.toLocaleString()}
+              </span>
+              <span className="mt-1 block text-[10px] uppercase tracking-wide text-gray-500">
                 {t("common.equity")}
               </span>
               <span className="font-semibold tabular-nums text-dda-green-light">
@@ -221,7 +227,16 @@ export default function MembersPage({ onNavigate }) {
                 {translateStatus(member.status)}
               </span>
 
-              <span className="ml-3 shrink-0 text-right sm:ml-4">
+              <span className="ml-2 hidden min-w-[4.5rem] shrink-0 text-right sm:ml-3 sm:block">
+                <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("memberModal.contributed")}
+                </span>
+                <span className="font-semibold tabular-nums text-white">
+                  ${member.contributed.toLocaleString()}
+                </span>
+              </span>
+
+              <span className="ml-2 shrink-0 text-right sm:ml-3">
                 <span className="block text-[10px] uppercase tracking-wide text-gray-500">
                   {t("common.equity")}
                 </span>
@@ -230,7 +245,26 @@ export default function MembersPage({ onNavigate }) {
                 </span>
               </span>
 
-              <span className="ml-3 hidden shrink-0 text-right sm:ml-4 sm:block">
+              <span className="ml-2 hidden min-w-[3.25rem] shrink-0 text-right sm:ml-3 sm:block">
+                <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("memberModal.streak")}
+                </span>
+                <span className="font-semibold tabular-nums text-white">{member.streak}</span>
+              </span>
+
+              <span className="ml-2 hidden min-w-[3.75rem] shrink-0 text-right sm:ml-3 md:block">
+                <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("memberModal.avgDaily")}
+                </span>
+                <span className="font-semibold tabular-nums text-white">
+                  $
+                  {member.days
+                    ? (member.contributed / member.days).toFixed(2)
+                    : "0.00"}
+                </span>
+              </span>
+
+              <span className="ml-2 hidden shrink-0 text-right sm:ml-3 lg:block">
                 <span className="block text-[10px] uppercase tracking-wide text-gray-500">
                   {t("common.score")}
                 </span>
@@ -271,10 +305,16 @@ export default function MembersPage({ onNavigate }) {
                 </span>
                 <span className="relative ml-2 shrink-0 text-right">
                   <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                    {t("memberModal.contributed")}
+                  </span>
+                  <span className="font-semibold tabular-nums text-white">
+                    ${fullMember.contributed.toLocaleString()}
+                  </span>
+                  <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-gray-500">
                     {t("common.equity")}
                   </span>
                   <span className="font-semibold tabular-nums text-dda-green-light">
-                    ${member.equity.toLocaleString()}
+                    ${fullMember.equity.toLocaleString()}
                   </span>
                 </span>
               </button>

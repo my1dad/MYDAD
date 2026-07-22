@@ -53,12 +53,18 @@ export default function MemberCard({ member, onClick, modern = false }) {
           amount: member.contributed.toLocaleString(),
         })}
       </p>
-      <div className="mt-3 flex items-end justify-between">
+      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
         <div>
-          <p className="text-xs text-gray-400">{t("memberCard.equityValue")}</p>
+          <p className="text-[10px] uppercase tracking-wide text-gray-500">{t("memberModal.contributed")}</p>
+          <p className="text-sm font-semibold tabular-nums text-white">
+            ${member.contributed.toLocaleString()}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-gray-500">{t("memberModal.equity")}</p>
           <p
             className={cn(
-              "text-lg font-bold tabular-nums",
+              "text-sm font-semibold tabular-nums",
               modern
                 ? "bg-gradient-to-r from-dda-green-soft to-dda-green bg-clip-text text-transparent"
                 : "text-dda-green-light"
@@ -67,7 +73,19 @@ export default function MemberCard({ member, onClick, modern = false }) {
             ${member.equity.toLocaleString()}
           </p>
         </div>
-        <div className="text-right">
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-gray-500">{t("memberModal.streak")}</p>
+          <p className="text-sm font-semibold tabular-nums text-white">{member.streak}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-gray-500">{t("memberModal.avgDaily")}</p>
+          <p className="text-sm font-semibold tabular-nums text-white">
+            ${member.days ? (member.contributed / member.days).toFixed(2) : "0.00"}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-end justify-between">
+        <div className="text-right sm:ml-auto">
           <p className="text-xs text-gray-400">{t("common.score")}</p>
           <p className="text-lg font-bold text-white">{member.score}</p>
         </div>
