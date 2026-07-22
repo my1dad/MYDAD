@@ -30,6 +30,7 @@ import {
   updateMemberAccountTransaction,
   useMemberAccounts,
 } from "../../lib/memberAccounts";
+import { ensureProfileEscrowFromContributions } from "../../lib/poolEscrowReconcile";
 import { usePoolState } from "../../lib/poolState";
 import RecurringCashflowPanel from "./RecurringCashflowPanel";
 import WalletFundingTabs from "./WalletFundingTabs";
@@ -222,6 +223,12 @@ export default function AccountDetailView({ accountId, onBack }) {
   const actionOptions = isAdmin
     ? ACTION_OPTIONS
     : ACTION_OPTIONS.filter((option) => option.id !== "transfer");
+
+  useEffect(() => {
+    if (accountId === "escrow") {
+      ensureProfileEscrowFromContributions(profileId);
+    }
+  }, [accountId, profileId]);
 
   useEffect(() => {
     setTransferFromId(accountId);

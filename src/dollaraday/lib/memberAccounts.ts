@@ -26,6 +26,7 @@ export interface MemberAccountLedger {
 }
 
 const ledgers = new Map<string, MemberAccountLedger>();
+const ledgerCacheMeta = new Map<string, string>();
 const listeners = new Set<() => void>();
 
 function ledgerRecordId(profileId: string): string {
@@ -34,6 +35,27 @@ function ledgerRecordId(profileId: string): string {
 
 function createEmptyLedger(): MemberAccountLedger {
   return { checkingBalance: 0, escrowBalance: 0, transactions: [] };
+}
+
+function ledgerFingerprint(
+  settingsUpdatedAt: string,
+  record: { updatedAt?: string; payload?: Record<string, unknown> } | undefined,
+): string {
+  const payload = record?.payload;
+  const transactions = Array.isArray(payload?.transactions) ? payload.transactions : [];
+  const head = transactions[0] as { id?: string; amount?: number } | undefined;
+  const tail = transactions[transactions.length - 1] as { id?: string; amount?: number } | undefined;
+  return [
+    settingsUpdatedAt,
+    record?.updatedAt ?? "",
+    Number(payload?.checkingBalance) || 0,
+    Number(payload?.escrowBalance) || 0,
+    transactions.length,
+    head?.id ?? "",
+    head?.amount ?? "",
+    tail?.id ?? "",
+    tail?.amount ?? "",
+  ].join("|");
 }
 
 function normalizeLedger(payload: Record<string, unknown>): MemberAccountLedger {
@@ -81,6 +103,9 @@ function persistLedger(profileId: string, ledger: MemberAccountLedger): void {
     escrowBalance: ledger.escrowBalance,
     transactions: ledger.transactions,
   });
+  const settings = readDataBin("settings");
+  const record = settings.records.find((item) => item.id === ledgerRecordId(profileId));
+  ledgerCacheMeta.set(profileId, ledgerFingerprint(settings.updatedAt, record));
   syncMemberEscrowToLiquidityPool();
   notifyListeners();
 }
@@ -90,22 +115,29 @@ export function resolveMemberProfileId(): string {
 }
 
 export function hydrateMemberAccounts(profileId: string): MemberAccountLedger {
-  const cached = ledgers.get(profileId);
-  if (cached) return cached;
-
   const settings = readDataBin("settings");
   const record = settings.records.find((item) => item.id === ledgerRecordId(profileId));
+  const fingerprint = ledgerFingerprint(settings.updatedAt, record);
+  const cached = ledgers.get(profileId);
+  if (cached && ledgerCacheMeta.get(profileId) === fingerprint) {
+    return cached;
+  }
+
   const ledger = record?.payload ? normalizeLedger(record.payload) : createEmptyLedger();
   ledgers.set(profileId, ledger);
+  ledgerCacheMeta.set(profileId, fingerprint);
   return ledger;
 }
 
 export function invalidateMemberAccountsCache(profileId?: string): void {
   if (profileId) {
     ledgers.delete(profileId);
-    return;
+    ledgerCacheMeta.delete(profileId);
+  } else {
+    ledgers.clear();
+    ledgerCacheMeta.clear();
   }
-  ledgers.clear();
+  notifyListeners();
 }
 
 function appendTransaction(

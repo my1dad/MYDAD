@@ -69,7 +69,7 @@ export function reconcileMemberEscrowFromContributions(): boolean {
       profileId,
       "escrow",
       shortfall,
-      "Reconcile contribution capital into liquidity pool",
+      "Contribution credited to Chase Escrow",
     );
     if (next) changed = true;
   });
@@ -79,4 +79,26 @@ export function reconcileMemberEscrowFromContributions(): boolean {
   }
 
   return changed;
+}
+
+/** Ensure one profile's Chase Escrow matches their completed contribution total. */
+export function ensureProfileEscrowFromContributions(profileId: string): boolean {
+  if (!profileId) return false;
+  const totals = getContributionTotalsByProfile();
+  const contributionTotal = totals.get(profileId) ?? 0;
+  if (contributionTotal <= 0) return false;
+
+  const credited = sumEscrowCredits(profileId);
+  const shortfall = roundMoney(contributionTotal - credited);
+  if (shortfall <= 0) return false;
+
+  const next = depositToMemberAccount(
+    profileId,
+    "escrow",
+    shortfall,
+    "Contribution credited to Chase Escrow",
+  );
+  if (!next) return false;
+  invalidateMemberAccountsCache(profileId);
+  return true;
 }

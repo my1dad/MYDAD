@@ -5,6 +5,7 @@ import { formatPoolCurrency } from "../../data/mockData";
 import { useDadAuth } from "../../context/DadAuthContext";
 import { useLocale } from "../../i18n/LocaleContext";
 import { maskAccountNumber, resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
+import { reconcileMemberEscrowFromContributions } from "../../lib/poolEscrowReconcile";
 import { processRecurringCashflows } from "../../lib/recurringCashflow";
 import AccountsOverviewInfographic from "./AccountsOverviewInfographic";
 import BankAccountLogo from "./BankAccountLogo";
@@ -22,6 +23,8 @@ export default function AccountHubView({ onSelectAccount }) {
   const ledger = useMemberAccounts(profileId);
 
   useEffect(() => {
+    // Backfill Chase Escrow from completed contributions so Accounts matches Members/Pool.
+    reconcileMemberEscrowFromContributions();
     processRecurringCashflows();
   }, [profileId]);
 

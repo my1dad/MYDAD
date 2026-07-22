@@ -233,13 +233,18 @@ export function applyExternalBinDocument(
         import("./memberAccounts"),
         import("./poolState"),
         import("./memberRegistry"),
+        import("./poolEscrowReconcile"),
       ]).then(
         ([
           { invalidateMemberAccountsCache },
           { hydratePoolStateFromStorage },
           { reconcileMembersFromContributions },
+          { reconcileMemberEscrowFromContributions },
         ]) => {
           invalidateMemberAccountsCache();
+          if (key === "contributions" || key === "settings") {
+            reconcileMemberEscrowFromContributions();
+          }
           if (key === "contributions") {
             reconcileMembersFromContributions();
           }
