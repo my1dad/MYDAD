@@ -274,20 +274,21 @@ body {
 
 .dda-login-slogan {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem 0.75rem;
   width: 100%;
-  margin: 0 0 1.25rem;
-  padding: 0.5rem 0.75rem;
+  max-width: 100%;
+  margin: 0 auto 1.25rem;
+  padding: 0.5rem 0;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .dda-login-slogan::before,
 .dda-login-slogan::after {
   content: "";
-  flex: 1 1 2.5rem;
+  flex: 1 1 1.5rem;
+  max-width: 4.5rem;
   height: 1px;
   background: linear-gradient(
     90deg,
@@ -296,6 +297,19 @@ body {
     transparent
   );
   opacity: 0.9;
+}
+
+.dda-login-slogan__inner {
+  display: inline-flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem 0.65rem;
+  /* Offset trailing letter-spacing so the phrase sits optically centered */
+  margin-inline-end: -0.14em;
+  padding-inline: 0.65rem;
+  text-align: center;
 }
 
 .dda-login-slogan__word {
@@ -318,6 +332,10 @@ body {
 }
 
 .dda-login-slogan__sep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.65rem;
   font-size: 0.875rem;
   font-weight: 700;
   line-height: 1;
@@ -335,10 +353,19 @@ body {
   letter-spacing: 0.12em;
 }
 
+.dda-login-slogan--compact .dda-login-slogan__inner {
+  margin-inline-end: -0.12em;
+  gap: 0.35rem 0.5rem;
+}
+
 @media (min-width: 640px) {
   .dda-login-slogan {
     margin-bottom: 1.5rem;
-    gap: 0.625rem 0.875rem;
+  }
+
+  .dda-login-slogan__inner {
+    gap: 0.5rem 0.75rem;
+    padding-inline: 0.85rem;
   }
 
   .dda-login-slogan__word {

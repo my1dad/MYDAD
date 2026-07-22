@@ -172,15 +172,17 @@ export default function DadLoginPage() {
         className={cn("dda-login-slogan", mode === "create" && "dda-login-slogan--compact")}
         aria-label={t("login.sloganAria")}
       >
-        <span className="dda-login-slogan__word">{t("login.sloganEducate")}</span>
-        <span className="dda-login-slogan__sep" aria-hidden="true">
-          |
+        <span className="dda-login-slogan__inner">
+          <span className="dda-login-slogan__word">{t("login.sloganEducate")}</span>
+          <span className="dda-login-slogan__sep" aria-hidden="true">
+            |
+          </span>
+          <span className="dda-login-slogan__word">{t("login.sloganDiscipline")}</span>
+          <span className="dda-login-slogan__sep" aria-hidden="true">
+            |
+          </span>
+          <span className="dda-login-slogan__word">{t("login.sloganUnity")}</span>
         </span>
-        <span className="dda-login-slogan__word">{t("login.sloganDiscipline")}</span>
-        <span className="dda-login-slogan__sep" aria-hidden="true">
-          |
-        </span>
-        <span className="dda-login-slogan__word">{t("login.sloganUnity")}</span>
       </p>
 
       <div className={cn("dda-login-widget", mode === "create" && "dda-login-widget--create")}>
