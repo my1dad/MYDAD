@@ -60,6 +60,40 @@ const pendingKvPushes = new Map<string, ReturnType<typeof setTimeout>>();
 
 let realtimeChannel: RealtimeChannel | null = null;
 let cloudInitialized = false;
+let lastSyncAt: string | null = null;
+let lastSyncError: string | null = null;
+let statusListeners = new Set<() => void>();
+let statusRevision = 0;
+
+function notifyCloudStatusListeners() {
+  statusRevision += 1;
+  statusListeners.forEach((listener) => listener());
+}
+
+export function subscribeCloudSyncStatus(listener: () => void): () => void {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
+}
+
+export function getCloudSyncStatusRevision(): number {
+  return statusRevision;
+}
+
+export function getCloudSyncStatus(): {
+  configured: boolean;
+  ready: boolean;
+  lastSyncAt: string | null;
+  lastError: string | null;
+  workspaceId: string;
+} {
+  return {
+    configured: isSupabaseConfigured(),
+    ready: cloudInitialized && isSupabaseConfigured(),
+    lastSyncAt,
+    lastError: lastSyncError,
+    workspaceId: DAD_WORKSPACE_ID,
+  };
+}
 
 function binKeyForBinId(binId: string): DataBinKey | null {
   const definition = DATA_BIN_DEFINITIONS.find((item) => item.binId === binId);
@@ -148,6 +182,8 @@ async function fetchCloudBins(): Promise<CloudBinRow[]> {
     .eq("workspace_id", DAD_WORKSPACE_ID);
 
   if (error) {
+    lastSyncError = error.message;
+    notifyCloudStatusListeners();
     console.warn("[cloudSync] Failed to fetch bins:", error.message);
     return [];
   }
@@ -161,6 +197,8 @@ async function fetchCloudProfiles(): Promise<DadProfile[]> {
 
   const { data, error } = await supabase.from("dad_profiles").select("*");
   if (error) {
+    lastSyncError = error.message;
+    notifyCloudStatusListeners();
     console.warn("[cloudSync] Failed to fetch profiles:", error.message);
     return [];
   }
@@ -305,43 +343,57 @@ export async function syncCloudWorkspace(options: {
 }): Promise<void> {
   if (!isSupabaseConfigured()) return;
 
-  const [remoteBins, remoteProfiles, remoteKv] = await Promise.all([
-    fetchCloudBins(),
-    fetchCloudProfiles(),
-    fetchCloudKv(),
-  ]);
+  try {
+    const [remoteBins, remoteProfiles, remoteKv] = await Promise.all([
+      fetchCloudBins(),
+      fetchCloudProfiles(),
+      fetchCloudKv(),
+    ]);
 
-  for (const binId of DAD_BIN_IDS) {
-    const binKey = binKeyForBinId(binId);
-    if (!binKey) continue;
+    const cloudEmpty = remoteBins.length === 0 && remoteProfiles.length === 0;
 
-    const remoteRow = remoteBins.find((row) => row.bin_id === binId);
-    const localDoc = readDataBin(binKey);
-    const { merged, source } = mergeBinDocuments(localDoc, remoteRow?.document ?? null);
+    for (const binId of DAD_BIN_IDS) {
+      const binKey = binKeyForBinId(binId);
+      if (!binKey) continue;
 
-    applyExternalBinDocument(binId, binKey, merged);
+      const remoteRow = remoteBins.find((row) => row.bin_id === binId);
+      const localDoc = readDataBin(binKey);
+      const { merged, source } = mergeBinDocuments(localDoc, remoteRow?.document ?? null);
 
-    if (source === "local") {
-      void upsertCloudBin(binId, merged);
+      applyExternalBinDocument(binId, binKey, merged);
+
+      // Seed empty cloud, or push local wins so every device shares one workspace.
+      if (cloudEmpty || source === "local") {
+        await upsertCloudBin(binId, merged);
+      }
     }
-  }
 
-  const localProfiles = options.getLocalProfiles();
-  const mergedProfiles = mergeProfiles(localProfiles, remoteProfiles);
-  options.replaceLocalProfiles(mergedProfiles);
+    const localProfiles = options.getLocalProfiles();
+    const mergedProfiles = mergeProfiles(localProfiles, remoteProfiles);
+    options.replaceLocalProfiles(mergedProfiles);
 
-  if (mergedProfiles.length !== localProfiles.length || remoteProfiles.length > 0) {
-    void upsertCloudProfiles(mergedProfiles);
-  }
-
-  applyKvToLocalStorage(remoteKv);
-
-  for (const key of SYNCED_KV_KEYS) {
-    const localRaw = localStorage.getItem(key);
-    const remote = remoteKv.find((row) => row.scope_key === GLOBAL_KV_SCOPE && row.kv_key === key);
-    if (localRaw && !remote) {
-      void upsertCloudKv(GLOBAL_KV_SCOPE, key, localRaw);
+    // Always publish the merged profile directory so master admin sees every member worldwide.
+    if (mergedProfiles.length > 0) {
+      await upsertCloudProfiles(mergedProfiles);
     }
+
+    applyKvToLocalStorage(remoteKv);
+
+    for (const key of SYNCED_KV_KEYS) {
+      const localRaw = localStorage.getItem(key);
+      const remote = remoteKv.find((row) => row.scope_key === GLOBAL_KV_SCOPE && row.kv_key === key);
+      if (localRaw && (!remote || cloudEmpty)) {
+        await upsertCloudKv(GLOBAL_KV_SCOPE, key, localRaw);
+      }
+    }
+
+    lastSyncAt = new Date().toISOString();
+    lastSyncError = null;
+    notifyCloudStatusListeners();
+  } catch (err) {
+    lastSyncError = err instanceof Error ? err.message : String(err);
+    notifyCloudStatusListeners();
+    console.warn("[cloudSync] Workspace sync failed:", lastSyncError);
   }
 }
 
@@ -418,13 +470,27 @@ export async function initCloudSync(options: {
 }): Promise<() => void> {
   if (!isSupabaseConfigured()) {
     cloudInitialized = false;
+    lastSyncError = "Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY";
+    notifyCloudStatusListeners();
     return () => {};
   }
 
   await syncCloudWorkspace(options);
   cloudInitialized = true;
-  return startCloudRealtime({
+  notifyCloudStatusListeners();
+
+  // Periodic pull keeps worldwide logins and admin views consistent if realtime drops.
+  const pollId = window.setInterval(() => {
+    void syncCloudWorkspace(options);
+  }, 45_000);
+
+  const stopRealtime = startCloudRealtime({
     getLocalProfiles: options.getLocalProfiles,
     onProfilesChanged: options.onProfilesChanged,
   });
+
+  return () => {
+    window.clearInterval(pollId);
+    stopRealtime();
+  };
 }

@@ -15,7 +15,7 @@ import { startRecurringAutomation } from "../lib/recurringContributions";
 import { startRecurringCashflowAutomation } from "../lib/recurringCashflow";
 import { startAllocationYieldAutomation } from "../lib/allocationYieldAccrual";
 
-const INIT_TIMEOUT_MS = 8000;
+const INIT_TIMEOUT_MS = 15000;
 
 function StorageLoadingFallback() {
   return (
@@ -60,6 +60,9 @@ export default function DdaStorageBootstrap({ children, fallback = <StorageLoadi
                 hydratePoolStateFromStorage();
               },
             });
+            // After cloud pull, mirror every profile into the shared members bin
+            // so master admin sees worldwide registrations immediately.
+            syncAllProfilesToMemberRegistry();
             pruneDuplicateAdminMemberRecords();
             ensureProfileProIds();
             syncAllProfilesToMemberRegistry();

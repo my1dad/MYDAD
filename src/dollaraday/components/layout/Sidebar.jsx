@@ -3,6 +3,7 @@ import {
   CalendarClock,
   CircleDollarSign,
   LayoutDashboard,
+  LogOut,
   MessageSquare,
   PiggyBank,
   Shield,
@@ -14,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocale } from "../../i18n/LocaleContext";
+import { logoutDollarADay } from "../../lib/logout";
 import EasternLiveClock from "./EasternLiveClock";
 import HeaderActions from "./HeaderActions";
 
@@ -120,6 +122,14 @@ export default function Sidebar({ activePage, onNavigate }) {
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={() => logoutDollarADay()}
+          className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-red-400 transition-colors hover:bg-red-400/10 hover:text-red-300"
+        >
+          <LogOut className="h-4 w-4 shrink-0" strokeWidth={2} />
+          {t("nav.logout")}
+        </button>
       </nav>
 
       <div className="mt-auto border-t border-white/10 px-2 pt-3">

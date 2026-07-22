@@ -88,18 +88,29 @@ function readProfiles(): DadProfile[] {
   }
 }
 
-function writeProfiles(profiles: DadProfile[]) {
-  const stamped = profiles.map((profile) => ({
-    ...profile,
-    updatedAt: new Date().toISOString(),
-  }));
-  localStorage.setItem(PROFILES_KEY, JSON.stringify(stamped));
+function writeProfiles(
+  profiles: DadProfile[],
+  options: { stamp?: boolean; pushToCloud?: boolean } = {},
+) {
+  const stamp = options.stamp !== false;
+  const pushToCloud = options.pushToCloud !== false;
+  const next = stamp
+    ? profiles.map((profile) => ({
+        ...profile,
+        updatedAt: new Date().toISOString(),
+      }))
+    : profiles.map((profile) => ({ ...profile }));
+
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(next));
   notifyProfileListeners();
-  queueMicrotask(() => {
-    void import("./supabase/cloudSync").then(({ scheduleCloudProfilesPush }) => {
-      scheduleCloudProfilesPush(stamped);
+
+  if (pushToCloud) {
+    queueMicrotask(() => {
+      void import("./supabase/cloudSync").then(({ scheduleCloudProfilesPush }) => {
+        scheduleCloudProfilesPush(next);
+      });
     });
-  });
+  }
 }
 
 function createId() {
@@ -398,6 +409,7 @@ export function clearAllDadProfiles(): void {
   notifyProfileListeners();
 }
 
+/** Replace local cache from cloud without re-stamping or re-pushing. */
 export function replaceAllDadProfiles(profiles: DadProfile[]): void {
-  writeProfiles(profiles);
+  writeProfiles(profiles, { stamp: false, pushToCloud: false });
 }

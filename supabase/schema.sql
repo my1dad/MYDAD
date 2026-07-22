@@ -1,5 +1,6 @@
 -- My Dollar A Day — Supabase cloud schema
 -- Run this in Supabase Dashboard → SQL Editor for project payamrkwesnejaruenhm
+-- https://supabase.com/dashboard/project/payamrkwesnejaruenhm/sql/new
 
 -- Workspace-scoped data bins (members, contributions, settings, community, etc.)
 create table if not exists public.dad_bins (
@@ -43,8 +44,29 @@ create table if not exists public.dad_kv (
   primary key (workspace_id, scope_key, kv_key)
 );
 
--- Enable Realtime in Supabase Dashboard → Database → Publications
--- (Tables: dad_bins, dad_profiles, dad_kv)
+-- Expose tables to Data API (required on newer Supabase projects)
+grant select, insert, update, delete on public.dad_bins to anon, authenticated, service_role;
+grant select, insert, update, delete on public.dad_profiles to anon, authenticated, service_role;
+grant select, insert, update, delete on public.dad_kv to anon, authenticated, service_role;
+
+-- Enable Realtime publication (ignore errors if already added)
+do $$
+begin
+  alter publication supabase_realtime add table public.dad_bins;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.dad_profiles;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.dad_kv;
+exception when duplicate_object then null;
+end $$;
 
 -- Row Level Security
 alter table public.dad_bins enable row level security;

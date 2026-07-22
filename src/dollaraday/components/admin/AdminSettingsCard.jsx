@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Bell,
+  Cloud,
   Download,
   Globe,
   RotateCcw,
@@ -23,10 +24,28 @@ import { downloadDashboardCsv, importDashboardCsv } from "../../lib/dashboardCsv
 import { formatPhoneInput } from "../../lib/phoneFormat";
 import { updateMasterAdminOwnProfile } from "../../lib/profileAdminActions";
 import { masterResetDashboard } from "../../lib/workspaceReset";
+import {
+  getCloudSyncStatus,
+  getCloudSyncStatusRevision,
+  subscribeCloudSyncStatus,
+  syncCloudWorkspace,
+} from "../../lib/supabase/cloudSync";
+import { getDadProfiles, replaceAllDadProfiles } from "../../lib/dadProfileStorage";
+import { syncAllProfilesToMemberRegistry } from "../../lib/profileRegistry";
+import { hydratePoolStateFromStorage } from "../../lib/poolState";
 
 function useAppSettings() {
   const revision = useSyncExternalStore(subscribeAppSettings, getAppSettingsRevision, () => 0);
   return { settings: getAppSettings(), revision };
+}
+
+function useCloudSyncStatus() {
+  const revision = useSyncExternalStore(
+    subscribeCloudSyncStatus,
+    getCloudSyncStatusRevision,
+    () => 0,
+  );
+  return { status: getCloudSyncStatus(), revision };
 }
 
 function SettingsSection({ icon: Icon, title, description, children }) {
@@ -50,6 +69,7 @@ export default function AdminSettingsCard() {
   const { t } = useLocale();
   const { profile, isAdmin } = useDadAuth();
   const { settings } = useAppSettings();
+  const { status: cloudStatus } = useCloudSyncStatus();
   const fileInputRef = useRef(null);
 
   const [status, setStatus] = useState("");
@@ -57,6 +77,7 @@ export default function AdminSettingsCard() {
   const [resetting, setResetting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
+  const [syncingCloud, setSyncingCloud] = useState(false);
 
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "");
   const [email, setEmail] = useState(profile?.email ?? "");
@@ -176,6 +197,36 @@ export default function AdminSettingsCard() {
     setStatus(t("pages.admin.settings.accountSaved"));
   };
 
+  const handleCloudSyncNow = async () => {
+    setError("");
+    setStatus("");
+    setSyncingCloud(true);
+    try {
+      await syncCloudWorkspace({
+        getLocalProfiles: getDadProfiles,
+        replaceLocalProfiles: (profiles) => {
+          replaceAllDadProfiles(profiles);
+          syncAllProfilesToMemberRegistry();
+          hydratePoolStateFromStorage();
+        },
+      });
+      const next = getCloudSyncStatus();
+      if (next.lastError) {
+        setError(next.lastError);
+      } else {
+        setStatus(
+          next.ready
+            ? "Cloud sync complete — all member profiles and workspace data are shared worldwide."
+            : "Cloud sync is not configured. Add VITE_SUPABASE_ANON_KEY to .env.",
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSyncingCloud(false);
+    }
+  };
+
   return (
     <DashboardCard
       title={t("pages.admin.settings.title")}
@@ -186,6 +237,60 @@ export default function AdminSettingsCard() {
       expandAriaLabel={t("pages.admin.settings.expand")}
     >
       <div className="space-y-4">
+        <SettingsSection
+          icon={Cloud}
+          title="Worldwide cloud sync"
+          description="Members can sign in from any device. Master admin sees every profile, contribution, wallet, and community record from the shared Supabase workspace."
+        >
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-2.5 py-1 font-semibold ring-1",
+                  cloudStatus.ready
+                    ? "bg-dda-green/15 text-dda-green-light ring-dda-green/30"
+                    : cloudStatus.configured
+                      ? "bg-amber-500/15 text-amber-200 ring-amber-500/30"
+                      : "bg-red-500/15 text-red-200 ring-red-500/30",
+                )}
+              >
+                {cloudStatus.ready
+                  ? "Connected"
+                  : cloudStatus.configured
+                    ? "Configured"
+                    : "Not connected"}
+              </span>
+              <span className="text-gray-500">workspace · {cloudStatus.workspaceId}</span>
+              {cloudStatus.lastSyncAt ? (
+                <span className="text-gray-500">
+                  last sync · {new Date(cloudStatus.lastSyncAt).toLocaleString()}
+                </span>
+              ) : null}
+            </div>
+            {cloudStatus.lastError ? (
+              <p className="text-xs text-red-300">{cloudStatus.lastError}</p>
+            ) : null}
+            {!cloudStatus.configured ? (
+              <p className="text-xs leading-relaxed text-gray-400">
+                Add <code className="text-gray-300">VITE_SUPABASE_URL</code> and{" "}
+                <code className="text-gray-300">VITE_SUPABASE_ANON_KEY</code> to{" "}
+                <code className="text-gray-300">.env</code>, run{" "}
+                <code className="text-gray-300">supabase/schema.sql</code>, then restart the
+                dev server.
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleCloudSyncNow}
+              disabled={syncingCloud || !cloudStatus.configured}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-dda-green/25 bg-dda-green/10 px-3 py-2 text-xs font-semibold text-dda-green-light transition hover:bg-dda-green/15 disabled:opacity-60"
+            >
+              <Cloud className={cn("h-3.5 w-3.5", syncingCloud && "animate-pulse")} />
+              {syncingCloud ? "Syncing…" : "Sync now"}
+            </button>
+          </div>
+        </SettingsSection>
+
         <SettingsSection
           icon={Download}
           title={t("pages.admin.settings.csvTitle")}

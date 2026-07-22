@@ -41,19 +41,15 @@ Restart the dev server after changing env vars.
 
 ## What syncs to the cloud
 
-| Data | Supabase table |
-|------|----------------|
-| Members, contributions, pool, settings bins, community, admin captures | `dad_bins` |
-| Login profiles (all members + admin) | `dad_profiles` |
-| App settings, notifications read state, DM read state, locale | `dad_kv` |
+| Data | Supabase table | Who sees it |
+|------|----------------|-------------|
+| Members, contributions, pool, settings bins, community, admin captures | `dad_bins` | Shared workspace — master admin sees **all** |
+| Login profiles (every member + admin) | `dad_profiles` | Shared worldwide — any device can log in |
+| App settings, notifications read state, DM read state, locale | `dad_kv` | Shared workspace defaults |
 
-On each device:
+**Worldwide login:** when a member creates an account or signs in from any device, their profile is stored in `dad_profiles`. The next device pulls that directory on startup (and every ~45s / via Realtime).
 
-1. **Startup** — pulls cloud data, merges with local cache (newest `updated_at` wins)
-2. **Every save** — pushes changes to Supabase (debounced)
-3. **Realtime** — other devices receive updates automatically
-
-Session tokens (`remember me`, active login) stay on the device only.
+**Master admin visibility:** the admin Members page and detail modals read from the shared profile directory + shared bins (contributions, wallets in settings, community posts, activity). After cloud sync, every member’s created data is visible to master admin.
 
 ## GitHub
 
