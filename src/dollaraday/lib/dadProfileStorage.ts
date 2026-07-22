@@ -212,9 +212,25 @@ export async function createDadProfile(input: {
     approvalStatus: "pending",
     createdAt: now,
     lastLoginAt: now,
+    updatedAt: now,
   };
 
-  writeProfiles([...readProfiles(), profile]);
+  const next = [...readProfiles(), profile];
+  writeProfiles(next, { stamp: false, pushToCloud: false });
+
+  // Await cloud publish so master admin sees the new member on other devices immediately.
+  try {
+    const { pushCloudProfilesNow } = await import("./supabase/cloudSync");
+    await pushCloudProfilesNow(next);
+  } catch (err) {
+    console.warn("[dadProfileStorage] Cloud profile push failed after create:", err);
+    queueMicrotask(() => {
+      void import("./supabase/cloudSync").then(({ scheduleCloudProfilesPush }) => {
+        scheduleCloudProfilesPush(next);
+      });
+    });
+  }
+
   return { profile };
 }
 

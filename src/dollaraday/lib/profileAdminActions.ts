@@ -3,6 +3,7 @@ import {
   ensureDadAdminProfile,
   findDadProfileById,
   findDadProfileByUsername,
+  getDadProfiles,
   getDadSessionId,
   getProfileApprovalStatus,
   isProfilePendingApproval,
@@ -144,6 +145,10 @@ export function approveDadProfileByAdmin(profileId: string): AdminActionResult {
     summary: "Membership approved by admin",
   });
 
+  void import("./supabase/cloudSync")
+    .then(({ pushCloudProfilesNow }) => pushCloudProfilesNow(getDadProfiles()))
+    .catch(() => {});
+
   return { ok: true, profile: updated };
 }
 
@@ -170,6 +175,10 @@ export function denyDadProfileByAdmin(profileId: string): AdminActionResult {
     type: "profile_deny",
     summary: "Membership denied by admin",
   });
+
+  void import("./supabase/cloudSync")
+    .then(({ pushCloudProfilesNow }) => pushCloudProfilesNow(getDadProfiles()))
+    .catch(() => {});
 
   return { ok: true, profile: updated };
 }

@@ -263,9 +263,47 @@ async function upsertCloudProfiles(profiles: DadProfile[]): Promise<void> {
   const supabase = getSupabaseClient();
   if (!supabase || !profiles.length) return;
 
-  const rows = profiles.map(profileToRow);
+  const rows = profiles.map((profile) => {
+    const row = profileToRow(profile);
+    // Keep REST payloads small — large data-URL photos can fail upserts silently for the whole batch.
+    if (row.profile_photo_url && row.profile_photo_url.length > 8_000) {
+      row.profile_photo_url = null;
+    }
+    return row;
+  });
+
   const { error } = await supabase.from("dad_profiles").upsert(rows, { onConflict: "id" });
-  if (error) console.warn("[cloudSync] Failed to push profiles:", error.message);
+  if (error) {
+    lastSyncError = `Failed to push profiles: ${error.message}`;
+    notifyCloudStatusListeners();
+    console.warn("[cloudSync] Failed to push profiles:", error.message);
+
+    // Retry one-by-one so a single bad row cannot block the whole directory.
+    for (const row of rows) {
+      const { error: rowError } = await supabase
+        .from("dad_profiles")
+        .upsert(row, { onConflict: "id" });
+      if (rowError) {
+        console.warn(`[cloudSync] Failed to push profile ${row.username}:`, rowError.message);
+      }
+    }
+    return;
+  }
+
+  if (lastSyncError?.startsWith("Failed to push profiles:")) {
+    lastSyncError = null;
+    notifyCloudStatusListeners();
+  }
+}
+
+/** Immediately upsert profiles (used on register / critical writes). */
+export async function pushCloudProfilesNow(profiles: DadProfile[]): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  if (pendingProfilePush) {
+    clearTimeout(pendingProfilePush);
+    pendingProfilePush = null;
+  }
+  await upsertCloudProfiles(profiles);
 }
 
 async function upsertCloudKv(scopeKey: string, kvKey: string, rawValue: string | null): Promise<void> {
@@ -482,7 +520,7 @@ export async function initCloudSync(options: {
   // Periodic pull keeps worldwide logins and admin views consistent if realtime drops.
   const pollId = window.setInterval(() => {
     void syncCloudWorkspace(options);
-  }, 45_000);
+  }, 15_000);
 
   const stopRealtime = startCloudRealtime({
     getLocalProfiles: options.getLocalProfiles,

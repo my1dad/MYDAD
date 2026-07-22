@@ -63,6 +63,11 @@ export default function DdaStorageBootstrap({ children, fallback = <StorageLoadi
             // After cloud pull, mirror every profile into the shared members bin
             // so master admin sees worldwide registrations immediately.
             syncAllProfilesToMemberRegistry();
+            // Force one more profile publish so any local-only accounts reach the cloud.
+            {
+              const { pushCloudProfilesNow } = await import("../lib/supabase/cloudSync");
+              await pushCloudProfilesNow(getDadProfiles());
+            }
             pruneDuplicateAdminMemberRecords();
             ensureProfileProIds();
             syncAllProfilesToMemberRegistry();
