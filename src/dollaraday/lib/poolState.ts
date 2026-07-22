@@ -14,7 +14,7 @@ import {
   formatEasternLongDate,
 } from "./dateTime";
 import { buildEasternPoolSeed } from "./easternSeedData";
-import { getTotalMemberEscrowBalance } from "./memberEscrowTotals";
+import { getPoolCashEscrowBalance } from "./memberEscrowTotals";
 import { getTotalDeployedCapital } from "./allocationSleeves";
 import { computePoolInflowMetrics } from "./poolInflow";
 import { POOL_CAPITAL_COLORS } from "./theme";
@@ -146,7 +146,7 @@ function ensureInflowSyncSubscription(): void {
   subscribeInternalDatabase(() => {
     // Keep pool totals and today's donations live when bins change (including cloud pulls).
     const deployed = getTotalDeployedCapital();
-    const cashEscrow = getTotalMemberEscrowBalance();
+    const cashEscrow = getPoolCashEscrowBalance(deployed);
     state.poolSummary.deployedCapital = deployed;
     state.poolSummary.escrowBalance = cashEscrow;
     state.poolSummary.availableToDeploy = cashEscrow;
@@ -202,7 +202,7 @@ function syncCompositionAndReserve(): void {
 /** Align pool capital with live allocation positions and member escrow balances. */
 export function syncPoolCapitalFromLedger(): void {
   const deployed = getTotalDeployedCapital();
-  const cashEscrow = getTotalMemberEscrowBalance();
+  const cashEscrow = getPoolCashEscrowBalance(deployed);
 
   state.poolSummary.deployedCapital = deployed;
   state.poolSummary.escrowBalance = cashEscrow;
@@ -309,6 +309,21 @@ export function hydratePoolStateFromStorage(): void {
     applyPoolState(record.payload);
     notifyPoolListeners();
   }
+
+  // Contributions may exist in cloud while member-accounts ledgers were lost —
+  // rebuild escrow from donations, then refresh pool capital for every viewer.
+  void import("./poolEscrowReconcile").then(({ reconcileMemberEscrowFromContributions }) => {
+    const changed = reconcileMemberEscrowFromContributions();
+    syncMemberEscrowToLiquidityPool();
+    if (!changed) return;
+    void import("./supabase/cloudSync").then(async ({ pushCloudBinsNow }) => {
+      const { DATA_BIN_BY_KEY } = await import("./dataBins");
+      await pushCloudBinsNow([
+        { binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") },
+      ]);
+    });
+  });
+
   syncMemberEscrowToLiquidityPool();
 }
 

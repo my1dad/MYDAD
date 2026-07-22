@@ -190,24 +190,32 @@ function buildAllocationComparisonCurrent(
 }
 
 export function computePoolInflowMetrics(today = formatEasternIsoDate()): PoolInflowMetrics {
+  const contributionRows = readContributionRows();
+
+  // Contributions are the worldwide source of truth for pool inflow.
+  // Member escrow txs are a fallback when contribution rows are missing.
   let dailyInflow = 0;
   let monthlyInflow = 0;
 
-  collectMemberAccountTransactions().forEach((transaction) => {
-    if (!transaction.createdAt || !isPoolInflowCredit(transaction)) return;
-
-    const ymd = formatEasternIsoDate(transaction.createdAt);
-    const amount = Number(transaction.amount);
-
-    if (isSameMonth(ymd, today)) {
-      monthlyInflow += amount;
-    }
-    if (ymd === today) {
-      dailyInflow += amount;
-    }
+  contributionRows.filter(isCountableDonation).forEach((row) => {
+    const ymd = contributionYmd(row.contributedAt);
+    if (!ymd) return;
+    if (isSameMonth(ymd, today)) monthlyInflow += row.amount;
+    if (ymd === today) dailyInflow += row.amount;
   });
 
-  const contributionRows = readContributionRows();
+  if (dailyInflow === 0 && monthlyInflow === 0) {
+    collectMemberAccountTransactions().forEach((transaction) => {
+      if (!transaction.createdAt || !isPoolInflowCredit(transaction)) return;
+
+      const ymd = formatEasternIsoDate(transaction.createdAt);
+      const amount = Number(transaction.amount);
+
+      if (isSameMonth(ymd, today)) monthlyInflow += amount;
+      if (ymd === today) dailyInflow += amount;
+    });
+  }
+
   const { todaysDonations, dailyAllocationSummary } = buildTodaysDonations(
     contributionRows,
     today,

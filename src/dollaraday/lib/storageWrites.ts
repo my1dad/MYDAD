@@ -5,7 +5,6 @@ import { logProfileActivity } from "./profileActivity";
 import {
   depositToMemberAccount,
   resolveMemberProfileId,
-  transferBetweenMemberAccounts,
 } from "./memberAccounts";
 import { updateMemberAfterContribution } from "./memberRegistry";
 import {
@@ -112,12 +111,8 @@ function findHomeContributionSchedule(profileId: string) {
 }
 
 function depositContributionToEscrow(profileId: string, amount: number, memo: string): boolean {
-  if (
-    transferBetweenMemberAccounts(profileId, "checking", "escrow", amount, memo) !== null
-  ) {
-    return true;
-  }
-
+  // Donations are external capital into the shared Chase Escrow pool — credit escrow
+  // directly so pool totals do not depend on a funded checking balance.
   return depositToMemberAccount(profileId, "escrow", amount, memo) !== null;
 }
 
@@ -186,8 +181,8 @@ export function saveContribution({
     recurringEnabled,
     frequency: recurringEnabled ? frequency : undefined,
     profileId,
-    memberId: currentMember.id,
-    memberName: currentMember.name,
+    memberId: profileId,
+    memberName: profile?.displayName || currentMember.name,
     handle: currentMember.handle,
     contributedAt: new Date().toISOString(),
     status: "completed",
