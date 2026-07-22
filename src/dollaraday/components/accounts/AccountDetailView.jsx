@@ -224,12 +224,6 @@ export default function AccountDetailView({ accountId, onBack }) {
     : ACTION_OPTIONS.filter((option) => option.id !== "transfer");
 
   useEffect(() => {
-    if (!isAdmin && accountId === "escrow") {
-      onBack();
-    }
-  }, [accountId, isAdmin, onBack]);
-
-  useEffect(() => {
     setTransferFromId(accountId);
     setTransferToId(counterpartyId);
     setActivityPage(0);

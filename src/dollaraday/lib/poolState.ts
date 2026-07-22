@@ -177,7 +177,7 @@ function syncCompositionAndReserve(): void {
   const available = state.poolComposition.find((segment) => segment.key === "available");
 
   if (escrow) {
-    escrow.value = 0;
+    escrow.value = state.poolSummary.escrowBalance;
     escrow.color = POOL_CAPITAL_COLORS.escrow;
   }
   if (deployed) {
@@ -185,6 +185,7 @@ function syncCompositionAndReserve(): void {
     deployed.color = POOL_CAPITAL_COLORS.deployed;
   }
   if (available) {
+    // Available-to-deploy is the same undeployed cash held in escrow.
     available.value = state.poolSummary.availableToDeploy;
     available.color = POOL_CAPITAL_COLORS.available;
   }

@@ -10,7 +10,7 @@ import { buildAccountsOverviewStats } from "../../lib/accountsOverview";
 import { resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
 import { useRecurringCashflows } from "../../lib/recurringCashflow";
 
-const MEMBER_HIDDEN_SEGMENT_IDS = new Set(["escrow", "redemptionsSent", "redemptionsReceived"]);
+const MEMBER_HIDDEN_SEGMENT_IDS = new Set(["redemptionsSent", "redemptionsReceived"]);
 
 const SEGMENT_META = {
   checking: { labelKey: "overviewChecking", color: "#10b981" },
@@ -104,7 +104,7 @@ export default function AccountsOverviewInfographic() {
     return slices.map((slice) => ({ ...slice, snapshotTotal }));
   }, [visibleSegments, t]);
 
-  const onHandBalance = isAdmin ? stats.totalBalance : stats.checkingBalance;
+  const onHandBalance = stats.totalBalance;
 
   const chartSnapshotTotal = visibleSegments.reduce((sum, segment) => sum + segment.value, 0);
 
@@ -189,14 +189,12 @@ export default function AccountsOverviewInfographic() {
               accent={SEGMENT_META.checking.color}
               pct={segmentPct("checking", stats.checkingBalance)}
             />
-            {isAdmin ? (
-              <MetricRow
-                label={t("pages.accounts.overviewEscrow")}
-                value={formatPoolCurrency(stats.escrowBalance)}
-                accent={SEGMENT_META.escrow.color}
-                pct={segmentPct("escrow", stats.escrowBalance)}
-              />
-            ) : null}
+            <MetricRow
+              label={t("pages.accounts.overviewEscrow")}
+              value={formatPoolCurrency(stats.escrowBalance)}
+              accent={SEGMENT_META.escrow.color}
+              pct={segmentPct("escrow", stats.escrowBalance)}
+            />
           </MetricGroup>
 
           {isAdmin ? (

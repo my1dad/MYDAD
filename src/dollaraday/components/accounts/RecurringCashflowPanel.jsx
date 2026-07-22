@@ -90,7 +90,7 @@ export default function RecurringCashflowPanel({ accountId = null }) {
   const ledger = useMemberAccounts(profileId);
   const schedules = useRecurringCashflows(profileId);
   const accountOptions = useMemo(
-    () => (isAdmin ? ACCOUNT_OPTIONS : ACCOUNT_OPTIONS.filter((option) => option.id !== "escrow")),
+    () => ACCOUNT_OPTIONS,
     [isAdmin],
   );
 

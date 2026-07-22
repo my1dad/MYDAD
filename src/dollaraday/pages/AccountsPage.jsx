@@ -18,7 +18,7 @@ export default function AccountsPage() {
         description={t(`pages.${pageKey}.description`)}
       />
 
-      {selectedAccount && (isAdmin || selectedAccount !== "escrow") ? (
+      {selectedAccount ? (
         <AccountDetailView accountId={selectedAccount} onBack={() => setSelectedAccount(null)} />
       ) : (
         <AccountHubView onSelectAccount={setSelectedAccount} />

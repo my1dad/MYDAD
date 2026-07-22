@@ -17,7 +17,7 @@ import RedemptionsCard from "./RedemptionsCard";
 export default function AccountHubView({ onSelectAccount }) {
   const { t } = useLocale();
   const { profile, isAdmin } = useDadAuth();
-  const visibleAccounts = getVisibleBankAccounts(isAdmin);
+  const visibleAccounts = getVisibleBankAccounts(true);
   const profileId = resolveMemberProfileId();
   const ledger = useMemberAccounts(profileId);
 

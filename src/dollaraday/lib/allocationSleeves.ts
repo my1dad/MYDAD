@@ -565,6 +565,27 @@ export function getEscrowLedgerEntries(limit = 24): EscrowLedgerEntry[] {
         });
     });
 
+  // Fallback: surface completed contributions as escrow inflows when ledgers are empty/stale.
+  if (!entries.some((entry) => entry.type === "inflow")) {
+    readDataBin("contributions").records.forEach((record) => {
+      const payload = record.payload ?? {};
+      const amount = Number(payload.amount);
+      if (!Number.isFinite(amount) || amount <= 0) return;
+      if (String(payload.type ?? "") === "signup") return;
+      if (String(payload.status ?? "completed") !== "completed") return;
+
+      const memberName = String(payload.memberName ?? "Member");
+      const contributedAt = String(payload.contributedAt ?? record.createdAt ?? "");
+      entries.push({
+        id: `contribution-${record.id}`,
+        label: `Contribution · ${memberName}`,
+        amount,
+        type: "inflow",
+        createdAt: contributedAt,
+      });
+    });
+  }
+
   return entries
     .filter((entry) => entry.createdAt)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

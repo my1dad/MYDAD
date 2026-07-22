@@ -108,9 +108,9 @@ export default function LiquidityPoolInfographic() {
     ],
   );
 
-  /** Pie uses deployed + available cash only (escrow shares the same cash balance). */
+  /** Pie uses deployed + escrow cash (available mirrors escrow, so omit it to avoid double-count). */
   const chartSegments = useMemo(
-    () => capitalSegments.filter((segment) => segment.value > 0 && segment.key !== "escrow"),
+    () => capitalSegments.filter((segment) => segment.value > 0 && segment.key !== "available"),
     [capitalSegments],
   );
 
@@ -224,9 +224,9 @@ export default function LiquidityPoolInfographic() {
             <ul className="mt-3 w-full space-y-2.5">
               {capitalSegments.map((segment) => {
                 const pct =
-                  allocationTotal > 0 && segment.key !== "escrow"
+                  allocationTotal > 0 && segment.key !== "available"
                     ? Math.round((segment.value / allocationTotal) * 100)
-                    : segment.key === "escrow" && poolSummary.totalBalance > 0
+                    : segment.key === "available" && poolSummary.totalBalance > 0
                       ? Math.round((segment.value / poolSummary.totalBalance) * 100)
                       : 0;
                 return (
