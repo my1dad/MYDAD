@@ -9,8 +9,8 @@ export default function EasternLiveClock({ variant = "compact", className }) {
 
   if (variant === "sidebar") {
     return (
-      <div className={cn("space-y-0.5", className)} aria-live="polite" aria-atomic="true">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+      <div className={cn("space-y-0.5 text-right", className)} aria-live="polite" aria-atomic="true">
+        <div className="flex items-center justify-end gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
           <Clock3 className="h-3 w-3 shrink-0" aria-hidden="true" />
           {t("common.easternTime")}
         </div>

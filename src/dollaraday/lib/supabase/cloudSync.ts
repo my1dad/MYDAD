@@ -145,17 +145,58 @@ function rowToProfile(row: CloudProfileRow): DadProfile {
 function mergeBinDocuments(
   local: DataBinDocument | null,
   remote: DataBinDocument | null,
-): { merged: DataBinDocument; source: "local" | "remote" | "empty" } {
+): { merged: DataBinDocument; source: "local" | "remote" | "empty" | "merged" } {
+  if (!remote?.updatedAt && !local?.updatedAt) {
+    return { merged: local ?? remote!, source: "empty" };
+  }
   if (!remote?.updatedAt) {
-    return { merged: local ?? remote!, source: local ? "local" : "empty" };
+    return { merged: local!, source: "local" };
   }
   if (!local?.updatedAt) {
     return { merged: remote, source: "remote" };
   }
-  if (remote.updatedAt >= local.updatedAt) {
-    return { merged: remote, source: "remote" };
+
+  const byId = new Map<string, DataBinDocument["records"][number]>();
+  for (const record of remote.records ?? []) {
+    byId.set(record.id, record);
   }
-  return { merged: local, source: "local" };
+
+  let localHadExclusiveOrNewer = false;
+  for (const record of local.records ?? []) {
+    const existing = byId.get(record.id);
+    if (!existing) {
+      byId.set(record.id, record);
+      localHadExclusiveOrNewer = true;
+      continue;
+    }
+    if ((record.updatedAt ?? "") >= (existing.updatedAt ?? "")) {
+      if ((record.updatedAt ?? "") > (existing.updatedAt ?? "")) {
+        localHadExclusiveOrNewer = true;
+      }
+      byId.set(record.id, record);
+    }
+  }
+
+  const records = Array.from(byId.values()).sort((a, b) =>
+    String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")),
+  );
+  const latestRecordAt = records[0]?.updatedAt ?? "";
+  const updatedAt = [local.updatedAt, remote.updatedAt, latestRecordAt].sort().at(-1) ?? remote.updatedAt;
+
+  const merged: DataBinDocument = {
+    version: Math.max(local.version ?? 1, remote.version ?? 1),
+    binKey: local.binKey ?? remote.binKey,
+    updatedAt,
+    records,
+  };
+
+  if (localHadExclusiveOrNewer) {
+    return { merged, source: "merged" };
+  }
+  if (remote.updatedAt >= local.updatedAt) {
+    return { merged, source: "remote" };
+  }
+  return { merged, source: "local" };
 }
 
 function mergeProfiles(local: DadProfile[], remote: DadProfile[]): DadProfile[] {
@@ -346,6 +387,23 @@ export function scheduleCloudBinPush(binId: string, document: DataBinDocument): 
   );
 }
 
+/** Immediately upsert one or more bins (used after contributions). */
+export async function pushCloudBinsNow(
+  bins: Array<{ binId: string; document: DataBinDocument }>,
+): Promise<void> {
+  if (!isSupabaseConfigured() || !bins.length) return;
+
+  for (const { binId } of bins) {
+    const existing = pendingBinPushes.get(binId);
+    if (existing) {
+      clearTimeout(existing);
+      pendingBinPushes.delete(binId);
+    }
+  }
+
+  await Promise.all(bins.map(({ binId, document }) => upsertCloudBin(binId, document)));
+}
+
 export function scheduleCloudProfilesPush(profiles: DadProfile[]): void {
   if (!isSupabaseConfigured()) return;
 
@@ -400,8 +458,9 @@ export async function syncCloudWorkspace(options: {
 
       applyExternalBinDocument(binId, binKey, merged);
 
-      // Seed empty cloud, or push local wins so every device shares one workspace.
-      if (cloudEmpty || source === "local") {
+      // Seed empty cloud, push local wins, or publish record-level merges so every
+      // member contribution reaches the shared liquidity workspace.
+      if (cloudEmpty || source === "local" || source === "merged") {
         await upsertCloudBin(binId, merged);
       }
     }

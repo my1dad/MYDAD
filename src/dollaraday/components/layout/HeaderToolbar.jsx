@@ -8,9 +8,9 @@ export default function HeaderToolbar({ className, languageClassName, showAction
   const onNavigate = useAppNavigate();
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("flex items-center gap-2 overflow-visible pr-0.5 pt-0.5", className)}>
       {showActions ? (
-        <div className="hidden lg:block">
+        <div className="hidden overflow-visible lg:block">
           <HeaderActions onNavigate={onNavigate} />
         </div>
       ) : null}

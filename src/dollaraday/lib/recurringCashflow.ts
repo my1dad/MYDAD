@@ -432,7 +432,7 @@ function applyScheduleOccurrence(schedule: RecurringCashflow, dayYmd: string): b
 
   if (!schedule.transferToAccountId) return false;
 
-  return (
+  const transferred =
     transferBetweenMemberAccounts(
       profileId,
       schedule.accountId,
@@ -440,8 +440,58 @@ function applyScheduleOccurrence(schedule: RecurringCashflow, dayYmd: string): b
       schedule.amount,
       memo,
       { occurredAt },
-    ) !== null
-  );
+    ) !== null;
+
+  // Home contribution schedules credit escrow — mirror into contributions + member equity
+  // so liquidity pool / admin views stay cloud-accurate.
+  if (
+    transferred &&
+    schedule.accountId === "checking" &&
+    schedule.transferToAccountId === "escrow" &&
+    schedule.label.trim() === "Home contribution"
+  ) {
+    void Promise.all([
+      import("./internalDatabase"),
+      import("./memberRegistry"),
+      import("./poolState"),
+      import("./dadProfileStorage"),
+    ]).then(
+      ([
+        { appendDataRecord },
+        { updateMemberAfterContribution, findStoredMemberByProfileId },
+        { registerContribution },
+        { findDadProfileById },
+      ]) => {
+        const profile = findDadProfileById(profileId);
+        const member = findStoredMemberByProfileId(profileId);
+        const memberName = member?.name || profile?.displayName || "Member";
+        const handle = member?.handle || (profile ? `@${profile.username}` : "");
+
+        appendDataRecord("contributions", "recurring-home-contribution", {
+          type: "recurring",
+          amount: schedule.amount,
+          recurringEnabled: true,
+          frequency: schedule.frequency,
+          profileId,
+          memberId: profileId,
+          memberName,
+          handle,
+          contributedAt: occurredAt,
+          status: "completed",
+        });
+        updateMemberAfterContribution(profileId, schedule.amount);
+        registerContribution({
+          amount: schedule.amount,
+          recurringEnabled: true,
+          memberId: profileId,
+          memberName,
+          handle,
+        });
+      },
+    );
+  }
+
+  return transferred;
 }
 
 export function getRecurringCashflows(profileId?: string): RecurringCashflow[] {

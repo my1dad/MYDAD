@@ -32,7 +32,7 @@ export default function PageHeader({
       <header className={cn("dda-glass relative mb-4 overflow-hidden sm:mb-6", className)}>
         <div className="dda-accent-bar" />
         <div className="relative p-4 sm:p-6">
-          <div className="absolute right-4 top-4 z-10 sm:right-5 sm:top-5">
+          <div className="absolute right-4 top-4 z-10 overflow-visible p-0.5 sm:right-5 sm:top-5">
             <HeaderToolbar />
           </div>
           <div
@@ -91,11 +91,11 @@ export default function PageHeader({
   return (
     <header
       className={cn(
-        "relative mb-4 flex flex-col gap-3 border-b border-white/10 pb-4 pr-24 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:pb-5 sm:pr-40",
+        "relative mb-4 flex flex-col gap-3 border-b border-white/10 pb-4 pr-28 pt-1 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:pb-5 sm:pr-44 sm:pt-1.5",
         className
       )}
     >
-      <div className="absolute right-0 top-0 z-10">
+      <div className="absolute right-0 top-0 z-10 overflow-visible p-0.5">
         <HeaderToolbar />
       </div>
       <div className="min-w-0">

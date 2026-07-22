@@ -144,6 +144,13 @@ function ensureInflowSyncSubscription(): void {
   if (inflowSyncSubscribed) return;
   inflowSyncSubscribed = true;
   subscribeInternalDatabase(() => {
+    // Keep pool totals and today's donations live when bins change (including cloud pulls).
+    const deployed = getTotalDeployedCapital();
+    const cashEscrow = getTotalMemberEscrowBalance();
+    state.poolSummary.deployedCapital = deployed;
+    state.poolSummary.escrowBalance = cashEscrow;
+    state.poolSummary.availableToDeploy = cashEscrow;
+    syncCompositionAndReserve();
     syncPoolInflowMetrics();
     notifyPoolListeners();
   });

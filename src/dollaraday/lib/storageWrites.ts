@@ -15,7 +15,7 @@ import {
   updateRecurringCashflow,
 } from "./recurringCashflow";
 import { disableRecurringSubscription } from "./recurringContributions";
-import { getPoolState } from "./poolState";
+import { getPoolState, registerContribution, syncMemberEscrowToLiquidityPool } from "./poolState";
 
 export type HomeContributionFrequency = "weekly" | "monthly" | "yearly";
 
@@ -194,7 +194,7 @@ export function saveContribution({
   });
 
   const memo = contributionMemo(frequency, recurringEnabled);
-  depositContributionToEscrow(profileId, amount, memo);
+  const deposited = depositContributionToEscrow(profileId, amount, memo);
 
   if (profile) {
     logProfileActivity({
@@ -212,6 +212,33 @@ export function saveContribution({
   } else {
     syncHomeContributionSchedule(profileId, amount, recurringEnabled, frequency);
   }
+
+  registerContribution({
+    amount,
+    reminderEnabled,
+    recurringEnabled,
+    memberId: currentMember.id,
+    memberName: currentMember.name,
+    handle: currentMember.handle,
+  });
+
+  // Escrow deposit already syncs capital; force another pass if deposit used a fallback path.
+  if (deposited) {
+    syncMemberEscrowToLiquidityPool();
+  }
+
+  // Push contribution-related bins immediately so the shared pool updates worldwide.
+  queueMicrotask(() => {
+    void import("./supabase/cloudSync").then(async ({ pushCloudBinsNow }) => {
+      const { readDataBin } = await import("./internalDatabase");
+      const { DATA_BIN_BY_KEY } = await import("./dataBins");
+      await pushCloudBinsNow([
+        { binId: DATA_BIN_BY_KEY.contributions.binId, document: readDataBin("contributions") },
+        { binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") },
+        { binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") },
+      ]);
+    });
+  });
 }
 
 export function saveAdminCapture(source: string, payload: Record<string, unknown>) {

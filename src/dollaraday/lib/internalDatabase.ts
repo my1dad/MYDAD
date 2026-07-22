@@ -124,19 +124,20 @@ async function persistToDisk(binId: string, payload: DataBinDocument): Promise<v
 }
 
 function schedulePersist(binId: string): void {
+  const payload = cache[binId];
+  if (payload) {
+    queueMicrotask(() => {
+      void import("./supabase/cloudSync").then(({ scheduleCloudBinPush }) => {
+        scheduleCloudBinPush(binId, payload);
+      });
+    });
+  }
+
   if (mode === "local") {
     try {
       localStorage.setItem(localStorageKey(binId), JSON.stringify(cache[binId]));
     } catch (err) {
       console.warn(`[internalDatabase] Could not save ${binId} to localStorage:`, err);
-    }
-    const payload = cache[binId];
-    if (payload) {
-      queueMicrotask(() => {
-        void import("./supabase/cloudSync").then(({ scheduleCloudBinPush }) => {
-          scheduleCloudBinPush(binId, payload);
-        });
-      });
     }
     notifyListeners();
     return;
@@ -144,9 +145,9 @@ function schedulePersist(binId: string): void {
 
   clearTimeout(pendingWrites[binId]);
   pendingWrites[binId] = setTimeout(() => {
-    const payload = cache[binId];
-    if (!payload) return;
-    persistToDisk(binId, payload)
+    const nextPayload = cache[binId];
+    if (!nextPayload) return;
+    persistToDisk(binId, nextPayload)
       .then(() => notifyListeners())
       .catch((err) => console.warn(`[internalDatabase] Could not persist ${binId}:`, err));
   }, WRITE_DEBOUNCE_MS);
@@ -224,6 +225,19 @@ export function applyExternalBinDocument(
     console.warn(`[internalDatabase] Could not cache remote ${binId}:`, err);
   }
   notifyListeners();
+
+  // Remote settings/contributions must refresh member ledgers + liquidity pool totals.
+  if (key === "settings" || key === "contributions" || key === "members") {
+    queueMicrotask(() => {
+      void Promise.all([
+        import("./memberAccounts"),
+        import("./poolState"),
+      ]).then(([{ invalidateMemberAccountsCache }, { hydratePoolStateFromStorage }]) => {
+        invalidateMemberAccountsCache();
+        hydratePoolStateFromStorage();
+      });
+    });
+  }
 }
 
 export function appendDataRecord(
