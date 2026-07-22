@@ -871,12 +871,15 @@ select.dda-bank-transfer-route__select:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1.75rem;
-  padding-top: 0.5rem;
+  gap: 1.25rem;
+  width: 100%;
+  padding-top: 1.25rem;
 }
 
 .dda-home-payment-logo-link {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 0;
   text-decoration: none;
 }
@@ -3860,6 +3863,13 @@ select.dda-bank-transfer-route__select {
   background: rgba(10, 12, 16, 0.98);
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(12px);
+}
+
+.dda-notification-panel--portal {
+  position: fixed;
+  top: auto;
+  left: auto;
+  z-index: 80;
 }
 
 .dda-notification-panel__header {

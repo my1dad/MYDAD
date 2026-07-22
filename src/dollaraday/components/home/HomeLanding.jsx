@@ -1,5 +1,5 @@
 import { DOLLARADAY_LOGO_URL } from "@/lib/assetUrl";
-import LanguageToggle from "../layout/LanguageToggle";
+import HeaderToolbar from "../layout/HeaderToolbar";
 import PoolDigitalDisplay from "./PoolDigitalDisplay.jsx";
 import ContributeTodaySection from "./ContributeTodaySection.jsx";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
@@ -53,7 +53,7 @@ export default function HomeLanding({
             ) : (
               <span className="dda-home-greeting dda-home-greeting--empty" aria-hidden="true" />
             )}
-            <LanguageToggle className="dda-home-hero__lang shrink-0" />
+            <HeaderToolbar languageClassName="dda-home-hero__lang shrink-0" />
           </div>
 
           <div className="dda-home-hero__brand">

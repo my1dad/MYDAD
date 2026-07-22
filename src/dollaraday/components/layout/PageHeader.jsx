@@ -1,6 +1,6 @@
 import { DOLLARADAY_LOGO_URL } from "@/lib/assetUrl";
 import { cn } from "@/lib/utils";
-import LanguageToggle from "./LanguageToggle";
+import HeaderToolbar from "./HeaderToolbar";
 
 function HeaderHighlights({ items }) {
   if (!items?.length) return null;
@@ -33,7 +33,7 @@ export default function PageHeader({
         <div className="dda-accent-bar" />
         <div className="relative p-4 sm:p-6">
           <div className="absolute right-4 top-4 z-10 sm:right-5 sm:top-5">
-            <LanguageToggle />
+            <HeaderToolbar />
           </div>
           <div
             className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full dda-glow-green blur-3xl"
@@ -91,12 +91,12 @@ export default function PageHeader({
   return (
     <header
       className={cn(
-        "relative mb-4 flex flex-col gap-3 border-b border-white/10 pb-4 pr-20 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:pb-5 sm:pr-28",
+        "relative mb-4 flex flex-col gap-3 border-b border-white/10 pb-4 pr-24 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:pb-5 sm:pr-40",
         className
       )}
     >
       <div className="absolute right-0 top-0 z-10">
-        <LanguageToggle />
+        <HeaderToolbar />
       </div>
       <div className="min-w-0">
         {kicker ? <p className="dda-text-kicker">{kicker}</p> : null}

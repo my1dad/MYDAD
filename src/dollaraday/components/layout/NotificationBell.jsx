@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Bell, CheckCheck, CircleDollarSign, MessageCircle, Trash2, UserCheck, UserPlus, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDadAuth } from "../../context/DadAuthContext";
@@ -12,6 +13,10 @@ import {
   useNotifications,
 } from "../../lib/notifications";
 import { useLiveRelativeTime } from "../../context/EasternTimeContext";
+
+const PANEL_WIDTH = 320;
+const PANEL_GAP = 8;
+const VIEWPORT_PAD = 12;
 
 const kindIcons = {
   community_dm: MessageCircle,
@@ -91,20 +96,85 @@ function NotificationItem({ item, onSelect }) {
   );
 }
 
+function getPanelStyle(triggerRect) {
+  if (!triggerRect || typeof window === "undefined") {
+    return { top: VIEWPORT_PAD, left: VIEWPORT_PAD };
+  }
+
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const width = Math.min(PANEL_WIDTH, viewportWidth - VIEWPORT_PAD * 2);
+  const spaceBelow = viewportHeight - triggerRect.bottom - VIEWPORT_PAD;
+  const spaceAbove = triggerRect.top - VIEWPORT_PAD;
+  const openUpward = spaceBelow < 280 && spaceAbove > spaceBelow;
+  const maxHeight = Math.max(
+    160,
+    Math.min(320, openUpward ? spaceAbove - PANEL_GAP : spaceBelow - PANEL_GAP),
+  );
+
+  let left = triggerRect.left;
+  if (left + width > viewportWidth - VIEWPORT_PAD) {
+    left = viewportWidth - VIEWPORT_PAD - width;
+  }
+  left = Math.max(VIEWPORT_PAD, left);
+
+  if (openUpward) {
+    return {
+      left,
+      width,
+      bottom: viewportHeight - triggerRect.top + PANEL_GAP,
+      maxHeight,
+    };
+  }
+
+  return {
+    left,
+    width,
+    top: triggerRect.bottom + PANEL_GAP,
+    maxHeight,
+  };
+}
+
 export default function NotificationBell({ onNavigate }) {
   const { t } = useLocale();
   const { isAdmin, profile } = useDadAuth();
   const { notifications, unreadCount } = useNotifications(isAdmin, profile?.id);
   const [open, setOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState(null);
   const rootRef = useRef(null);
+  const triggerRef = useRef(null);
+  const panelRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelStyle(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPanelStyle(getPanelStyle(rect));
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
 
     const handlePointerDown = (event) => {
-      if (!rootRef.current?.contains(event.target)) {
-        setOpen(false);
+      const target = event.target;
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) {
+        return;
       }
+      setOpen(false);
     };
 
     const handleEscape = (event) => {
@@ -149,9 +219,62 @@ export default function NotificationBell({ onNavigate }) {
     clearMessageNotifications(dismissibleNotifications.map((item) => item.id));
   };
 
+  const panel =
+    open && panelStyle
+      ? createPortal(
+          <div
+            ref={panelRef}
+            className="dda-notification-panel dda-notification-panel--portal"
+            role="menu"
+            style={panelStyle}
+          >
+            <div className="dda-notification-panel__header">
+              <p className="dda-notification-panel__title">{t("notifications.title")}</p>
+              {dismissibleNotifications.length ? (
+                <div className="dda-notification-panel__actions">
+                  {dismissibleNotifications.some((item) => item.unread) ? (
+                    <button
+                      type="button"
+                      onClick={handleMarkAllRead}
+                      className="dda-notification-panel__mark-all"
+                    >
+                      <CheckCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                      {t("notifications.markAllRead")}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleClearMessages}
+                    className="dda-notification-panel__clear"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    {t("notifications.clearMessages")}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            <div
+              className="dda-notification-panel__list"
+              style={{ maxHeight: Math.max(120, (panelStyle.maxHeight ?? 320) - 56) }}
+            >
+              {notifications.length ? (
+                notifications.map((item) => (
+                  <NotificationItem key={item.id} item={item} onSelect={handleSelect} />
+                ))
+              ) : (
+                <p className="dda-notification-panel__empty">{t("notifications.empty")}</p>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div ref={rootRef} className="dda-notification-bell">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((current) => !current)}
         className="dda-notification-bell__trigger"
@@ -166,46 +289,7 @@ export default function NotificationBell({ onNavigate }) {
           </span>
         ) : null}
       </button>
-
-      {open ? (
-        <div className="dda-notification-panel" role="menu">
-          <div className="dda-notification-panel__header">
-            <p className="dda-notification-panel__title">{t("notifications.title")}</p>
-            {dismissibleNotifications.length ? (
-              <div className="dda-notification-panel__actions">
-                {dismissibleNotifications.some((item) => item.unread) ? (
-                  <button
-                    type="button"
-                    onClick={handleMarkAllRead}
-                    className="dda-notification-panel__mark-all"
-                  >
-                    <CheckCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                    {t("notifications.markAllRead")}
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={handleClearMessages}
-                  className="dda-notification-panel__clear"
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  {t("notifications.clearMessages")}
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="dda-notification-panel__list">
-            {notifications.length ? (
-              notifications.map((item) => (
-                <NotificationItem key={item.id} item={item} onSelect={handleSelect} />
-              ))
-            ) : (
-              <p className="dda-notification-panel__empty">{t("notifications.empty")}</p>
-            )}
-          </div>
-        </div>
-      ) : null}
+      {panel}
     </div>
   );
 }

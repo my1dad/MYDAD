@@ -17,7 +17,6 @@ import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocale } from "../../i18n/LocaleContext";
 import { logoutDollarADay } from "../../lib/logout";
 import EasternLiveClock from "./EasternLiveClock";
-import HeaderActions from "./HeaderActions";
 
 const navItemById = {
   dashboard: { id: "dashboard", icon: LayoutDashboard },
@@ -133,10 +132,7 @@ export default function Sidebar({ activePage, onNavigate }) {
       </nav>
 
       <div className="mt-auto border-t border-white/10 px-2 pt-3">
-        <div className="flex items-start justify-between gap-2">
-          <HeaderActions onNavigate={onNavigate} />
-          <EasternLiveClock variant="sidebar" className="min-w-0 flex-1 text-right" />
-        </div>
+        <EasternLiveClock variant="sidebar" className="w-full text-right" />
       </div>
     </aside>
   );
