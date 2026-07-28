@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { initInternalDatabase } from "../lib/internalDatabase";
+import { getDadSessionId } from "../lib/dadProfileStorage";
 import { dismissInitialPreloader } from "../lib/platformPreloader";
-import PlatformPreloader from "./layout/PlatformPreloader";
 
 /**
  * Fast path for login: only init local DB, then show UI.
  * Cloud sync / automations start after authentication (see PostAuthWorkspace).
- * The HTML shell preloader stays up until this marks ready.
+ * The HTML shell preloader stays up until login is interactive, or until the
+ * authenticated app mounts for returning sessions.
  */
 export default function DdaStorageBootstrap({ children }) {
   const [ready, setReady] = useState(false);
@@ -22,8 +23,10 @@ export default function DdaStorageBootstrap({ children }) {
       } finally {
         if (alive) {
           setReady(true);
-          // Next frame so login paints before shell preloader fades out.
-          requestAnimationFrame(() => dismissInitialPreloader());
+          requestAnimationFrame(() => {
+            // Returning sessions keep the shell preloader until App mounts.
+            if (!getDadSessionId()) dismissInitialPreloader();
+          });
         }
       }
     })();
@@ -39,8 +42,4 @@ export default function DdaStorageBootstrap({ children }) {
   }
 
   return <div className="h-full w-full overflow-hidden">{children}</div>;
-}
-
-export function BootstrapPreloader() {
-  return <PlatformPreloader kicker="Loading" />;
 }
