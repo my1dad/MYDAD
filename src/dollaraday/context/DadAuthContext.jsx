@@ -64,7 +64,16 @@ export function DadAuthProvider({ children }) {
 
   useEffect(() => {
     return subscribeDadProfiles(() => {
-      setProfile(getActiveDadProfile());
+      const next = getActiveDadProfile();
+      setProfile((current) => {
+        const currentId = current?.id ?? null;
+        const nextId = next?.id ?? null;
+        if (currentId === nextId && current === next) return current;
+        if (currentId === nextId && !currentId) return current;
+        // Avoid re-rendering login while guest when cloud profile directory refreshes.
+        if (!getDadSessionId() && !currentId && !nextId) return current;
+        return next;
+      });
     });
   }, []);
 
@@ -136,17 +145,21 @@ export function DadAuthProvider({ children }) {
     setAuthEntryTick((tick) => tick + 1);
   }, []);
 
+  const sessionId = getDadSessionId();
+  const isAuthenticated = Boolean(sessionId && (profile ?? getActiveDadProfile()));
+  const isAdmin = isAdminProfile(profile);
+
   const value = useMemo(
     () => ({
       profile,
       authEntryTick,
-      isAuthenticated: Boolean(getDadSessionId() && (profile ?? getActiveDadProfile())),
-      isAdmin: isAdminProfile(profile),
+      isAuthenticated,
+      isAdmin,
       login,
       register,
       logout,
     }),
-    [profile, authEntryTick, login, register, logout],
+    [profile, authEntryTick, isAuthenticated, isAdmin, login, register, logout],
   );
 
   return <DadAuthContext.Provider value={value}>{children}</DadAuthContext.Provider>;

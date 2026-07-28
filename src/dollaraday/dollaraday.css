@@ -115,6 +115,34 @@ body {
   opacity: 0.22;
 }
 
+/* Fast login: solid backdrop — no 2MB photo, no blur re-paints while typing */
+.dda-login-fast {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(16, 185, 129, 0.12), transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(251, 191, 36, 0.06), transparent 40%),
+    #071013;
+}
+
+.dda-login-fast.dda-mobile-shell--login::before,
+.dda-login-fast.dda-mobile-shell--login::after {
+  display: none;
+}
+
+.dda-brand-card--login {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(12, 22, 26, 0.96);
+  contain: layout paint;
+}
+
+.dda-login-fast .dda-login-slogan__word {
+  filter: none;
+}
+
+.dda-login-fast .dda-login-logo {
+  contain: layout paint;
+}
+
 .dda-mobile-shell__main {
   position: relative;
   z-index: 2;

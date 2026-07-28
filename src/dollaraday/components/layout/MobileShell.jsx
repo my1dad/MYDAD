@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { DOLLAR_BILL_WASHINGTON_URL } from "@/lib/assetUrl";
 import { lockMobileShell, resetMobileShellScroll, unlockMobileShell } from "../../lib/mobileShellLock";
 
 function assignRef(ref, node) {
@@ -47,21 +46,11 @@ export default function MobileShell({
     <div
       className={cn(
         "dda-mobile-shell",
-        variant === "login" && "dda-mobile-shell--login",
+        variant === "login" && "dda-mobile-shell--login dda-login-fast",
         variant === "app" && "dda-mobile-shell--app",
         shellClassName,
       )}
     >
-      {variant === "login" ? (
-        <img
-          src={DOLLAR_BILL_WASHINGTON_URL}
-          alt=""
-          className="dda-login-bg-portrait"
-          aria-hidden="true"
-          draggable={false}
-          decoding="async"
-        />
-      ) : null}
       <main
         ref={setMainRef}
         className={cn("dda-mobile-shell__main dda-scroll", mainClassName)}
