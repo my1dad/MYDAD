@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import HomeLanding from "../components/home/HomeLanding.jsx";
-import ContributeOnboardingModal from "../components/onboarding/ContributeOnboardingModal.jsx";
 import { saveContribution } from "../lib/storageWrites";
 import { usePoolState } from "../lib/poolState";
+
+const ContributeOnboardingModal = lazy(() =>
+  import("../components/onboarding/ContributeOnboardingModal.jsx"),
+);
 
 export default function DashboardPage({ onNavigate }) {
   const { poolSummary } = usePoolState();
@@ -32,16 +35,21 @@ export default function DashboardPage({ onNavigate }) {
         onPoolClick={() => onNavigate?.("pool")}
       />
 
-      <ContributeOnboardingModal
-        open={contributeOpen}
-        onClose={() => setContributeOpen(false)}
-        initialAmount={contributeSeed.amount}
-        startOnCustom={contributeSeed.custom}
-        contributionFrequency={contributeSeed.frequency}
-        onComplete={({ reminderEnabled, recurringEnabled, amount, frequency }) => {
-          saveContribution({ amount, reminderEnabled, recurringEnabled, frequency });
-        }}
-      />
+      {contributeOpen ? (
+        <Suspense fallback={null}>
+          <ContributeOnboardingModal
+            open={contributeOpen}
+            onClose={() => setContributeOpen(false)}
+            initialAmount={contributeSeed.amount}
+            startOnCustom={contributeSeed.custom}
+            contributionFrequency={contributeSeed.frequency}
+            onComplete={({ reminderEnabled, recurringEnabled, amount, frequency }) => {
+              saveContribution({ amount, reminderEnabled, recurringEnabled, frequency });
+              setContributeOpen(false);
+            }}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }

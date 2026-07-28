@@ -10,14 +10,10 @@ import {
   isProfilePendingApproval,
   isProfileSuspended,
   loginDadAdmin,
-  profilePasswordMatches,
   setDadSessionId,
   subscribeDadProfiles,
 } from "../lib/dadProfileStorage";
 import { clearPendingDmPartnerId } from "../lib/communityDmNavigation";
-import { logProfileActivity } from "../lib/profileActivity";
-import { syncProfileToMemberRegistry } from "../lib/profileRegistry";
-import { persistMemberFromProfile } from "../lib/memberRegistry";
 
 const DadAuthContext = createContext(null);
 
@@ -27,34 +23,59 @@ function resetShellScroll() {
   document.body.scrollTop = 0;
 }
 
+/** Session first — heavy registry/activity work runs after paint so login feels instant. */
 function beginAuthenticatedSession(profile, activityType, remember = false) {
-  persistMemberFromProfile(profile, { isNew: activityType === "register" });
-  syncProfileToMemberRegistry(profile);
-  logProfileActivity({
-    profileId: profile.id,
-    proId: profile.proId,
-    type: activityType,
-    summary:
-      activityType === "register"
-        ? `Registered with promo code ${profile.proId}`
-        : "Signed in to dashboard",
-    payload:
-      activityType === "register" && profile.referredByProId
-        ? { referredByProId: profile.referredByProId }
-        : undefined,
-  });
-  if (activityType === "register" && profile.referredByProId) {
-    logProfileActivity({
-      profileId: profile.id,
-      proId: profile.proId,
-      type: "referral",
-      summary: `Joined using referral code ${profile.referredByProId}`,
-      payload: { referredByProId: profile.referredByProId },
-    });
-  }
   setDadSessionId(profile.id, { remember });
   window.location.hash = "";
   resetShellScroll();
+
+  const runSideEffects = () => {
+    void Promise.all([
+      import("../lib/memberRegistry"),
+      import("../lib/profileRegistry"),
+      import("../lib/profileActivity"),
+    ])
+      .then(
+        ([
+          { persistMemberFromProfile },
+          { syncProfileToMemberRegistry },
+          { logProfileActivity },
+        ]) => {
+          persistMemberFromProfile(profile, { isNew: activityType === "register" });
+          syncProfileToMemberRegistry(profile);
+          logProfileActivity({
+            profileId: profile.id,
+            proId: profile.proId,
+            type: activityType,
+            summary:
+              activityType === "register"
+                ? `Registered with promo code ${profile.proId}`
+                : "Signed in to dashboard",
+            payload:
+              activityType === "register" && profile.referredByProId
+                ? { referredByProId: profile.referredByProId }
+                : undefined,
+          });
+          if (activityType === "register" && profile.referredByProId) {
+            logProfileActivity({
+              profileId: profile.id,
+              proId: profile.proId,
+              type: "referral",
+              summary: `Joined using referral code ${profile.referredByProId}`,
+              payload: { referredByProId: profile.referredByProId },
+            });
+          }
+        },
+      )
+      .catch((err) => console.warn("[auth] Post-login sync deferred work failed:", err));
+  };
+
+  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+    window.requestIdleCallback(runSideEffects, { timeout: 1200 });
+  } else {
+    queueMicrotask(runSideEffects);
+  }
+
   return profile;
 }
 
@@ -70,7 +91,6 @@ export function DadAuthProvider({ children }) {
         const nextId = next?.id ?? null;
         if (currentId === nextId && current === next) return current;
         if (currentId === nextId && !currentId) return current;
-        // Avoid re-rendering login while guest when cloud profile directory refreshes.
         if (!getDadSessionId() && !currentId && !nextId) return current;
         return next;
       });
@@ -80,6 +100,8 @@ export function DadAuthProvider({ children }) {
   const login = useCallback(async (username, password, options = {}) => {
     const rememberMe = Boolean(options.rememberMe);
 
+    // Single authenticate path: admin is included via authenticateDadProfile / loginDadAdmin
+    // without a third PBKDF2 verify for status checks.
     const adminMatch = await loginDadAdmin(username, password);
     if (adminMatch) {
       setProfile(beginAuthenticatedSession(adminMatch, "login", rememberMe));
@@ -87,20 +109,34 @@ export function DadAuthProvider({ children }) {
       return { ok: true };
     }
 
-    const matched = await authenticateDadProfile(username, password);
-    if (!matched) {
-      const existing = findDadProfileByUsername(username);
-      if (existing && (await profilePasswordMatches(existing, password))) {
-        if (isProfilePendingApproval(existing)) {
+    const existing = findDadProfileByUsername(username);
+    if (existing) {
+      if (isProfilePendingApproval(existing)) {
+        // Still verify password so we don't leak account status without credentials.
+        const { profilePasswordMatches } = await import("../lib/dadProfileStorage");
+        if (await profilePasswordMatches(existing, password)) {
           return { ok: false, error: "pendingApproval" };
         }
-        if (isProfileDenied(existing)) {
+        return { ok: false, error: "Invalid username or password." };
+      }
+      if (isProfileDenied(existing)) {
+        const { profilePasswordMatches } = await import("../lib/dadProfileStorage");
+        if (await profilePasswordMatches(existing, password)) {
           return { ok: false, error: "denied" };
         }
-        if (isProfileSuspended(existing)) {
+        return { ok: false, error: "Invalid username or password." };
+      }
+      if (isProfileSuspended(existing)) {
+        const { profilePasswordMatches } = await import("../lib/dadProfileStorage");
+        if (await profilePasswordMatches(existing, password)) {
           return { ok: false, error: "suspended" };
         }
+        return { ok: false, error: "Invalid username or password." };
       }
+    }
+
+    const matched = await authenticateDadProfile(username, password);
+    if (!matched) {
       return { ok: false, error: "Invalid username or password." };
     }
 
@@ -115,26 +151,39 @@ export function DadAuthProvider({ children }) {
       return { ok: false, error: result.error };
     }
 
-    persistMemberFromProfile(result.profile, { isNew: true });
-    syncProfileToMemberRegistry(result.profile);
-    logProfileActivity({
-      profileId: result.profile.id,
-      proId: result.profile.proId,
-      type: "register",
-      summary: "Submitted membership request — awaiting admin approval",
-      payload: result.profile.referredByProId
-        ? { referredByProId: result.profile.referredByProId }
-        : undefined,
-    });
-    if (result.profile.referredByProId) {
-      logProfileActivity({
-        profileId: result.profile.id,
-        proId: result.profile.proId,
-        type: "referral",
-        summary: `Joined using referral code ${result.profile.referredByProId}`,
-        payload: { referredByProId: result.profile.referredByProId },
-      });
-    }
+    void Promise.all([
+      import("../lib/memberRegistry"),
+      import("../lib/profileRegistry"),
+      import("../lib/profileActivity"),
+    ]).then(
+      ([
+        { persistMemberFromProfile },
+        { syncProfileToMemberRegistry },
+        { logProfileActivity },
+      ]) => {
+        persistMemberFromProfile(result.profile, { isNew: true });
+        syncProfileToMemberRegistry(result.profile);
+        logProfileActivity({
+          profileId: result.profile.id,
+          proId: result.profile.proId,
+          type: "register",
+          summary: "Submitted membership request — awaiting admin approval",
+          payload: result.profile.referredByProId
+            ? { referredByProId: result.profile.referredByProId }
+            : undefined,
+        });
+        if (result.profile.referredByProId) {
+          logProfileActivity({
+            profileId: result.profile.id,
+            proId: result.profile.proId,
+            type: "referral",
+            summary: `Joined using referral code ${result.profile.referredByProId}`,
+            payload: { referredByProId: result.profile.referredByProId },
+          });
+        }
+      },
+    );
+
     return { ok: true, pendingApproval: true };
   }, []);
 

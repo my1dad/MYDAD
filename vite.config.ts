@@ -15,7 +15,7 @@ export default defineConfig({
   },
   build: {
     modulePreload: {
-      // Only preload React for first paint — charts/supabase load on demand.
+      // Only preload React for first paint — charts/supabase/icons load on demand.
       resolveDependencies: (_filename, deps) =>
         deps.filter((dep) => dep.includes("react-vendor")),
     },
@@ -27,7 +27,10 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
-          if (id.includes("recharts") || id.includes("d3-")) return "charts";
+          // CRITICAL: keep clsx/tailwind-merge OUT of the charts chunk.
+          // Otherwise login downloads ~400KB of recharts just to call cn().
+          if (id.includes("clsx") || id.includes("tailwind-merge")) return "react-vendor";
+          if (id.includes("recharts") || id.includes("/d3-") || id.includes("\\d3-")) return "charts";
           if (id.includes("@supabase")) return "supabase";
           if (id.includes("lucide-react")) return "icons";
           if (id.includes("react-dom") || id.includes("/react/") || id.includes("scheduler")) {

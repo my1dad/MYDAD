@@ -5,6 +5,7 @@ import PlatformPreloader from "./components/layout/PlatformPreloader";
 import { showInitialPreloader, dismissInitialPreloader } from "./lib/platformPreloader";
 
 const App = lazy(() => import("./App.jsx"));
+const PostAuthWorkspace = lazy(() => import("./components/PostAuthWorkspace.jsx"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage.jsx"));
 
 function resolveGuestView() {
@@ -37,9 +38,11 @@ export default function DadRoot() {
             <PlatformPreloader kicker="Opening dashboard" label="Loading dashboard" />
           }
         >
-          <AppReady>
-            <App />
-          </AppReady>
+          <PostAuthWorkspace>
+            <AppReady>
+              <App />
+            </AppReady>
+          </PostAuthWorkspace>
         </Suspense>
       </div>
     );
@@ -62,7 +65,6 @@ export default function DadRoot() {
   );
 }
 
-/** Dismiss shell preloader once authenticated app has mounted. */
 function AppReady({ children }) {
   useEffect(() => {
     const id = requestAnimationFrame(() => dismissInitialPreloader());

@@ -5,26 +5,11 @@ import {
   getDadProfiles,
   replaceAllDadProfiles,
 } from "../lib/dadProfileStorage";
-import { syncAllProfilesToMemberRegistry } from "../lib/profileRegistry";
-import { persistMemberFromProfile, pruneDuplicateAdminMemberRecords } from "../lib/memberRegistry";
 import { useDadAuth } from "../context/DadAuthContext.jsx";
-
-function hydrateLocalWorkspace(hydratePoolStateFromStorage, syncAllocationPoolMetrics) {
-  syncAllProfilesToMemberRegistry();
-  pruneDuplicateAdminMemberRecords();
-  ensureProfileProIds();
-  syncAllProfilesToMemberRegistry();
-  hydratePoolStateFromStorage?.();
-  syncAllocationPoolMetrics?.();
-  const profile = getActiveDadProfile();
-  if (profile) {
-    persistMemberFromProfile(profile);
-  }
-}
 
 /**
  * Starts cloud sync + background automations only after the user is signed in.
- * Keeps the login screen free of network/localStorage thrash while typing.
+ * All heavy modules are dynamically imported so this file stays out of the login bundle.
  */
 export default function PostAuthWorkspace({ children }) {
   const { isAuthenticated } = useDadAuth();
@@ -36,8 +21,8 @@ export default function PostAuthWorkspace({ children }) {
     const cleanups = [];
 
     const idle = window.requestIdleCallback
-      ? (cb) => window.requestIdleCallback(cb, { timeout: 1500 })
-      : (cb) => window.setTimeout(cb, 0);
+      ? (cb) => window.requestIdleCallback(cb, { timeout: 2500 })
+      : (cb) => window.setTimeout(cb, 50);
 
     const cancelIdle = window.cancelIdleCallback
       ? (id) => window.cancelIdleCallback(id)
@@ -53,6 +38,8 @@ export default function PostAuthWorkspace({ children }) {
             { startRecurringCashflowAutomation },
             { startAllocationYieldAutomation },
             { startRecurringAutomation },
+            { syncAllProfilesToMemberRegistry },
+            { persistMemberFromProfile, pruneDuplicateAdminMemberRecords },
           ] = await Promise.all([
             import("../lib/supabase/cloudSync"),
             import("../lib/poolState"),
@@ -60,11 +47,23 @@ export default function PostAuthWorkspace({ children }) {
             import("../lib/recurringCashflow"),
             import("../lib/allocationYieldAccrual"),
             import("../lib/recurringContributions"),
+            import("../lib/profileRegistry"),
+            import("../lib/memberRegistry"),
           ]);
 
           if (!alive) return;
 
-          hydrateLocalWorkspace(hydratePoolStateFromStorage, syncAllocationPoolMetrics);
+          const hydrateOnce = () => {
+            syncAllProfilesToMemberRegistry();
+            pruneDuplicateAdminMemberRecords();
+            ensureProfileProIds();
+            hydratePoolStateFromStorage();
+            syncAllocationPoolMetrics();
+            const profile = getActiveDadProfile();
+            if (profile) persistMemberFromProfile(profile);
+          };
+
+          hydrateOnce();
 
           const cleanupCloud = await initCloudSync({
             getLocalProfiles: getDadProfiles,
@@ -88,8 +87,6 @@ export default function PostAuthWorkspace({ children }) {
           void pushCloudProfilesNow(getDadProfiles()).catch((err) =>
             console.warn("[PostAuthWorkspace] Profile push skipped:", err),
           );
-
-          hydrateLocalWorkspace(hydratePoolStateFromStorage, syncAllocationPoolMetrics);
 
           if (!alive) return;
           cleanups.push(startRecurringCashflowAutomation());

@@ -1,12 +1,15 @@
+import { lazy, Suspense } from "react";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
 import MobileShell from "./MobileShell";
 import EasternLiveClock from "./EasternLiveClock";
 import HeaderActions from "./HeaderActions";
-import StockMarketSync from "../investments/StockMarketSync";
 import { AppNavigateProvider } from "../../context/AppNavigateContext";
 
-const STOCK_SYNC_PAGES = new Set(["investments", "allocations", "pool", "dashboard"]);
+const StockMarketSync = lazy(() => import("../investments/StockMarketSync"));
+
+/** Stock quotes only on investments — keeps dashboard first paint light. */
+const STOCK_SYNC_PAGES = new Set(["investments"]);
 
 export default function AppShell({ activePage, scrollKey, authEntryTick = 0, onNavigate, children }) {
   const shellScrollKey = `${activePage}-${scrollKey}-${authEntryTick}`;
@@ -14,7 +17,11 @@ export default function AppShell({ activePage, scrollKey, authEntryTick = 0, onN
   return (
     <AppNavigateProvider value={onNavigate}>
       <div className="dda-app flex h-full min-h-0 w-full overflow-hidden">
-        {STOCK_SYNC_PAGES.has(activePage) ? <StockMarketSync /> : null}
+        {STOCK_SYNC_PAGES.has(activePage) ? (
+          <Suspense fallback={null}>
+            <StockMarketSync />
+          </Suspense>
+        ) : null}
         <Sidebar activePage={activePage} onNavigate={onNavigate} />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

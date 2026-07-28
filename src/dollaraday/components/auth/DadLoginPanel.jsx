@@ -1,9 +1,19 @@
-import { CheckCircle2 } from "lucide-react";
+import { lazy, Suspense } from "react";
 import { useLocale } from "../../i18n/LocaleContext.jsx";
 import LanguageToggle from "../layout/LanguageToggle.jsx";
 import PasswordInput from "./PasswordInput.jsx";
-import ProfilePhotoPicker from "./ProfilePhotoPicker.jsx";
 import { formatPhoneInput } from "../../lib/phoneFormat";
+
+const ProfilePhotoPicker = lazy(() => import("./ProfilePhotoPicker.jsx"));
+
+function CheckIcon() {
+  return (
+    <svg className="h-5 w-5 text-dda-green-light" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M8 12.5l2.5 2.5L16 9.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function DadLoginPanel({
   mode,
@@ -122,12 +132,14 @@ export default function DadLoginPanel({
         </form>
       ) : (
         <form onSubmit={onCreateAccount} className="dda-login-create-form space-y-3">
-          <ProfilePhotoPicker
-            photoUrl={profilePhotoUrl}
-            name={displayName || username}
-            onPhotoChange={onProfilePhotoChange}
-            onError={onPhotoError}
-          />
+          <Suspense fallback={null}>
+            <ProfilePhotoPicker
+              photoUrl={profilePhotoUrl}
+              name={displayName || username}
+              onPhotoChange={onProfilePhotoChange}
+              onError={onPhotoError}
+            />
+          </Suspense>
 
           <div>
             <label htmlFor="dad-create-username" className="mb-1.5 block text-xs font-semibold text-gray-400">
@@ -219,7 +231,7 @@ export default function DadLoginPanel({
                     aria-label={t("login.passwordsMatch")}
                     title={t("login.passwordsMatch")}
                   >
-                    <CheckCircle2 className="h-5 w-5 text-dda-green-light" aria-hidden="true" />
+                    <CheckIcon />
                   </span>
                 ) : null}
               </div>

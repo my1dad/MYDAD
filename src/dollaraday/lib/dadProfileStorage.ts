@@ -77,14 +77,22 @@ export interface RememberLoginPrefs {
   username: string;
 }
 
+let profilesCache: DadProfile[] | null = null;
+
 function readProfiles(): DadProfile[] {
   try {
+    if (profilesCache) return profilesCache;
     const raw = localStorage.getItem(PROFILES_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      profilesCache = [];
+      return profilesCache;
+    }
     const parsed = JSON.parse(raw) as DadProfile[];
-    return Array.isArray(parsed) ? parsed : [];
+    profilesCache = Array.isArray(parsed) ? parsed : [];
+    return profilesCache;
   } catch {
-    return [];
+    profilesCache = [];
+    return profilesCache;
   }
 }
 
@@ -102,6 +110,7 @@ function writeProfiles(
     : profiles.map((profile) => ({ ...profile }));
 
   localStorage.setItem(PROFILES_KEY, JSON.stringify(next));
+  profilesCache = next;
   notifyProfileListeners();
 
   if (pushToCloud) {
