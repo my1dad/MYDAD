@@ -8,7 +8,6 @@ import {
   getEasternTimezoneAbbreviation,
 } from "../lib/dateTime";
 import { getAppSettings, getAppSettingsRevision, subscribeAppSettings } from "../lib/appSettings";
-import { processRecurringCashflows } from "../lib/recurringCashflow";
 import { useLocale } from "../i18n/LocaleContext";
 
 const EasternTimeContext = createContext(null);
@@ -39,7 +38,9 @@ export function EasternTimeProvider({ children }) {
       const day = formatEasternIsoDate();
       setEasternDay((prev) => {
         if (day === prev) return prev;
-        processRecurringCashflows();
+        void import("../lib/recurringCashflow")
+          .then(({ processRecurringCashflows }) => processRecurringCashflows())
+          .catch(() => {});
         return day;
       });
     };
@@ -54,7 +55,6 @@ export function EasternTimeProvider({ children }) {
       easternDay,
       longDate: formatEasternLongDate(easternNow(), locale),
       timezoneAbbr: getEasternTimezoneAbbreviation(easternNow(), locale),
-      // Stable helpers so clock components can format without subscribing to 1s ticks.
       formatClock: (withSeconds = true) => formatEasternLiveClock(easternNow(), locale, withSeconds),
     }),
     [relativeTick, easternDay, locale, appSettings.timezone],

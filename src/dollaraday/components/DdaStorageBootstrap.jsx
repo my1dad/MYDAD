@@ -7,15 +7,7 @@ import {
 } from "../lib/dadProfileStorage";
 import { syncAllProfilesToMemberRegistry } from "../lib/profileRegistry";
 import { initInternalDatabase } from "../lib/internalDatabase";
-import { initCloudSync } from "../lib/supabase/cloudSync";
 import { persistMemberFromProfile, pruneDuplicateAdminMemberRecords } from "../lib/memberRegistry";
-import { hydratePoolStateFromStorage } from "../lib/poolState";
-import { syncAllocationPoolMetrics } from "../lib/allocationApy";
-import { startRecurringAutomation } from "../lib/recurringContributions";
-import { startRecurringCashflowAutomation } from "../lib/recurringCashflow";
-import { startAllocationYieldAutomation } from "../lib/allocationYieldAccrual";
-
-const INIT_TIMEOUT_MS = 15000;
 
 function StorageLoadingFallback() {
   return (
@@ -32,83 +24,112 @@ function StorageLoadingFallback() {
   );
 }
 
+function hydrateLocalWorkspace() {
+  syncAllProfilesToMemberRegistry();
+  pruneDuplicateAdminMemberRecords();
+  ensureProfileProIds();
+  syncAllProfilesToMemberRegistry();
+  const profile = getActiveDadProfile();
+  if (profile) {
+    persistMemberFromProfile(profile);
+  }
+}
+
+/**
+ * Unblocks the login UI as soon as local storage is ready.
+ * Cloud sync + automations continue in the background and must never
+ * prevent typing credentials.
+ */
 export default function DdaStorageBootstrap({ children, fallback = <StorageLoadingFallback /> }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    let cleanupRecurring = null;
-    let cleanupCashflow = null;
-    let cleanupAllocationYield = null;
-
-    let cleanupCloud = null;
+    const cleanups = [];
 
     (async () => {
       try {
-        const result = await Promise.race([
-          (async () => {
-            await initInternalDatabase();
-            cleanupCloud = await initCloudSync({
-              getLocalProfiles: getDadProfiles,
-              replaceLocalProfiles: (profiles) => {
-                replaceAllDadProfiles(profiles);
-                syncAllProfilesToMemberRegistry();
-              },
-              onProfilesChanged: (profiles) => {
-                replaceAllDadProfiles(profiles);
-                syncAllProfilesToMemberRegistry();
-                hydratePoolStateFromStorage();
-              },
-            });
-            // After cloud pull, mirror every profile into the shared members bin
-            // so master admin sees worldwide registrations immediately.
-            syncAllProfilesToMemberRegistry();
-            // Force one more profile publish so any local-only accounts reach the cloud.
-            {
-              const { pushCloudProfilesNow } = await import("../lib/supabase/cloudSync");
-              await pushCloudProfilesNow(getDadProfiles());
-            }
-            pruneDuplicateAdminMemberRecords();
-            ensureProfileProIds();
-            syncAllProfilesToMemberRegistry();
-            hydratePoolStateFromStorage();
-            syncAllocationPoolMetrics();
-            const profile = getActiveDadProfile();
-            if (profile) {
-              persistMemberFromProfile(profile);
-            }
-            cleanupCashflow = startRecurringCashflowAutomation();
-            cleanupAllocationYield = startAllocationYieldAutomation();
-            return startRecurringAutomation();
-          })(),
-          new Promise((_, reject) => {
-            window.setTimeout(
-              () => reject(new Error("Dollar A Day storage init timed out")),
-              INIT_TIMEOUT_MS
-            );
-          }),
-        ]);
-        cleanupRecurring = result;
+        await initInternalDatabase();
+        if (!alive) return;
+
+        try {
+          hydrateLocalWorkspace();
+        } catch (err) {
+          console.warn("[DdaStorageBootstrap] Local hydrate issue:", err);
+        }
+
+        // Login / guest UI becomes interactive immediately.
+        setReady(true);
+
+        // Heavy cloud + automation work loads asynchronously after paint.
+        try {
+          const [
+            { initCloudSync, pushCloudProfilesNow },
+            { hydratePoolStateFromStorage },
+            { syncAllocationPoolMetrics },
+            { startRecurringCashflowAutomation },
+            { startAllocationYieldAutomation },
+            { startRecurringAutomation },
+          ] = await Promise.all([
+            import("../lib/supabase/cloudSync"),
+            import("../lib/poolState"),
+            import("../lib/allocationApy"),
+            import("../lib/recurringCashflow"),
+            import("../lib/allocationYieldAccrual"),
+            import("../lib/recurringContributions"),
+          ]);
+
+          if (!alive) return;
+
+          hydratePoolStateFromStorage();
+          syncAllocationPoolMetrics();
+
+          const cleanupCloud = await initCloudSync({
+            getLocalProfiles: getDadProfiles,
+            replaceLocalProfiles: (profiles) => {
+              replaceAllDadProfiles(profiles);
+              syncAllProfilesToMemberRegistry();
+            },
+            onProfilesChanged: (profiles) => {
+              replaceAllDadProfiles(profiles);
+              syncAllProfilesToMemberRegistry();
+              hydratePoolStateFromStorage();
+            },
+          });
+
+          if (!alive) {
+            cleanupCloud?.();
+            return;
+          }
+          if (typeof cleanupCloud === "function") cleanups.push(cleanupCloud);
+
+          syncAllProfilesToMemberRegistry();
+          void pushCloudProfilesNow(getDadProfiles()).catch((err) =>
+            console.warn("[DdaStorageBootstrap] Profile push skipped:", err),
+          );
+
+          hydrateLocalWorkspace();
+          hydratePoolStateFromStorage();
+          syncAllocationPoolMetrics();
+
+          if (!alive) return;
+          cleanups.push(startRecurringCashflowAutomation());
+          cleanups.push(startAllocationYieldAutomation());
+          cleanups.push(startRecurringAutomation());
+        } catch (err) {
+          console.warn("[DdaStorageBootstrap] Background sync issue, continuing offline:", err);
+        }
       } catch (err) {
         console.warn("[DdaStorageBootstrap] Storage init issue, continuing:", err);
-      } finally {
         if (alive) setReady(true);
       }
     })();
 
     return () => {
       alive = false;
-      if (typeof cleanupRecurring === "function") {
-        cleanupRecurring();
-      }
-      if (typeof cleanupCashflow === "function") {
-        cleanupCashflow();
-      }
-      if (typeof cleanupAllocationYield === "function") {
-        cleanupAllocationYield();
-      }
-      if (typeof cleanupCloud === "function") {
-        cleanupCloud();
+      while (cleanups.length) {
+        const stop = cleanups.pop();
+        if (typeof stop === "function") stop();
       }
     };
   }, []);

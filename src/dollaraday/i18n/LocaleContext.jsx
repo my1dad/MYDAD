@@ -1,10 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { formatRelativeTimeFromIso } from "../lib/dateTime";
 import en from "./translations/en";
-import es from "./translations/es";
 
 const STORAGE_KEY = "dda-locale";
-const translations = { en, es };
+const translations = { en, es: null };
+let esLoadPromise = null;
+
+function loadSpanish() {
+  if (translations.es) return Promise.resolve(translations.es);
+  if (!esLoadPromise) {
+    esLoadPromise = import("./translations/es").then((mod) => {
+      translations.es = mod.default;
+      return translations.es;
+    });
+  }
+  return esLoadPromise;
+}
 
 function getNested(obj, path) {
   return path.split(".").reduce((current, key) => current?.[key], obj);
@@ -32,9 +43,24 @@ export function LocaleProvider({ children }) {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored === "es" ? "es" : "en";
   });
+  const [, setEsReady] = useState(0);
+
+  useEffect(() => {
+    if (locale !== "es") return undefined;
+    let alive = true;
+    void loadSpanish().then(() => {
+      if (alive) setEsReady((tick) => tick + 1);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [locale]);
 
   const setLocale = useCallback((next) => {
     const value = next === "es" ? "es" : "en";
+    if (value === "es") {
+      void loadSpanish().then(() => setEsReady((tick) => tick + 1));
+    }
     setLocaleState(value);
     localStorage.setItem(STORAGE_KEY, value);
     document.documentElement.lang = value;

@@ -14,6 +14,11 @@ export default defineConfig({
     },
   },
   build: {
+    modulePreload: {
+      // Only preload React for first paint — charts/supabase load on demand.
+      resolveDependencies: (_filename, deps) =>
+        deps.filter((dep) => dep.includes("react-vendor")),
+    },
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "index.html"),

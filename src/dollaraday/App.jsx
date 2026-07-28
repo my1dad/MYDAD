@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import AppShell from "./components/layout/AppShell";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
+import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const DailyAllocationsPage = lazy(() => import("./pages/DailyAllocationsPage"));
@@ -106,15 +107,17 @@ export default function App() {
         : activePage;
 
   return (
-    <AppShell
-      activePage={shellPage}
-      scrollKey={scrollKey}
-      authEntryTick={authEntryTick}
-      onNavigate={navigate}
-    >
-      <Suspense fallback={<PageFallback />}>
-        <Page key={`${activePage}-${authEntryTick}`} onNavigate={navigate} />
-      </Suspense>
-    </AppShell>
+    <EasternTimeProvider>
+      <AppShell
+        activePage={shellPage}
+        scrollKey={scrollKey}
+        authEntryTick={authEntryTick}
+        onNavigate={navigate}
+      >
+        <Suspense fallback={<PageFallback />}>
+          <Page key={`${activePage}-${authEntryTick}`} onNavigate={navigate} />
+        </Suspense>
+      </AppShell>
+    </EasternTimeProvider>
   );
 }

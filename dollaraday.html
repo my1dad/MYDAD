@@ -15,9 +15,17 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <style>
       @keyframes initial-preloader-spin {
         to {
@@ -183,12 +191,6 @@
         <div id="initial-preloader-backdrop" aria-hidden="true"></div>
         <div id="initial-preloader-card">
           <div id="initial-preloader-shell">
-            <img
-              id="initial-preloader-brand-logo"
-              src="./dad-v2-logo-transparent.png"
-              alt=""
-              draggable="false"
-            />
             <div id="initial-preloader-stage">
               <span id="initial-preloader-glow" aria-hidden="true"></span>
               <div id="initial-preloader-ring">
