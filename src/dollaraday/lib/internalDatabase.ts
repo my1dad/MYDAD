@@ -392,6 +392,15 @@ export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
     cache[binId] = null;
   }
 
+  // Instant path: localStorage first so login UI is never blocked on network/disk.
+  const loadFromLocal = () => {
+    mode = "local";
+    binsRoot = null;
+    for (const definition of DATA_BIN_DEFINITIONS) {
+      cache[definition.binId] = readLocalBin(definition.binId) ?? createEmptyBin(definition.key);
+    }
+  };
+
   if (hasElectronBins()) {
     mode = "electron";
     binsRoot = (await window.overDriveBins?.getRoot?.()) ?? null;
@@ -402,33 +411,29 @@ export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
         all[definition.binId] ?? readLocalBin(definition.binId)
       );
     }
-  } else if (import.meta.env.DEV && canUseDiskApi()) {
-    try {
-      const res = await fetchWithTimeout(`/api/bins/bootstrap${binsQueryString()}`);
-      if (!res.ok) throw new Error(`Bootstrap failed (${res.status})`);
-      const bootstrap = (await res.json()) as Record<string, unknown>;
-      mode = "disk";
-      binsRoot = typeof bootstrap.binsRoot === "string" ? bootstrap.binsRoot : "./bins";
-      for (const definition of DATA_BIN_DEFINITIONS) {
-        cache[definition.binId] = normalizeBinDocument(
-          definition.key,
-          bootstrap[definition.binId] ?? readLocalBin(definition.binId)
-        );
-      }
-    } catch (err) {
-      console.warn("[internalDatabase] Disk bins unavailable, using localStorage:", err);
-      mode = "local";
-      binsRoot = null;
-      for (const definition of DATA_BIN_DEFINITIONS) {
-        cache[definition.binId] =
-          readLocalBin(definition.binId) ?? createEmptyBin(definition.key);
-      }
-    }
   } else {
-    mode = "local";
-    binsRoot = null;
-    for (const definition of DATA_BIN_DEFINITIONS) {
-      cache[definition.binId] = readLocalBin(definition.binId) ?? createEmptyBin(definition.key);
+    loadFromLocal();
+
+    // Dev disk bins hydrate in the background — never block first paint.
+    if (import.meta.env.DEV && canUseDiskApi()) {
+      void (async () => {
+        try {
+          const res = await fetchWithTimeout(`/api/bins/bootstrap${binsQueryString()}`, {}, 1500);
+          if (!res.ok) return;
+          const bootstrap = (await res.json()) as Record<string, unknown>;
+          mode = "disk";
+          binsRoot = typeof bootstrap.binsRoot === "string" ? bootstrap.binsRoot : "./bins";
+          for (const definition of DATA_BIN_DEFINITIONS) {
+            cache[definition.binId] = normalizeBinDocument(
+              definition.key,
+              bootstrap[definition.binId] ?? readLocalBin(definition.binId) ?? createEmptyBin(definition.key),
+            );
+          }
+          notifyListeners();
+        } catch {
+          // Keep localStorage mode — silent fallback.
+        }
+      })();
     }
   }
 

@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import DadLoginPage from "./pages/DadLoginPage.jsx";
+import PlatformPreloader from "./components/layout/PlatformPreloader";
+import { showInitialPreloader, dismissInitialPreloader } from "./lib/platformPreloader";
 
 const App = lazy(() => import("./App.jsx"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage.jsx"));
@@ -9,14 +11,6 @@ function resolveGuestView() {
   const hash = window.location.hash.replace(/^#\/?/, "").toLowerCase();
   if (hash === "terms") return "terms";
   return "login";
-}
-
-function GuestFallback() {
-  return (
-    <div className="flex h-full min-h-[100dvh] w-full items-center justify-center bg-[#071013]" aria-busy="true">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-dda-green-light" />
-    </div>
-  );
 }
 
 export default function DadRoot() {
@@ -29,11 +23,23 @@ export default function DadRoot() {
     return () => window.removeEventListener("hashchange", syncGuestView);
   }, []);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      showInitialPreloader("Opening dashboard");
+    }
+  }, [isAuthenticated]);
+
   if (isAuthenticated) {
     return (
       <div className="dda-app h-full w-full overflow-hidden">
-        <Suspense fallback={<GuestFallback />}>
-          <App />
+        <Suspense
+          fallback={
+            <PlatformPreloader kicker="Opening dashboard" label="Loading dashboard" />
+          }
+        >
+          <AppReady>
+            <App />
+          </AppReady>
         </Suspense>
       </div>
     );
@@ -42,17 +48,25 @@ export default function DadRoot() {
   if (guestView === "terms") {
     return (
       <div className="dda-app h-full w-full overflow-hidden">
-        <Suspense fallback={<GuestFallback />}>
+        <Suspense fallback={<PlatformPreloader kicker="Loading" label="Loading terms" />}>
           <TermsOfServicePage />
         </Suspense>
       </div>
     );
   }
 
-  // Login is statically imported so credential fields are interactive ASAP.
   return (
     <div className="dda-app h-full w-full overflow-hidden">
       <DadLoginPage />
     </div>
   );
+}
+
+/** Dismiss shell preloader once authenticated app has mounted. */
+function AppReady({ children }) {
+  useEffect(() => {
+    const id = requestAnimationFrame(() => dismissInitialPreloader());
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return children;
 }

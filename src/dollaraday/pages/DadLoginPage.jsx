@@ -8,6 +8,7 @@ import {
   getRememberLoginPrefs,
   setRememberLoginPrefs,
 } from "../lib/dadProfileStorage";
+import { showInitialPreloader, dismissInitialPreloader } from "../lib/platformPreloader";
 
 const LoginChrome = memo(function LoginChrome({ compact, sloganAria, educate, discipline, unity }) {
   return (
@@ -98,10 +99,12 @@ export default function DadLoginPage() {
       setSubmitting(true);
       setError("");
       setSuccess("");
+      showInitialPreloader("Signing in");
 
       try {
         const result = await login(username, password, { rememberMe });
         if (!result.ok) {
+          dismissInitialPreloader();
           setError(
             result.error === "suspended"
               ? t("login.suspendedError")
@@ -118,6 +121,10 @@ export default function DadLoginPage() {
           rememberMe,
           username: rememberMe ? username.trim() : "",
         });
+        // Keep preloader up — DadRoot will dismiss once dashboard mounts.
+      } catch (err) {
+        dismissInitialPreloader();
+        setError(err instanceof Error ? err.message : "Sign in failed.");
       } finally {
         setSubmitting(false);
       }
@@ -131,9 +138,11 @@ export default function DadLoginPage() {
       if (submitting) return;
       setSubmitting(true);
       setError("");
+      showInitialPreloader("Creating account");
 
       try {
         if (password !== confirmPassword) {
+          dismissInitialPreloader();
           setError(t("login.passwordMismatch"));
           return;
         }
@@ -147,11 +156,13 @@ export default function DadLoginPage() {
           profilePhotoUrl,
         });
         if (!result.ok) {
+          dismissInitialPreloader();
           setError(result.error);
           return;
         }
 
         if (result.pendingApproval) {
+          dismissInitialPreloader();
           const savedUsername = username.trim();
           setMode("sign-in");
           setError("");
@@ -164,6 +175,9 @@ export default function DadLoginPage() {
           setUsername(savedUsername);
           setSuccess(t("login.pendingApprovalSuccess"));
         }
+      } catch (err) {
+        dismissInitialPreloader();
+        setError(err instanceof Error ? err.message : "Registration failed.");
       } finally {
         setSubmitting(false);
       }

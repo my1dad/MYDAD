@@ -1,5 +1,6 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState, useTransition } from "react";
 import AppShell from "./components/layout/AppShell";
+import PlatformPreloader from "./components/layout/PlatformPreloader";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
 
@@ -40,17 +41,14 @@ function hashForPage(page) {
 }
 
 function PageFallback() {
-  return (
-    <div className="flex min-h-[40vh] items-center justify-center" aria-busy="true">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-dda-green-light" />
-    </div>
-  );
+  return <PlatformPreloader fullScreen={false} kicker="Loading page" label="Loading page" />;
 }
 
 export default function App() {
   const { authEntryTick, isAdmin } = useDadAuth();
   const [activePage, setActivePage] = useState(() => "dashboard");
   const [scrollKey, setScrollKey] = useState(0);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!authEntryTick) return;
@@ -63,8 +61,10 @@ export default function App() {
 
   const navigate = useCallback((page) => {
     const nextPage = pages[page] ? page : "dashboard";
-    setActivePage(nextPage);
-    setScrollKey((tick) => tick + 1);
+    startTransition(() => {
+      setActivePage(nextPage);
+      setScrollKey((tick) => tick + 1);
+    });
     const nextHash = hashForPage(nextPage);
     const currentHash = window.location.hash.replace(/^#/, "");
     if (currentHash !== nextHash) {
@@ -75,8 +75,10 @@ export default function App() {
   useEffect(() => {
     const onHashChange = () => {
       const nextPage = getPageFromHash();
-      setActivePage(nextPage);
-      setScrollKey((tick) => tick + 1);
+      startTransition(() => {
+        setActivePage(nextPage);
+        setScrollKey((tick) => tick + 1);
+      });
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -114,6 +116,7 @@ export default function App() {
         authEntryTick={authEntryTick}
         onNavigate={navigate}
       >
+        {isPending ? <PlatformPreloader fullScreen kicker="Loading page" label="Loading page" /> : null}
         <Suspense fallback={<PageFallback />}>
           <Page key={`${activePage}-${authEntryTick}`} onNavigate={navigate} />
         </Suspense>

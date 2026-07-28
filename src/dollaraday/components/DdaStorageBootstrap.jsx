@@ -1,26 +1,14 @@
 import { useEffect, useState } from "react";
 import { initInternalDatabase } from "../lib/internalDatabase";
-
-function StorageLoadingFallback() {
-  return (
-    <div
-      className="flex h-full min-h-[100dvh] w-full items-center justify-center bg-[#071013]"
-      aria-live="polite"
-      aria-label="Loading My Dollar A Day"
-    >
-      <div className="flex flex-col items-center gap-3 text-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-emerald-400" />
-        <p className="text-sm font-medium text-gray-400">Loading…</p>
-      </div>
-    </div>
-  );
-}
+import { dismissInitialPreloader } from "../lib/platformPreloader";
+import PlatformPreloader from "./layout/PlatformPreloader";
 
 /**
  * Fast path for login: only init local DB, then show UI.
  * Cloud sync / automations start after authentication (see PostAuthWorkspace).
+ * The HTML shell preloader stays up until this marks ready.
  */
-export default function DdaStorageBootstrap({ children, fallback = <StorageLoadingFallback /> }) {
+export default function DdaStorageBootstrap({ children }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -32,7 +20,11 @@ export default function DdaStorageBootstrap({ children, fallback = <StorageLoadi
       } catch (err) {
         console.warn("[DdaStorageBootstrap] Storage init issue, continuing:", err);
       } finally {
-        if (alive) setReady(true);
+        if (alive) {
+          setReady(true);
+          // Next frame so login paints before shell preloader fades out.
+          requestAnimationFrame(() => dismissInitialPreloader());
+        }
       }
     })();
 
@@ -41,6 +33,14 @@ export default function DdaStorageBootstrap({ children, fallback = <StorageLoadi
     };
   }, []);
 
-  if (!ready) return fallback;
+  if (!ready) {
+    // HTML #initial-preloader is still visible; keep React root empty/cheap.
+    return null;
+  }
+
   return <div className="h-full w-full overflow-hidden">{children}</div>;
+}
+
+export function BootstrapPreloader() {
+  return <PlatformPreloader kicker="Loading" />;
 }
