@@ -6,13 +6,15 @@ import HeaderActions from "./HeaderActions";
 import StockMarketSync from "../investments/StockMarketSync";
 import { AppNavigateProvider } from "../../context/AppNavigateContext";
 
+const STOCK_SYNC_PAGES = new Set(["investments", "allocations", "pool", "dashboard"]);
+
 export default function AppShell({ activePage, scrollKey, authEntryTick = 0, onNavigate, children }) {
   const shellScrollKey = `${activePage}-${scrollKey}-${authEntryTick}`;
 
   return (
     <AppNavigateProvider value={onNavigate}>
       <div className="dda-app flex h-full min-h-0 w-full overflow-hidden">
-        <StockMarketSync />
+        {STOCK_SYNC_PAGES.has(activePage) ? <StockMarketSync /> : null}
         <Sidebar activePage={activePage} onNavigate={onNavigate} />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

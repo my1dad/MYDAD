@@ -218,7 +218,18 @@ export function applyExternalBinDocument(
   key: DataBinKey,
   document: DataBinDocument,
 ): void {
-  cache[binId] = normalizeBinDocument(key, document);
+  const normalized = normalizeBinDocument(key, document);
+  const existing = cache[binId];
+  if (
+    existing &&
+    existing.updatedAt === normalized.updatedAt &&
+    existing.records.length === normalized.records.length &&
+    JSON.stringify(existing) === JSON.stringify(normalized)
+  ) {
+    return;
+  }
+
+  cache[binId] = normalized;
   try {
     localStorage.setItem(localStorageKey(binId), JSON.stringify(cache[binId]));
   } catch (err) {

@@ -3,7 +3,7 @@ import { useAllocationPositions } from "../../lib/allocationPositions";
 import { isStockPosition, syncStockMarketPrices } from "../../lib/stockAllocations";
 import { useStockQuotes } from "../../hooks/useStockMarketData";
 
-/** Keeps stock position market prices in sync with Massive across the dashboard. */
+/** Keeps stock position market prices in sync with Massive on pages that show live values. */
 export default function StockMarketSync() {
   const positions = useAllocationPositions();
   const stockSymbols = useMemo(

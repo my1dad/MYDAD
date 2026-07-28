@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import AppShell from "./components/layout/AppShell";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
-import DailyAllocationsPage from "./pages/DailyAllocationsPage";
-import AdminPage from "./pages/AdminPage";
-import AdminDataBinsPage from "./pages/AdminDataBinsPage";
-import CommunityPage from "./pages/CommunityPage";
-import DashboardPage from "./pages/DashboardPage";
-import InvestmentsPage from "./pages/InvestmentsPage";
-import LiquidityPoolPage from "./pages/LiquidityPoolPage";
-import LoansPage from "./pages/LoansPage";
-import AccountsPage from "./pages/AccountsPage";
-import MembersPage from "./pages/MembersPage";
-import NewPostPage from "./pages/NewPostPage";
+
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const DailyAllocationsPage = lazy(() => import("./pages/DailyAllocationsPage"));
+const MembersPage = lazy(() => import("./pages/MembersPage"));
+const LiquidityPoolPage = lazy(() => import("./pages/LiquidityPoolPage"));
+const InvestmentsPage = lazy(() => import("./pages/InvestmentsPage"));
+const AccountsPage = lazy(() => import("./pages/AccountsPage"));
+const LoansPage = lazy(() => import("./pages/LoansPage"));
+const CommunityPage = lazy(() => import("./pages/CommunityPage"));
+const NewPostPage = lazy(() => import("./pages/NewPostPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const AdminDataBinsPage = lazy(() => import("./pages/AdminDataBinsPage"));
 
 const pages = {
   dashboard: DashboardPage,
@@ -35,6 +36,14 @@ function getPageFromHash() {
 function hashForPage(page) {
   if (page === "dashboard") return "";
   return `/${page}`;
+}
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center" aria-busy="true">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-dda-green-light" />
+    </div>
+  );
 }
 
 export default function App() {
@@ -103,7 +112,9 @@ export default function App() {
       authEntryTick={authEntryTick}
       onNavigate={navigate}
     >
-      <Page key={`${activePage}-${authEntryTick}`} onNavigate={navigate} />
+      <Suspense fallback={<PageFallback />}>
+        <Page key={`${activePage}-${authEntryTick}`} onNavigate={navigate} />
+      </Suspense>
     </AppShell>
   );
 }

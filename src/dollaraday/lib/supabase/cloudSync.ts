@@ -448,6 +448,8 @@ export async function syncCloudWorkspace(options: {
 
     const cloudEmpty = remoteBins.length === 0 && remoteProfiles.length === 0;
 
+    const binUpserts: Promise<unknown>[] = [];
+
     for (const binId of DAD_BIN_IDS) {
       const binKey = binKeyForBinId(binId);
       if (!binKey) continue;
@@ -461,9 +463,11 @@ export async function syncCloudWorkspace(options: {
       // Seed empty cloud, push local wins, or publish record-level merges so every
       // member contribution reaches the shared liquidity workspace.
       if (cloudEmpty || source === "local" || source === "merged") {
-        await upsertCloudBin(binId, merged);
+        binUpserts.push(upsertCloudBin(binId, merged));
       }
     }
+
+    await Promise.all(binUpserts);
 
     const localProfiles = options.getLocalProfiles();
     const mergedProfiles = mergeProfiles(localProfiles, remoteProfiles);
@@ -476,13 +480,15 @@ export async function syncCloudWorkspace(options: {
 
     applyKvToLocalStorage(remoteKv);
 
+    const kvUpserts: Promise<unknown>[] = [];
     for (const key of SYNCED_KV_KEYS) {
       const localRaw = localStorage.getItem(key);
       const remote = remoteKv.find((row) => row.scope_key === GLOBAL_KV_SCOPE && row.kv_key === key);
       if (localRaw && (!remote || cloudEmpty)) {
-        await upsertCloudKv(GLOBAL_KV_SCOPE, key, localRaw);
+        kvUpserts.push(upsertCloudKv(GLOBAL_KV_SCOPE, key, localRaw));
       }
     }
+    await Promise.all(kvUpserts);
 
     lastSyncAt = new Date().toISOString();
     lastSyncError = null;
@@ -560,6 +566,11 @@ export function startCloudRealtime(options: {
   };
 }
 
+/** Backup poll if realtime drops; realtime is the primary sync path. */
+const CLOUD_POLL_MS = 5 * 60_000;
+
+let syncInFlight: Promise<void> | null = null;
+
 export async function initCloudSync(options: {
   getLocalProfiles: () => DadProfile[];
   replaceLocalProfiles: (profiles: DadProfile[]) => void;
@@ -572,14 +583,28 @@ export async function initCloudSync(options: {
     return () => {};
   }
 
-  await syncCloudWorkspace(options);
+  const runSync = () => {
+    if (syncInFlight) return syncInFlight;
+    syncInFlight = syncCloudWorkspace(options).finally(() => {
+      syncInFlight = null;
+    });
+    return syncInFlight;
+  };
+
+  await runSync();
   cloudInitialized = true;
   notifyCloudStatusListeners();
 
-  // Periodic pull keeps worldwide logins and admin views consistent if realtime drops.
+  // Rare backup pull only — realtime handles live updates.
   const pollId = window.setInterval(() => {
-    void syncCloudWorkspace(options);
-  }, 15_000);
+    if (document.visibilityState !== "visible") return;
+    void runSync();
+  }, CLOUD_POLL_MS);
+
+  const onVisible = () => {
+    if (document.visibilityState === "visible") void runSync();
+  };
+  document.addEventListener("visibilitychange", onVisible);
 
   const stopRealtime = startCloudRealtime({
     getLocalProfiles: options.getLocalProfiles,
@@ -588,6 +613,7 @@ export async function initCloudSync(options: {
 
   return () => {
     window.clearInterval(pollId);
+    document.removeEventListener("visibilitychange", onVisible);
     stopRealtime();
   };
 }

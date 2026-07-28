@@ -89,10 +89,7 @@ export default function RecurringCashflowPanel({ accountId = null }) {
   const profileId = resolveMemberProfileId();
   const ledger = useMemberAccounts(profileId);
   const schedules = useRecurringCashflows(profileId);
-  const accountOptions = useMemo(
-    () => ACCOUNT_OPTIONS,
-    [isAdmin],
-  );
+  const accountOptions = useMemo(() => ACCOUNT_OPTIONS, []);
 
   const [type, setType] = useState("income");
   const [selectedAccountId, setSelectedAccountId] = useState(accountId ?? "checking");

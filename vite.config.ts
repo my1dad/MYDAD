@@ -19,6 +19,18 @@ export default defineConfig({
         main: path.resolve(__dirname, "index.html"),
         dollaraday: path.resolve(__dirname, "dollaraday.html"),
       },
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("recharts") || id.includes("d3-")) return "charts";
+          if (id.includes("@supabase")) return "supabase";
+          if (id.includes("lucide-react")) return "icons";
+          if (id.includes("react-dom") || id.includes("/react/") || id.includes("scheduler")) {
+            return "react-vendor";
+          }
+          return undefined;
+        },
+      },
     },
   },
   server: {

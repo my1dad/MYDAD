@@ -9,7 +9,7 @@ import {
   type StockTickerSearchResult,
 } from "../lib/massiveMarket";
 
-const QUOTE_REFRESH_MS = 15_000;
+const QUOTE_REFRESH_MS = 60_000;
 
 let quotesSnapshot: Record<string, StockMarketSnapshot> = {};
 let quotesSnapshotKey = "";
@@ -83,15 +83,20 @@ export function useStockQuote(symbol: string | null, enabled = true) {
     let alive = true;
 
     const run = async () => {
-      if (!alive) return;
+      if (!alive || document.visibilityState !== "visible") return;
       await load();
     };
 
     run();
     const timer = window.setInterval(run, QUOTE_REFRESH_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void run();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       alive = false;
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [symbol, enabled, load]);
 
@@ -123,6 +128,7 @@ export function useStockQuotes(symbols: string[], enabled = true) {
     let alive = true;
 
     const load = async () => {
+      if (document.visibilityState !== "visible") return;
       setLoading((current) => (Object.keys(quotesRef.current).length ? current : true));
       setError(null);
       try {
@@ -143,9 +149,14 @@ export function useStockQuotes(symbols: string[], enabled = true) {
 
     load();
     const timer = window.setInterval(load, QUOTE_REFRESH_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       alive = false;
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [key, enabled]);
 

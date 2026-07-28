@@ -14,6 +14,7 @@ import { useLocale } from "../i18n/LocaleContext";
 const EasternTimeContext = createContext(null);
 
 const RELATIVE_TICK_MS = 30_000;
+const DAY_CHECK_MS = 60_000;
 
 export function EasternTimeProvider({ children }) {
   const { locale } = useLocale();
@@ -23,37 +24,40 @@ export function EasternTimeProvider({ children }) {
     () => 0,
   );
   const appSettings = useMemo(() => getAppSettings(), [settingsRevision]);
-  const [now, setNow] = useState(() => easternNow());
   const [relativeTick, setRelativeTick] = useState(0);
   const [easternDay, setEasternDay] = useState(() => formatEasternIsoDate());
 
+  // Relative labels refresh periodically; live clock ticks live only in EasternLiveClock.
   useEffect(() => {
-    setNow(easternNow());
-    const clockId = window.setInterval(() => setNow(easternNow()), 1_000);
     const relativeId = window.setInterval(() => setRelativeTick((tick) => tick + 1), RELATIVE_TICK_MS);
-    return () => {
-      window.clearInterval(clockId);
-      window.clearInterval(relativeId);
-    };
+    return () => window.clearInterval(relativeId);
   }, []);
 
+  // Day-boundary cashflow processing — check once a minute, not every second.
   useEffect(() => {
-    const day = formatEasternIsoDate(now);
-    if (day === easternDay) return;
-    setEasternDay(day);
-    processRecurringCashflows();
-  }, [now, easternDay]);
+    const checkDay = () => {
+      const day = formatEasternIsoDate();
+      setEasternDay((prev) => {
+        if (day === prev) return prev;
+        processRecurringCashflows();
+        return day;
+      });
+    };
+    checkDay();
+    const dayId = window.setInterval(checkDay, DAY_CHECK_MS);
+    return () => window.clearInterval(dayId);
+  }, []);
 
   const value = useMemo(
     () => ({
-      now,
       relativeTick,
-      longDate: formatEasternLongDate(now, locale),
-      clock: formatEasternLiveClock(now, locale, true),
-      clockShort: formatEasternLiveClock(now, locale, false),
-      timezoneAbbr: getEasternTimezoneAbbreviation(now, locale),
+      easternDay,
+      longDate: formatEasternLongDate(easternNow(), locale),
+      timezoneAbbr: getEasternTimezoneAbbreviation(easternNow(), locale),
+      // Stable helpers so clock components can format without subscribing to 1s ticks.
+      formatClock: (withSeconds = true) => formatEasternLiveClock(easternNow(), locale, withSeconds),
     }),
-    [now, relativeTick, locale, appSettings.timezone],
+    [relativeTick, easternDay, locale, appSettings.timezone],
   );
 
   return <EasternTimeContext.Provider value={value}>{children}</EasternTimeContext.Provider>;

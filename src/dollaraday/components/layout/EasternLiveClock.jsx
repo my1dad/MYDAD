@@ -1,11 +1,28 @@
+import { useEffect, useState } from "react";
 import { Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useEasternLiveTime } from "../../context/EasternTimeContext";
+import {
+  easternNow,
+  formatEasternLiveClock,
+  formatEasternLongDate,
+  getEasternTimezoneAbbreviation,
+} from "../../lib/dateTime";
 import { useLocale } from "../../i18n/LocaleContext";
 
+/** Local 1s tick — keeps the live clock updating without re-rendering the app tree. */
 export default function EasternLiveClock({ variant = "compact", className }) {
-  const { t } = useLocale();
-  const { longDate, clock, timezoneAbbr } = useEasternLiveTime();
+  const { t, locale } = useLocale();
+  const [now, setNow] = useState(() => easternNow());
+
+  useEffect(() => {
+    setNow(easternNow());
+    const id = window.setInterval(() => setNow(easternNow()), 1_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const longDate = formatEasternLongDate(now, locale);
+  const clock = formatEasternLiveClock(now, locale, true);
+  const timezoneAbbr = getEasternTimezoneAbbreviation(now, locale);
 
   if (variant === "sidebar") {
     return (

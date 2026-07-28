@@ -14,8 +14,7 @@ import {
   poolComposition,
 } from "../data/mockData";
 import { useLocale } from "./LocaleContext";
-import { useEasternLiveTime } from "../context/EasternTimeContext";
-import { formatRelativeTimeFromNow } from "../lib/dateTime";
+import { easternNow, formatEasternLongDate, formatRelativeTimeFromNow } from "../lib/dateTime";
 
 const escrowKeys = ["e1", "e2", "e3", "e4"];
 const loanPurposeKeys = ["purpose1", "purpose2", "purpose3"];
@@ -27,7 +26,6 @@ const postKeys = ["post1", "post2", "post3"];
 
 export function useLocalizedData() {
   const { t, locale } = useLocale();
-  const { longDate, relativeTick } = useEasternLiveTime();
 
   return useMemo(() => {
     const localizedPoolComposition = poolComposition.map((segment) => ({
@@ -135,7 +133,7 @@ export function useLocalizedData() {
       dashboardStatsLabels,
       statHints,
       allocationSummary: {
-        dateLabel: longDate,
+        dateLabel: formatEasternLongDate(easternNow(), locale),
         lastUpdated: formatRelativeTimeFromNow(new Date(), t, locale),
       },
       translateTier: (tier) => t(`tier.${tier}`),
@@ -144,5 +142,5 @@ export function useLocalizedData() {
       translateLiquidity: (liquidity) => t(`liquidity.${liquidity}`),
       translatePoolSegment: (key) => t(`pool.${key}`),
     };
-  }, [t, locale, longDate, relativeTick]);
+  }, [t, locale]);
 }

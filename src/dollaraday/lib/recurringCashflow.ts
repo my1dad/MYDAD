@@ -42,7 +42,8 @@ interface RecurringCashflowsPayload {
 }
 
 export const RECURRING_CASHFLOWS_ID = "recurring-cashflows";
-const CHECK_INTERVAL_MS = 15_000;
+/** Backup interval; midnight + visibilitychange cover the primary path. */
+const CHECK_INTERVAL_MS = 5 * 60_000;
 const MAX_CATCH_UP = 30;
 const EMPTY_SCHEDULES: RecurringCashflow[] = [];
 
@@ -699,6 +700,7 @@ export function startRecurringCashflowAutomation(): () => void {
   }
 
   automationTimer = setInterval(() => {
+    if (document.visibilityState !== "visible") return;
     runRecurringCashflowTick();
   }, CHECK_INTERVAL_MS);
 
