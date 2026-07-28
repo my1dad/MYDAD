@@ -1,9 +1,10 @@
 /** Public assets from /public — works in dev, production, and Electron (file://). */
 const BASE = import.meta.env.BASE_URL ?? "/";
 
-export const DOLLARADAY_LOGO_URL = `${BASE}my-dollar-a-day-logo-transparent.png`;
+/** Brand mark — true alpha PNG (no black/white plate behind the glyph). */
+export const DOLLARADAY_LOGO_URL = `${BASE}dad-v2-logo-transparent.png`;
 export const DOLLAR_BILL_WASHINGTON_URL = `${BASE}dollar-bill-washington.jpg`;
-export const PRELOADER_LOGO_URL = `${BASE}my-dollar-a-day-logo-transparent.png`;
+export const PRELOADER_LOGO_URL = `${BASE}dad-v2-logo-transparent.png`;
 export const APPLE_PAY_LOGO_URL = `${BASE}payments/apple-pay.svg`;
 export const APPLE_PAY_LEARN_URL =
   "https://learn.applepay.apple/why-apple-pay?cid=ppy-410-us-sem-psem-b06-0001-0003";
@@ -11,6 +12,7 @@ export const ZELLE_LOGO_URL = `${BASE}payments/zelle.png`;
 export const ZELLE_URL = "https://www.zelle.com";
 export const TERMS_OF_SERVICE_URL = `${BASE}my-dollar-a-day-terms-of-service.pdf`;
 export const HOME_URL = "https://www.mydollaraday.com";
+export const OVERDRIVE_LOGO_URL = `${BASE}over-drive-logo-transparent.png`;
 
 export function buildInviteHomeUrl(referralProId) {
   const useLocalEntry =

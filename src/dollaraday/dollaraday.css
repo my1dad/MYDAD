@@ -306,6 +306,17 @@ body {
 
 .dda-login-fast .dda-login-logo {
   contain: layout paint;
+  background: transparent;
+}
+
+.dda-login-logo,
+.dda-home-hero__logo,
+.dda-terms-hero__logo,
+.dda-bank-logo,
+.dda-home-payment-logo,
+.dda-wallet-funding-tab__logo {
+  background-color: transparent !important;
+  background-image: none !important;
 }
 
 .dda-mobile-shell__main {
