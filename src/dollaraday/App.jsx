@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import AppShell from "./components/layout/AppShell";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
 
 /**
- * ALL nav pages are sync imports on purpose.
- * Lazy page chunks + "mount everything" prefetch was flooding the network
- * (~700KB of charts/supabase/panels at once) and made every tap feel broken.
- * Charts stay lazy *inside* each page — only when that page is open.
+ * Primary nav pages are sync — once App is downloaded, taps switch instantly.
+ * Rare/admin tooling stays lazy. Charts stay lazy inside pages.
  */
 import DashboardPage from "./pages/DashboardPage";
 import LiquidityPoolPage from "./pages/LiquidityPoolPage";
@@ -16,10 +14,10 @@ import MembersPage from "./pages/MembersPage";
 import DailyAllocationsPage from "./pages/DailyAllocationsPage";
 import LoansPage from "./pages/LoansPage";
 import CommunityPage from "./pages/CommunityPage";
-import NewPostPage from "./pages/NewPostPage";
 import AdminPage from "./pages/AdminPage";
 import InvestmentsPage from "./pages/InvestmentsPage";
-import AdminDataBinsPage from "./pages/AdminDataBinsPage";
+
+const AdminDataBinsPage = lazy(() => import("./pages/AdminDataBinsPage"));
 
 const pages = {
   dashboard: DashboardPage,
@@ -29,7 +27,6 @@ const pages = {
   allocations: DailyAllocationsPage,
   loans: LoansPage,
   community: CommunityPage,
-  post: NewPostPage,
   admin: AdminPage,
   investments: InvestmentsPage,
   "admin-bins": AdminDataBinsPage,
@@ -46,7 +43,6 @@ function hashForPage(page) {
 }
 
 function shellPageId(page) {
-  if (page === "post") return "community";
   if (page === "admin-bins") return "admin";
   return page;
 }
@@ -58,7 +54,6 @@ export default function App() {
 
   const goTo = useCallback((page) => {
     const nextPage = pages[page] ? page : "dashboard";
-    // Sync update — no startTransition deferral, no Suspense wait.
     setActivePage(nextPage);
     setScrollKey((tick) => tick + 1);
     const nextHash = hashForPage(nextPage);
@@ -103,6 +98,7 @@ export default function App() {
   }, [authEntryTick]);
 
   const Page = pages[activePage] ?? DashboardPage;
+  const isLazyAdminBins = activePage === "admin-bins";
 
   return (
     <EasternTimeProvider>
@@ -112,7 +108,13 @@ export default function App() {
         authEntryTick={authEntryTick}
         onNavigate={goTo}
       >
-        <Page key={`${activePage}-${authEntryTick}`} onNavigate={goTo} />
+        {isLazyAdminBins ? (
+          <Suspense fallback={null}>
+            <Page key={`${activePage}-${authEntryTick}`} onNavigate={goTo} />
+          </Suspense>
+        ) : (
+          <Page key={`${activePage}-${authEntryTick}`} onNavigate={goTo} />
+        )}
       </AppShell>
     </EasternTimeProvider>
   );

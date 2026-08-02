@@ -14,7 +14,7 @@ export default function DdaStorageBootstrap({ children }) {
   useEffect(() => {
     let alive = true;
     // Absolute failsafe — never leave a click shield after boot.
-    const failsafeId = window.setTimeout(() => dismissInitialPreloader(), 4000);
+    const failsafeId = window.setTimeout(() => dismissInitialPreloader(), 2000);
 
     (async () => {
       try {

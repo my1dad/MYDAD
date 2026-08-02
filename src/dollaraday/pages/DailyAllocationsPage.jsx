@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import DashboardCard from "../components/layout/DashboardCard";
 import ContributeTodaySection from "../components/home/ContributeTodaySection";
-import ContributeOnboardingModal from "../components/onboarding/ContributeOnboardingModal";
 import { useMembers } from "../lib/memberRegistry";
 import { resolveMemberFromDonation } from "../lib/memberDetails";
 import { useLocale } from "../i18n/LocaleContext";
@@ -14,6 +13,9 @@ import { saveContribution } from "../lib/storageWrites";
 import { formatPoolCurrency } from "../data/mockData";
 
 const MemberDetailModal = lazy(() => import("../components/members/MemberDetailModal"));
+const ContributeOnboardingModal = lazy(() =>
+  import("../components/onboarding/ContributeOnboardingModal"),
+);
 
 const statusStyles = {
   completed: "text-dda-green-light",
@@ -170,16 +172,21 @@ export default function DailyAllocationsPage() {
         onContributeOther={() => openContribute(null, { custom: true, frequency: "weekly" })}
       />
 
-      <ContributeOnboardingModal
-        open={contributeOpen}
-        onClose={() => setContributeOpen(false)}
-        initialAmount={contributeSeed.amount}
-        startOnCustom={contributeSeed.custom}
-        contributionFrequency={contributeSeed.frequency}
-        onComplete={({ reminderEnabled, recurringEnabled, amount, frequency }) => {
-          saveContribution({ amount, reminderEnabled, recurringEnabled, frequency });
-        }}
-      />
+      {contributeOpen ? (
+        <Suspense fallback={null}>
+          <ContributeOnboardingModal
+            open={contributeOpen}
+            onClose={() => setContributeOpen(false)}
+            initialAmount={contributeSeed.amount}
+            startOnCustom={contributeSeed.custom}
+            contributionFrequency={contributeSeed.frequency}
+            onComplete={({ reminderEnabled, recurringEnabled, amount, frequency }) => {
+              saveContribution({ amount, reminderEnabled, recurringEnabled, frequency });
+              setContributeOpen(false);
+            }}
+          />
+        </Suspense>
+      ) : null}
 
       {selectedMember ? (
         <Suspense fallback={null}>

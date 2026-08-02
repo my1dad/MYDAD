@@ -58,3 +58,11 @@ Push this repo to `github.com/your-org/my1dad`. Vercel will build from the conne
 ## Security note
 
 Current RLS policies allow the anon key to read/write workspace data (shared community model). Before public launch, consider migrating to **Supabase Auth** and tightening RLS per user.
+
+## Auth model (important)
+
+This app does **not** use Supabase Auth for login or signup.
+
+- Sign-in uses local/cloud `dad_profiles` (username + password).
+- New members require **admin approval** (`pendingApproval`) before they can sign in.
+- Supabase Dashboard → **Authentication → Providers / Email** options such as **“Confirm email”** do **not** affect this app. Leave them off (or ignore them) unless you later migrate to Supabase Auth.
