@@ -8,8 +8,22 @@ import {
 } from "../internalDatabase";
 import { DAD_WORKSPACE_ID, getSupabaseClient, isSupabaseConfigured } from "./client";
 
-const CLOUD_PUSH_DEBOUNCE_MS = 400;
+const CLOUD_PUSH_DEBOUNCE_MS = 2500;
+const CLOUD_POLL_MS = 10 * 60_000;
+const CLOUD_VISIBLE_RESYNC_MIN_MS = 5 * 60_000;
 const GLOBAL_KV_SCOPE = "global";
+
+let lastFullSyncAt = 0;
+let cloudPushPausedUntil = 0;
+
+/** Pause outbound cloud pushes during the interactive window after login. */
+export function pauseCloudPushes(ms = 15_000): void {
+  cloudPushPausedUntil = Date.now() + Math.max(0, ms);
+}
+
+function cloudPushesAllowed(): boolean {
+  return Date.now() >= cloudPushPausedUntil;
+}
 
 /** localStorage keys synced to dad_kv (excluding profiles & session keys). */
 export const SYNCED_KV_KEYS = [
@@ -373,7 +387,7 @@ async function upsertCloudKv(scopeKey: string, kvKey: string, rawValue: string |
 }
 
 export function scheduleCloudBinPush(binId: string, document: DataBinDocument): void {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured() || !cloudPushesAllowed()) return;
 
   const existing = pendingBinPushes.get(binId);
   if (existing) clearTimeout(existing);
@@ -382,6 +396,7 @@ export function scheduleCloudBinPush(binId: string, document: DataBinDocument): 
     binId,
     setTimeout(() => {
       pendingBinPushes.delete(binId);
+      if (!cloudPushesAllowed()) return;
       void upsertCloudBin(binId, document);
     }, CLOUD_PUSH_DEBOUNCE_MS),
   );
@@ -405,17 +420,18 @@ export async function pushCloudBinsNow(
 }
 
 export function scheduleCloudProfilesPush(profiles: DadProfile[]): void {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured() || !cloudPushesAllowed()) return;
 
   if (pendingProfilePush) clearTimeout(pendingProfilePush);
   pendingProfilePush = setTimeout(() => {
     pendingProfilePush = null;
+    if (!cloudPushesAllowed()) return;
     void upsertCloudProfiles(profiles);
   }, CLOUD_PUSH_DEBOUNCE_MS);
 }
 
 export function scheduleCloudKvPush(kvKey: SyncedKvKey): void {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured() || !cloudPushesAllowed()) return;
 
   const existing = pendingKvPushes.get(kvKey);
   if (existing) clearTimeout(existing);
@@ -424,6 +440,7 @@ export function scheduleCloudKvPush(kvKey: SyncedKvKey): void {
     kvKey,
     setTimeout(() => {
       pendingKvPushes.delete(kvKey);
+      if (!cloudPushesAllowed()) return;
       void upsertCloudKv(GLOBAL_KV_SCOPE, kvKey, localStorage.getItem(kvKey));
     }, CLOUD_PUSH_DEBOUNCE_MS),
   );
@@ -567,8 +584,6 @@ export function startCloudRealtime(options: {
 }
 
 /** Backup poll if realtime drops; realtime is the primary sync path. */
-const CLOUD_POLL_MS = 5 * 60_000;
-
 let syncInFlight: Promise<void> | null = null;
 
 export async function initCloudSync(options: {
@@ -583,11 +598,17 @@ export async function initCloudSync(options: {
     return () => {};
   }
 
+  pauseCloudPushes(12_000);
+
   const runSync = () => {
     if (syncInFlight) return syncInFlight;
-    syncInFlight = syncCloudWorkspace(options).finally(() => {
-      syncInFlight = null;
-    });
+    syncInFlight = syncCloudWorkspace(options)
+      .then(() => {
+        lastFullSyncAt = Date.now();
+      })
+      .finally(() => {
+        syncInFlight = null;
+      });
     return syncInFlight;
   };
 
@@ -601,8 +622,11 @@ export async function initCloudSync(options: {
     void runSync();
   }, CLOUD_POLL_MS);
 
+  // Do NOT full-resync on every tab focus — that was a major freeze.
   const onVisible = () => {
-    if (document.visibilityState === "visible") void runSync();
+    if (document.visibilityState !== "visible") return;
+    if (Date.now() - lastFullSyncAt < CLOUD_VISIBLE_RESYNC_MIN_MS) return;
+    void runSync();
   };
   document.addEventListener("visibilitychange", onVisible);
 

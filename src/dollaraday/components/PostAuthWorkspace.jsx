@@ -1,15 +1,15 @@
 import { useEffect } from "react";
 import {
-  ensureProfileProIds,
-  getActiveDadProfile,
   getDadProfiles,
   replaceAllDadProfiles,
 } from "../lib/dadProfileStorage";
 import { useDadAuth } from "../context/DadAuthContext.jsx";
 
 /**
- * After login: paint UI first. Cloud sync + automations start much later on idle
- * so navigation is never fighting background work.
+ * Keep the UI free. Background work is minimal and delayed:
+ * 1) Light local pool hydrate (no member reconcile storm)
+ * 2) One cloud pull much later, only when the tab is visible
+ * 3) No recurring automations on login — those run on-demand in Accounts
  */
 export default function PostAuthWorkspace({ children }) {
   const { isAuthenticated } = useDadAuth();
@@ -20,100 +20,59 @@ export default function PostAuthWorkspace({ children }) {
     let alive = true;
     const cleanups = [];
 
-    const idle = window.requestIdleCallback
-      ? (cb, opts) => window.requestIdleCallback(cb, opts)
-      : (cb) => window.setTimeout(cb, 4000);
+    // Light local hydrate after first paint — no cloud, no registry rebuild.
+    const localTimer = window.setTimeout(() => {
+      void import("../lib/poolState")
+        .then(({ hydratePoolStateFromStorage }) => {
+          if (!alive) return;
+          hydratePoolStateFromStorage();
+        })
+        .catch((err) => console.warn("[PostAuthWorkspace] Local hydrate skipped:", err));
+    }, 800);
 
-    const cancelIdle = window.cancelIdleCallback
-      ? (id) => window.cancelIdleCallback(id)
-      : (id) => window.clearTimeout(id);
+    // Cloud sync once, deferred — never on every visibility flip.
+    const cloudTimer = window.setTimeout(() => {
+      if (!alive || document.visibilityState !== "visible") return;
 
-    // Local hydrate only — cheap, no cloud, no automations.
-    const localIdleId = idle(() => {
       void (async () => {
         try {
-          const [
-            { hydratePoolStateFromStorage },
-            { persistMemberFromProfile, pruneDuplicateAdminMemberRecords },
-          ] = await Promise.all([
-            import("../lib/poolState"),
-            import("../lib/memberRegistry"),
-          ]);
+          const { initCloudSync } = await import("../lib/supabase/cloudSync");
           if (!alive) return;
-          pruneDuplicateAdminMemberRecords();
-          ensureProfileProIds();
-          hydratePoolStateFromStorage();
-          const profile = getActiveDadProfile();
-          if (profile) persistMemberFromProfile(profile);
+
+          const cleanupCloud = await initCloudSync({
+            getLocalProfiles: getDadProfiles,
+            replaceLocalProfiles: (profiles) => {
+              replaceAllDadProfiles(profiles);
+            },
+            onProfilesChanged: (profiles) => {
+              // Profiles only — never rebuild every member row mid-session.
+              replaceAllDadProfiles(profiles);
+            },
+          });
+
+          if (!alive) {
+            cleanupCloud?.();
+            return;
+          }
+          if (typeof cleanupCloud === "function") cleanups.push(cleanupCloud);
+
+          // Optional deep reconcile once, far after cloud settle.
+          window.setTimeout(() => {
+            if (!alive || document.visibilityState !== "visible") return;
+            void import("../lib/poolState").then(({ hydratePoolStateFromStorage }) => {
+              if (!alive) return;
+              hydratePoolStateFromStorage({ reconcile: true });
+            });
+          }, 45_000);
         } catch (err) {
-          console.warn("[PostAuthWorkspace] Local hydrate skipped:", err);
+          console.warn("[PostAuthWorkspace] Cloud sync deferred:", err);
         }
       })();
-    }, { timeout: 2500 });
-
-    // Cloud + automations: wait until the UI has been idle for a while.
-    const cloudTimer = window.setTimeout(() => {
-      const cloudIdleId = idle(() => {
-        void (async () => {
-          try {
-            const [
-              { initCloudSync },
-              { hydratePoolStateFromStorage },
-              { startRecurringCashflowAutomation },
-              { startAllocationYieldAutomation },
-              { startRecurringAutomation },
-              { syncAllProfilesToMemberRegistry },
-            ] = await Promise.all([
-              import("../lib/supabase/cloudSync"),
-              import("../lib/poolState"),
-              import("../lib/recurringCashflow"),
-              import("../lib/allocationYieldAccrual"),
-              import("../lib/recurringContributions"),
-              import("../lib/profileRegistry"),
-            ]);
-
-            if (!alive) return;
-
-            const cleanupCloud = await initCloudSync({
-              getLocalProfiles: getDadProfiles,
-              replaceLocalProfiles: (profiles) => {
-                replaceAllDadProfiles(profiles);
-              },
-              onProfilesChanged: (profiles) => {
-                replaceAllDadProfiles(profiles);
-                // Defer registry rebuild — never block taps with a full sync.
-                idle(() => {
-                  if (!alive) return;
-                  syncAllProfilesToMemberRegistry();
-                  hydratePoolStateFromStorage();
-                }, { timeout: 5000 });
-              },
-            });
-
-            if (!alive) {
-              cleanupCloud?.();
-              return;
-            }
-            if (typeof cleanupCloud === "function") cleanups.push(cleanupCloud);
-
-            idle(() => {
-              if (!alive) return;
-              syncAllProfilesToMemberRegistry();
-              cleanups.push(startRecurringCashflowAutomation());
-              cleanups.push(startAllocationYieldAutomation());
-              cleanups.push(startRecurringAutomation());
-            }, { timeout: 15000 });
-          } catch (err) {
-            console.warn("[PostAuthWorkspace] Background sync issue:", err);
-          }
-        })();
-      }, { timeout: 8000 });
-      cleanups.push(() => cancelIdle(cloudIdleId));
-    }, 6000);
+    }, 12_000);
 
     return () => {
       alive = false;
-      cancelIdle(localIdleId);
+      window.clearTimeout(localTimer);
       window.clearTimeout(cloudTimer);
       while (cleanups.length) {
         const stop = cleanups.pop();

@@ -23,7 +23,7 @@ function resetShellScroll() {
   document.body.scrollTop = 0;
 }
 
-/** Session first — heavy registry/activity work runs after paint so login feels instant. */
+/** Session first — registry/activity work waits until the UI is quiet. */
 function beginAuthenticatedSession(profile, activityType, remember = false) {
   setDadSessionId(profile.id, { remember });
   window.location.hash = "";
@@ -32,48 +32,43 @@ function beginAuthenticatedSession(profile, activityType, remember = false) {
   const runSideEffects = () => {
     void Promise.all([
       import("../lib/memberRegistry"),
-      import("../lib/profileRegistry"),
       import("../lib/profileActivity"),
     ])
-      .then(
-        ([
-          { persistMemberFromProfile },
-          { syncProfileToMemberRegistry },
-          { logProfileActivity },
-        ]) => {
-          persistMemberFromProfile(profile, { isNew: activityType === "register" });
-          syncProfileToMemberRegistry(profile);
+      .then(([{ persistMemberFromProfile }, { logProfileActivity }]) => {
+        // Only write on register / explicit need — skip full registry sync on every login.
+        if (activityType === "register") {
+          persistMemberFromProfile(profile, { isNew: true });
+        }
+        logProfileActivity({
+          profileId: profile.id,
+          proId: profile.proId,
+          type: activityType,
+          summary:
+            activityType === "register"
+              ? `Registered with promo code ${profile.proId}`
+              : "Signed in to dashboard",
+          payload:
+            activityType === "register" && profile.referredByProId
+              ? { referredByProId: profile.referredByProId }
+              : undefined,
+        });
+        if (activityType === "register" && profile.referredByProId) {
           logProfileActivity({
             profileId: profile.id,
             proId: profile.proId,
-            type: activityType,
-            summary:
-              activityType === "register"
-                ? `Registered with promo code ${profile.proId}`
-                : "Signed in to dashboard",
-            payload:
-              activityType === "register" && profile.referredByProId
-                ? { referredByProId: profile.referredByProId }
-                : undefined,
+            type: "referral",
+            summary: `Joined using referral code ${profile.referredByProId}`,
+            payload: { referredByProId: profile.referredByProId },
           });
-          if (activityType === "register" && profile.referredByProId) {
-            logProfileActivity({
-              profileId: profile.id,
-              proId: profile.proId,
-              type: "referral",
-              summary: `Joined using referral code ${profile.referredByProId}`,
-              payload: { referredByProId: profile.referredByProId },
-            });
-          }
-        },
-      )
+        }
+      })
       .catch((err) => console.warn("[auth] Post-login sync deferred work failed:", err));
   };
 
   if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-    window.requestIdleCallback(runSideEffects, { timeout: 1200 });
+    window.requestIdleCallback(runSideEffects, { timeout: 8000 });
   } else {
-    queueMicrotask(runSideEffects);
+    window.setTimeout(runSideEffects, 3000);
   }
 
   return profile;

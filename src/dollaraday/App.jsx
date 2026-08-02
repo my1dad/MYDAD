@@ -128,20 +128,8 @@ export default function App() {
     }
   }, [authEntryTick]);
 
-  // Warm primary destinations after first paint so first tap is usually cached.
-  useEffect(() => {
-    const idle = window.requestIdleCallback
-      ? (cb) => window.requestIdleCallback(cb, { timeout: 4000 })
-      : (cb) => window.setTimeout(cb, 1200);
-    const cancel = window.cancelIdleCallback
-      ? (id) => window.cancelIdleCallback(id)
-      : (id) => window.clearTimeout(id);
-    const id = idle(() => {
-      ["pool", "accounts", "members", "allocations"].forEach(prefetchPage);
-    });
-    return () => cancel(id);
-  }, []);
-
+  // Warm primary destinations only on first intentional nav press (see onPrefetch).
+  // Idle prefetch of every page competed with first interactions.
   const Page = pages[activePage] ?? DashboardPage;
   const isDashboard = activePage === "dashboard";
 

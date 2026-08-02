@@ -266,30 +266,17 @@ export function applyExternalBinDocument(
   }
   notifyListeners();
 
-  // Remote contributions/settings refresh ledgers. Never re-reconcile on "members"
-  // apply — that wrote members again and created a sync/render freeze loop.
+  // Remote contributions/settings: invalidate caches only.
+  // Full reconcile was freezing the UI — run it later via explicit hydrate({ reconcile: true }).
   if (key === "settings" || key === "contributions") {
     queueMicrotask(() => {
       void Promise.all([
         import("./memberAccounts"),
         import("./poolState"),
-        import("./memberRegistry"),
-        import("./poolEscrowReconcile"),
-      ]).then(
-        ([
-          { invalidateMemberAccountsCache },
-          { hydratePoolStateFromStorage },
-          { reconcileMembersFromContributions },
-          { reconcileMemberEscrowFromContributions },
-        ]) => {
-          invalidateMemberAccountsCache();
-          reconcileMemberEscrowFromContributions();
-          if (key === "contributions") {
-            reconcileMembersFromContributions();
-          }
-          hydratePoolStateFromStorage();
-        },
-      );
+      ]).then(([{ invalidateMemberAccountsCache }, { hydratePoolStateFromStorage }]) => {
+        invalidateMemberAccountsCache();
+        hydratePoolStateFromStorage();
+      });
     });
   }
 }

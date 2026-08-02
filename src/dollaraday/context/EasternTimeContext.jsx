@@ -27,16 +27,11 @@ export function EasternTimeProvider({ children }) {
   const appSettings = useMemo(() => getAppSettings(), [settingsRevision]);
   const [easternDay, setEasternDay] = useState(() => formatEasternIsoDate());
 
+  // Day-boundary check only — do not run cashflow processing from the shell timer.
   useEffect(() => {
     const checkDay = () => {
       const day = formatEasternIsoDate();
-      setEasternDay((prev) => {
-        if (day === prev) return prev;
-        void import("../lib/recurringCashflow")
-          .then(({ processRecurringCashflows }) => processRecurringCashflows())
-          .catch(() => {});
-        return day;
-      });
+      setEasternDay((prev) => (day === prev ? prev : day));
     };
     checkDay();
     const dayId = window.setInterval(checkDay, DAY_CHECK_MS);

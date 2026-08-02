@@ -31,8 +31,8 @@ export default function AccountHubView({ onSelectAccount }) {
   useEffect(() => {
     // After paint — never block Accounts hub open with ledger rebuild.
     const idle = window.requestIdleCallback
-      ? (cb) => window.requestIdleCallback(cb, { timeout: 2500 })
-      : (cb) => window.setTimeout(cb, 400);
+      ? (cb) => window.requestIdleCallback(cb, { timeout: 4000 })
+      : (cb) => window.setTimeout(cb, 1500);
     const cancel = window.cancelIdleCallback
       ? (id) => window.cancelIdleCallback(id)
       : (id) => window.clearTimeout(id);

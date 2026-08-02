@@ -313,7 +313,7 @@ export function rolloverEasternDayIfNeeded(): boolean {
   return true;
 }
 
-export function hydratePoolStateFromStorage(): void {
+export function hydratePoolStateFromStorage(options: { reconcile?: boolean } = {}): void {
   ensureInflowSyncSubscription();
   const settings = readDataBin("settings");
   const record = settings.records.find((item) => item.id === POOL_STATE_RECORD_ID);
@@ -322,8 +322,11 @@ export function hydratePoolStateFromStorage(): void {
     notifyPoolListeners();
   }
 
-  // Contributions may exist in cloud while member-accounts / member stats were lost —
-  // rebuild escrow + member contributed/equity/streak, then refresh pool capital.
+  // Default path is paint-safe: capital totals only. Full member/escrow rebuild is opt-in.
+  syncMemberEscrowToLiquidityPool();
+
+  if (!options.reconcile) return;
+
   void Promise.all([
     import("./poolEscrowReconcile"),
     import("./memberRegistry"),
@@ -349,8 +352,6 @@ export function hydratePoolStateFromStorage(): void {
       if (bins.length) await pushCloudBinsNow(bins);
     },
   );
-
-  syncMemberEscrowToLiquidityPool();
 }
 
 /** Align liquidity pool escrow/total with summed member Chase Escrow account balances. */
