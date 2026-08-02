@@ -225,6 +225,7 @@ export async function updateDadProfileByAdmin(
     phone: input.phone?.trim() ? formatPhoneInput(input.phone) : undefined,
     role,
     password: hashedPassword ?? current.password,
+    updatedAt: new Date().toISOString(),
   }));
   if (!updated) return { ok: false, error: "Profile not found." };
 
@@ -233,8 +234,14 @@ export async function updateDadProfileByAdmin(
     profileId: updated.id,
     proId: updated.proId,
     type: "profile_edit",
-    summary: "Profile updated by admin",
+    summary: password ? "Password updated by admin" : "Profile updated by admin",
   });
+
+  if (password) {
+    void import("./supabase/cloudSync")
+      .then(({ pushCloudProfilesNow }) => pushCloudProfilesNow(getDadProfiles()))
+      .catch((err) => console.warn("[profileAdmin] Password cloud push skipped:", err));
+  }
 
   return { ok: true, profile: updated };
 }
@@ -262,6 +269,7 @@ export async function updateMasterAdminOwnProfile(input: {
     email: input.email?.trim() || undefined,
     phone: input.phone?.trim() ? formatPhoneInput(input.phone) : undefined,
     password: hashedPassword ?? current.password,
+    updatedAt: new Date().toISOString(),
   }));
 
   if (!updated) return { ok: false, error: "Profile not found." };
@@ -271,8 +279,14 @@ export async function updateMasterAdminOwnProfile(input: {
     profileId: updated.id,
     proId: updated.proId,
     type: "profile_edit",
-    summary: "Master admin account updated",
+    summary: password ? "Master admin password updated" : "Master admin profile updated",
   });
+
+  if (password) {
+    void import("./supabase/cloudSync")
+      .then(({ pushCloudProfilesNow }) => pushCloudProfilesNow(getDadProfiles()))
+      .catch((err) => console.warn("[profileAdmin] Password cloud push skipped:", err));
+  }
 
   return { ok: true, profile: updated };
 }

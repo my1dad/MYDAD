@@ -125,27 +125,32 @@ export default function MemberSettingsCard({ embedded = false }) {
     setStatus(t("memberProfile.settings.timezoneUpdated"));
   };
 
-  const handleAccountSave = (event) => {
+  const handleAccountSave = async (event) => {
     event.preventDefault();
     setSavingAccount(true);
     setError("");
     setStatus("");
 
-    const result = updateMemberOwnProfile({
-      displayName,
-      email,
-      phone,
-      password: password || undefined,
-    });
+    try {
+      const result = await updateMemberOwnProfile({
+        displayName,
+        email,
+        phone,
+        password: password || undefined,
+      });
 
-    setSavingAccount(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      setPassword("");
+      setStatus(t("memberProfile.settings.accountSaved"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save account.");
+    } finally {
+      setSavingAccount(false);
     }
-
-    setPassword("");
-    setStatus(t("memberProfile.settings.accountSaved"));
   };
 
   const content = (
