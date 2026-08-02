@@ -1,22 +1,19 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useEffect, useState } from "react";
 import AppShell from "./components/layout/AppShell";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
 
-/**
- * Primary nav pages are sync — once App is downloaded, taps switch instantly.
- * Rare/admin tooling stays lazy. Charts stay lazy inside pages.
- */
+/** Home is sync — everything else loads on demand so nav never downloads the world. */
 import DashboardPage from "./pages/DashboardPage";
-import LiquidityPoolPage from "./pages/LiquidityPoolPage";
-import AccountsPage from "./pages/AccountsPage";
-import MembersPage from "./pages/MembersPage";
-import DailyAllocationsPage from "./pages/DailyAllocationsPage";
-import LoansPage from "./pages/LoansPage";
-import CommunityPage from "./pages/CommunityPage";
-import AdminPage from "./pages/AdminPage";
-import InvestmentsPage from "./pages/InvestmentsPage";
 
+const LiquidityPoolPage = lazy(() => import("./pages/LiquidityPoolPage"));
+const AccountsPage = lazy(() => import("./pages/AccountsPage"));
+const MembersPage = lazy(() => import("./pages/MembersPage"));
+const DailyAllocationsPage = lazy(() => import("./pages/DailyAllocationsPage"));
+const LoansPage = lazy(() => import("./pages/LoansPage"));
+const CommunityPage = lazy(() => import("./pages/CommunityPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const InvestmentsPage = lazy(() => import("./pages/InvestmentsPage"));
 const AdminDataBinsPage = lazy(() => import("./pages/AdminDataBinsPage"));
 
 const pages = {
@@ -54,8 +51,10 @@ export default function App() {
 
   const goTo = useCallback((page) => {
     const nextPage = pages[page] ? page : "dashboard";
-    setActivePage(nextPage);
-    setScrollKey((tick) => tick + 1);
+    startTransition(() => {
+      setActivePage(nextPage);
+      setScrollKey((tick) => tick + 1);
+    });
     const nextHash = hashForPage(nextPage);
     if (window.location.hash.replace(/^#/, "") !== nextHash) {
       window.location.hash = nextHash;
@@ -74,8 +73,10 @@ export default function App() {
   useEffect(() => {
     const onHashChange = () => {
       const nextPage = getPageFromHash();
-      setActivePage(nextPage);
-      setScrollKey((tick) => tick + 1);
+      startTransition(() => {
+        setActivePage(nextPage);
+        setScrollKey((tick) => tick + 1);
+      });
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -98,7 +99,7 @@ export default function App() {
   }, [authEntryTick]);
 
   const Page = pages[activePage] ?? DashboardPage;
-  const isLazyAdminBins = activePage === "admin-bins";
+  const isDashboard = activePage === "dashboard";
 
   return (
     <EasternTimeProvider>
@@ -108,12 +109,12 @@ export default function App() {
         authEntryTick={authEntryTick}
         onNavigate={goTo}
       >
-        {isLazyAdminBins ? (
+        {isDashboard ? (
+          <Page key={`${activePage}-${authEntryTick}`} onNavigate={goTo} />
+        ) : (
           <Suspense fallback={null}>
             <Page key={`${activePage}-${authEntryTick}`} onNavigate={goTo} />
           </Suspense>
-        ) : (
-          <Page key={`${activePage}-${authEntryTick}`} onNavigate={goTo} />
         )}
       </AppShell>
     </EasternTimeProvider>
