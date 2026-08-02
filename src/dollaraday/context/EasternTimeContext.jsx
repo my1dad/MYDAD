@@ -2,10 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState, useSyncExterna
 import {
   easternNow,
   formatEasternIsoDate,
-  formatEasternLiveClock,
   formatEasternLongDate,
   formatRelativeTimeFromNow,
-  getEasternTimezoneAbbreviation,
 } from "../lib/dateTime";
 import { getAppSettings, getAppSettingsRevision, subscribeAppSettings } from "../lib/appSettings";
 import { useLocale } from "../i18n/LocaleContext";
@@ -54,8 +52,6 @@ export function EasternTimeProvider({ children }) {
       relativeTick,
       easternDay,
       longDate: formatEasternLongDate(easternNow(), locale),
-      timezoneAbbr: getEasternTimezoneAbbreviation(easternNow(), locale),
-      formatClock: (withSeconds = true) => formatEasternLiveClock(easternNow(), locale, withSeconds),
     }),
     [relativeTick, easternDay, locale, appSettings.timezone],
   );
