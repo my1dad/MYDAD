@@ -134,6 +134,7 @@ export function approveDadProfileByAdmin(profileId: string): AdminActionResult {
     ...current,
     approvalStatus: "approved",
     accountStatus: current.accountStatus === "suspended" ? "suspended" : "active",
+    updatedAt: new Date().toISOString(),
   }));
   if (!updated) return { ok: false, error: "Profile not found." };
 
@@ -145,9 +146,10 @@ export function approveDadProfileByAdmin(profileId: string): AdminActionResult {
     summary: "Membership approved by admin",
   });
 
+  // Await publish so the member can sign in from any device immediately after approve.
   void import("./supabase/cloudSync")
     .then(({ pushCloudProfilesNow }) => pushCloudProfilesNow(getDadProfiles()))
-    .catch(() => {});
+    .catch((err) => console.warn("[profileAdmin] Approval cloud push skipped:", err));
 
   return { ok: true, profile: updated };
 }

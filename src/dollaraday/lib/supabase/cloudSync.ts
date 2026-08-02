@@ -213,16 +213,47 @@ function mergeBinDocuments(
   return { merged, source: "local" };
 }
 
+function profileTimestamp(profile: DadProfile): string {
+  return profile.updatedAt ?? profile.lastLoginAt ?? profile.createdAt ?? "";
+}
+
+function preferApprovalStatus(
+  winner: DadProfile,
+  local: DadProfile,
+  remote: DadProfile,
+): DadProfile {
+  const localStatus = local.approvalStatus ?? "approved";
+  const remoteStatus = remote.approvalStatus ?? "approved";
+  // Approval / denial from either side must not be lost to a stale pending copy.
+  if (localStatus === "approved" || remoteStatus === "approved") {
+    if (winner.approvalStatus === "pending" || winner.approvalStatus == null) {
+      return { ...winner, approvalStatus: "approved" };
+    }
+  }
+  if (
+    (localStatus === "denied" || remoteStatus === "denied") &&
+    winner.approvalStatus === "pending"
+  ) {
+    return { ...winner, approvalStatus: "denied" };
+  }
+  return winner;
+}
+
 function mergeProfiles(local: DadProfile[], remote: DadProfile[]): DadProfile[] {
   const map = new Map<string, DadProfile>();
   for (const profile of remote) map.set(profile.id, profile);
   for (const profile of local) {
     const existing = map.get(profile.id);
-    const localTs = profile.updatedAt ?? profile.lastLoginAt ?? profile.createdAt;
-    const remoteTs = existing?.updatedAt ?? existing?.lastLoginAt ?? existing?.createdAt ?? "";
-    if (!existing || localTs >= remoteTs) {
+    if (!existing) {
       map.set(profile.id, profile);
+      continue;
     }
+
+    const localTs = profileTimestamp(profile);
+    const remoteTs = profileTimestamp(existing);
+    // Cloud wins ties so devices that registered locally pick up admin approval.
+    const winner = localTs > remoteTs ? profile : existing;
+    map.set(profile.id, preferApprovalStatus(winner, profile, existing));
   }
   return Array.from(map.values());
 }
@@ -359,6 +390,27 @@ export async function pushCloudProfilesNow(profiles: DadProfile[]): Promise<void
     pendingProfilePush = null;
   }
   await upsertCloudProfiles(profiles);
+}
+
+/**
+ * Pull profiles before login/register so approval status and credentials
+ * from other devices are visible on the auth screen (which has no cloud sync).
+ */
+export async function pullCloudProfilesNow(
+  getLocalProfiles: () => DadProfile[],
+  replaceLocalProfiles: (profiles: DadProfile[]) => void,
+): Promise<DadProfile[]> {
+  if (!isSupabaseConfigured()) return getLocalProfiles();
+
+  try {
+    const remote = await fetchCloudProfiles();
+    const merged = mergeProfiles(getLocalProfiles(), remote);
+    replaceLocalProfiles(merged);
+    return merged;
+  } catch (err) {
+    console.warn("[cloudSync] Auth profile pull failed:", err);
+    return getLocalProfiles();
+  }
 }
 
 async function upsertCloudKv(scopeKey: string, kvKey: string, rawValue: string | null): Promise<void> {

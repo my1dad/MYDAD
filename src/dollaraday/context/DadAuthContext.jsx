@@ -5,15 +5,26 @@ import {
   createDadProfile,
   findDadProfileByUsername,
   getActiveDadProfile,
+  getDadProfiles,
   getDadSessionId,
   isProfileDenied,
   isProfilePendingApproval,
   isProfileSuspended,
   loginDadAdmin,
+  replaceAllDadProfiles,
   setDadSessionId,
   subscribeDadProfiles,
 } from "../lib/dadProfileStorage";
 import { clearPendingDmPartnerId } from "../lib/communityDmNavigation";
+
+async function syncProfilesBeforeAuth() {
+  try {
+    const { pullCloudProfilesNow } = await import("../lib/supabase/cloudSync");
+    await pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+  } catch (err) {
+    console.warn("[auth] Cloud profile pull before auth skipped:", err);
+  }
+}
 
 const DadAuthContext = createContext(null);
 
@@ -95,6 +106,9 @@ export function DadAuthProvider({ children }) {
   const login = useCallback(async (username, password, options = {}) => {
     const rememberMe = Boolean(options.rememberMe);
 
+    // Auth screen has no PostAuthWorkspace sync — pull approvals/passwords first.
+    await syncProfilesBeforeAuth();
+
     // Single authenticate path: admin is included via authenticateDadProfile / loginDadAdmin
     // without a third PBKDF2 verify for status checks.
     const adminMatch = await loginDadAdmin(username, password);
@@ -141,6 +155,8 @@ export function DadAuthProvider({ children }) {
   }, []);
 
   const register = useCallback(async (input) => {
+    await syncProfilesBeforeAuth();
+
     const result = await createDadProfile(input);
     if ("error" in result) {
       return { ok: false, error: result.error };
