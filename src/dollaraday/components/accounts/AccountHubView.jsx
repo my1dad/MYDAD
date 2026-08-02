@@ -11,11 +11,15 @@ import { processRecurringCashflows } from "../../lib/recurringCashflow";
 import BankAccountLogo from "./BankAccountLogo";
 import { getVisibleBankAccounts } from "./bankAccounts";
 import { getAccountDisplay } from "./accountDisplay";
-import RecurringCashflowPanel from "./RecurringCashflowPanel";
-import WalletFundingTabs from "./WalletFundingTabs";
-import RedemptionsCard from "./RedemptionsCard";
 
 const AccountsOverviewInfographic = lazy(() => import("./AccountsOverviewInfographic"));
+const RecurringCashflowPanel = lazy(() => import("./RecurringCashflowPanel"));
+const WalletFundingTabs = lazy(() => import("./WalletFundingTabs"));
+const RedemptionsCard = lazy(() => import("./RedemptionsCard"));
+
+function PanelSlot({ className = "min-h-[120px]" }) {
+  return <div className={`dda-glass animate-pulse rounded-2xl ${className}`} aria-hidden="true" />;
+}
 
 export default function AccountHubView({ onSelectAccount }) {
   const { t } = useLocale();
@@ -85,12 +89,20 @@ export default function AccountHubView({ onSelectAccount }) {
       })}
       </div>
 
-      <Suspense fallback={<div className="dda-glass min-h-[200px] animate-pulse rounded-2xl" aria-hidden="true" />}>
+      <Suspense fallback={<PanelSlot className="min-h-[200px]" />}>
         <AccountsOverviewInfographic />
       </Suspense>
-      {isAdmin ? <RedemptionsCard /> : null}
-      <RecurringCashflowPanel />
-      <WalletFundingTabs />
+      {isAdmin ? (
+        <Suspense fallback={<PanelSlot />}>
+          <RedemptionsCard />
+        </Suspense>
+      ) : null}
+      <Suspense fallback={<PanelSlot className="min-h-[160px]" />}>
+        <RecurringCashflowPanel />
+      </Suspense>
+      <Suspense fallback={<PanelSlot />}>
+        <WalletFundingTabs />
+      </Suspense>
     </div>
   );
 }

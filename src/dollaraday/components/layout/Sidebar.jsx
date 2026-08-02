@@ -83,7 +83,7 @@ export function getVisibleMobileMoreItems(isAdmin) {
   return ids.map((id) => navItemById[id]).filter(Boolean);
 }
 
-export default function Sidebar({ activePage, onNavigate }) {
+export default function Sidebar({ activePage, onNavigate, onPrefetch }) {
   const { t } = useLocale();
   const { isAdmin } = useDadAuth();
   const visibleNavItems = getVisibleNavItems(isAdmin);
@@ -111,6 +111,8 @@ export default function Sidebar({ activePage, onNavigate }) {
               key={id}
               type="button"
               onClick={() => onNavigate(id)}
+              onPointerEnter={() => onPrefetch?.(id)}
+              onFocus={() => onPrefetch?.(id)}
               className={cn(
                 "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
                 active ? "dda-nav-active" : "text-gray-400 hover:bg-white/5 hover:text-white"

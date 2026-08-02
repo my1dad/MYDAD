@@ -1,10 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { AlertTriangle, CheckCircle2, Database, UserPlus, Wallet } from "lucide-react";
 import PageHeader from "../components/layout/PageHeader";
 import DashboardCard, { Badge } from "../components/layout/DashboardCard";
-import AdminMemberDetailModal from "../components/admin/AdminMemberDetailModal";
-import AdminSettingsCard from "../components/admin/AdminSettingsCard";
-import MemberSettingsCard from "../components/members/MemberSettingsCard";
 import { adminOverview, formatPoolCurrency } from "../data/mockData";
 import { useDadAuth } from "../context/DadAuthContext";
 import { useLocale } from "../i18n/LocaleContext";
@@ -12,6 +9,10 @@ import { useLocalizedData } from "../i18n/localizedData";
 import { consumePendingAdminProfileId } from "../lib/adminProfileNavigation";
 import { useAdminMemberRecords } from "../lib/profileRegistry";
 import { usePoolState } from "../lib/poolState";
+
+const AdminMemberDetailModal = lazy(() => import("../components/admin/AdminMemberDetailModal"));
+const AdminSettingsCard = lazy(() => import("../components/admin/AdminSettingsCard"));
+const MemberSettingsCard = lazy(() => import("../components/members/MemberSettingsCard"));
 
 export default function AdminPage({ onNavigate }) {
   const { t } = useLocale();
@@ -36,7 +37,9 @@ export default function AdminPage({ onNavigate }) {
           title={t("nav.settings")}
           description={t("memberProfile.settings.subtitle")}
         />
-        <MemberSettingsCard embedded />
+        <Suspense fallback={<div className="dda-glass min-h-[160px] animate-pulse rounded-2xl" aria-hidden="true" />}>
+          <MemberSettingsCard embedded />
+        </Suspense>
       </div>
     );
   }
@@ -223,14 +226,20 @@ export default function AdminPage({ onNavigate }) {
         )}
       </DashboardCard>
 
-      <AdminSettingsCard />
+      <Suspense fallback={<div className="dda-glass min-h-[120px] animate-pulse rounded-2xl" aria-hidden="true" />}>
+        <AdminSettingsCard />
+      </Suspense>
 
-      <AdminMemberDetailModal
-        profileId={selectedProfileId}
-        open={Boolean(selectedProfileId)}
-        onClose={() => setSelectedProfileId(null)}
-        onProfileDeleted={() => setSelectedProfileId(null)}
-      />
+      {selectedProfileId ? (
+        <Suspense fallback={null}>
+          <AdminMemberDetailModal
+            profileId={selectedProfileId}
+            open={Boolean(selectedProfileId)}
+            onClose={() => setSelectedProfileId(null)}
+            onProfileDeleted={() => setSelectedProfileId(null)}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { lazy, Suspense, startTransition, useCallback, useEffect, useState } fro
 import AppShell from "./components/layout/AppShell";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
+import { prefetchAllNavPages, prefetchChartWidgets, prefetchPage } from "./lib/navPrefetch";
 
 /** Home only — never block first paint on recharts. */
 import DashboardPage from "./pages/DashboardPage";
@@ -31,19 +32,6 @@ const PAGE_COMPONENTS = {
   "admin-bins": AdminDataBinsPage,
 };
 
-const PAGE_LOADERS = {
-  pool: () => import("./pages/LiquidityPoolPage"),
-  accounts: () => import("./pages/AccountsPage"),
-  members: () => import("./pages/MembersPage"),
-  allocations: () => import("./pages/DailyAllocationsPage"),
-  loans: () => import("./pages/LoansPage"),
-  community: () => import("./pages/CommunityPage"),
-  post: () => import("./pages/NewPostPage"),
-  admin: () => import("./pages/AdminPage"),
-  investments: () => import("./pages/InvestmentsPage"),
-  "admin-bins": () => import("./pages/AdminDataBinsPage"),
-};
-
 function getPageFromHash() {
   const hash = window.location.hash.replace(/^#\/?/, "");
   return PAGE_COMPONENTS[hash] ? hash : "dashboard";
@@ -60,6 +48,17 @@ function shellPageId(page) {
   return page;
 }
 
+/** Tiny placeholder — only if a chunk somehow isn't warm yet (should be rare). */
+function PageSkeleton() {
+  return (
+    <div className="space-y-4 py-2" aria-busy="true" aria-label="Loading">
+      <div className="h-8 w-44 animate-pulse rounded-lg bg-white/10" />
+      <div className="h-36 animate-pulse rounded-2xl bg-white/5" />
+      <div className="h-24 animate-pulse rounded-2xl bg-white/5" />
+    </div>
+  );
+}
+
 export default function App() {
   const { authEntryTick, isAdmin } = useDadAuth();
   const [activePage, setActivePage] = useState(() => getPageFromHash());
@@ -69,9 +68,9 @@ export default function App() {
     [getPageFromHash()]: true,
   }));
 
-  /** Instant switch — page body paints immediately; charts hydrate inside the page. */
   const goTo = useCallback((page) => {
     const nextPage = PAGE_COMPONENTS[page] ? page : "dashboard";
+    prefetchPage(nextPage);
     setMountedPages((prev) => (prev[nextPage] ? prev : { ...prev, [nextPage]: true }));
     startTransition(() => {
       setActivePage(nextPage);
@@ -98,6 +97,7 @@ export default function App() {
   useEffect(() => {
     const onHashChange = () => {
       const nextPage = getPageFromHash();
+      prefetchPage(nextPage);
       setMountedPages((prev) => (prev[nextPage] ? prev : { ...prev, [nextPage]: true }));
       startTransition(() => {
         setActivePage(nextPage);
@@ -124,10 +124,26 @@ export default function App() {
     }
   }, [authEntryTick]);
 
-  // Prefetch only light routes (no recharts). Chart pages load on tap.
+  // Warm EVERY nav destination equally, then mount them hidden so first tap is cached.
   useEffect(() => {
-    const light = ["allocations", "loans", "community", "post", "admin", "admin-bins", "members"];
-    void Promise.all(light.map((id) => PAGE_LOADERS[id]().catch(() => {})));
+    let alive = true;
+    void prefetchAllNavPages().then(() => {
+      if (!alive) return;
+      setMountedPages((prev) => {
+        const next = { ...prev };
+        Object.keys(PAGE_COMPONENTS).forEach((id) => {
+          next[id] = true;
+        });
+        return next;
+      });
+    });
+    const chartId = window.setTimeout(() => {
+      void prefetchChartWidgets();
+    }, 800);
+    return () => {
+      alive = false;
+      window.clearTimeout(chartId);
+    };
   }, []);
 
   return (
@@ -137,6 +153,7 @@ export default function App() {
         scrollKey={scrollKey}
         authEntryTick={authEntryTick}
         onNavigate={goTo}
+        onPrefetch={prefetchPage}
       >
         {Object.entries(PAGE_COMPONENTS).map(([id, Page]) => {
           if (!mountedPages[id]) return null;
@@ -147,7 +164,7 @@ export default function App() {
               style={{ display: active ? "contents" : "none" }}
               aria-hidden={!active}
             >
-              <Suspense fallback={null}>
+              <Suspense fallback={active ? <PageSkeleton /> : null}>
                 <Page onNavigate={goTo} />
               </Suspense>
             </div>

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import InvestmentHighlights from "../components/investments/InvestmentHighlights";
-import BuyAllocationsCard from "../components/investments/BuyAllocationsCard";
 import DashboardCard from "../components/layout/DashboardCard";
 import { formatPoolCurrency } from "../data/mockData";
 import { useLocale } from "../i18n/LocaleContext";
@@ -17,6 +16,7 @@ import { isStockPosition, syncStockMarketPrices } from "../lib/stockAllocations"
 import { useStockQuotes } from "../hooks/useStockMarketData";
 import { usePoolState } from "../lib/poolState";
 
+const BuyAllocationsCard = lazy(() => import("../components/investments/BuyAllocationsCard"));
 const InvestmentInfographic = lazy(() => import("../components/investments/InvestmentInfographic"));
 const InvestmentYieldChart = lazy(() => import("../components/investments/InvestmentYieldChart"));
 
@@ -151,7 +151,9 @@ export default function InvestmentsPage() {
         valueLabel={t("pages.investments.sheetValue")}
       />
 
-      <BuyAllocationsCard />
+      <Suspense fallback={<ChartSlot className="min-h-[140px]" />}>
+        <BuyAllocationsCard />
+      </Suspense>
 
       <Suspense fallback={<ChartSlot className="min-h-[280px]" />}>
         <InvestmentInfographic

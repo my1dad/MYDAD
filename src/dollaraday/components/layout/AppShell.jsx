@@ -11,7 +11,7 @@ const StockMarketSync = lazy(() => import("../investments/StockMarketSync"));
 /** Stock quotes only on investments — keeps dashboard first paint light. */
 const STOCK_SYNC_PAGES = new Set(["investments"]);
 
-export default function AppShell({ activePage, scrollKey, authEntryTick = 0, onNavigate, children }) {
+export default function AppShell({ activePage, scrollKey, authEntryTick = 0, onNavigate, onPrefetch, children }) {
   const shellScrollKey = `${activePage}-${scrollKey}-${authEntryTick}`;
 
   return (
@@ -22,7 +22,7 @@ export default function AppShell({ activePage, scrollKey, authEntryTick = 0, onN
             <StockMarketSync />
           </Suspense>
         ) : null}
-        <Sidebar activePage={activePage} onNavigate={onNavigate} />
+        <Sidebar activePage={activePage} onNavigate={onNavigate} onPrefetch={onPrefetch} />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-3 py-1.5 lg:hidden">
@@ -34,7 +34,9 @@ export default function AppShell({ activePage, scrollKey, authEntryTick = 0, onN
             scrollKey={shellScrollKey}
             mainClassName="px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 lg:px-6 lg:py-4"
             contentClassName="mx-auto max-w-6xl lg:max-w-6xl"
-            footer={<BottomNav activePage={activePage} onNavigate={onNavigate} />}
+            footer={
+              <BottomNav activePage={activePage} onNavigate={onNavigate} onPrefetch={onPrefetch} />
+            }
           >
             {children}
           </MobileShell>
