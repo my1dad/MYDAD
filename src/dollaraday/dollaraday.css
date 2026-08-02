@@ -72,6 +72,11 @@ html {
   width: 100%;
 }
 
+#initial-preloader[data-dismissed="1"] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .dda-platform-preloader--inline {
   min-height: 30vh;
   width: 100%;

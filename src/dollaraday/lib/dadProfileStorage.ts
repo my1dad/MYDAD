@@ -397,10 +397,9 @@ export function getActiveDadProfile(): DadProfile | null {
   const sessionId = getDadSessionId();
   if (!sessionId) return null;
   const profile = readProfiles().find((item) => item.id === sessionId) ?? null;
+  // Orphan / blocked sessions must clear — otherwise the shell preloader can stay up forever.
   if (!profile || !isProfileLoginAllowed(profile)) {
-    if (profile && !isProfileLoginAllowed(profile)) {
-      setDadSessionId(null);
-    }
+    setDadSessionId(null);
     return null;
   }
   return profile;

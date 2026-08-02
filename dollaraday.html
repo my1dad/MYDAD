@@ -81,6 +81,10 @@
         background: #071013;
         transition: opacity 0.2s ease;
       }
+      #initial-preloader[data-dismissed="1"] {
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
       #initial-preloader-backdrop {
         position: absolute;
         inset: 0;
@@ -185,7 +189,7 @@
     </style>
   </head>
   <body>
-    <div id="initial-preloader" aria-live="polite" aria-label="Loading My Dollar A Day">
+    <div id="initial-preloader" data-boot="1" aria-live="polite" aria-label="Loading My Dollar A Day">
       <div id="initial-preloader-backdrop" aria-hidden="true"></div>
       <div id="initial-preloader-card">
         <div id="initial-preloader-shell">
@@ -204,6 +208,21 @@
       </div>
     </div>
     <div id="root"></div>
+    <script>
+      // Failsafe for the initial boot shell only (not sign-in / dashboard preloaders).
+      window.setTimeout(function () {
+        var el = document.getElementById("initial-preloader");
+        if (!el || el.getAttribute("data-boot") !== "1") return;
+        if (el.getAttribute("data-dismissed") === "1") return;
+        el.style.pointerEvents = "none";
+        el.setAttribute("data-dismissed", "1");
+        el.setAttribute("aria-hidden", "true");
+        el.style.opacity = "0";
+        window.setTimeout(function () {
+          if (el.parentNode) el.remove();
+        }, 220);
+      }, 4000);
+    </script>
     <script type="module" src="/src/dollaraday/main.jsx"></script>
   </body>
 </html>

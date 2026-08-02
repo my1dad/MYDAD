@@ -4,6 +4,7 @@ export function dismissInitialPreloader() {
   if (typeof document === "undefined") return;
   const el = document.getElementById("initial-preloader");
   if (!el) return;
+  if (el.getAttribute("data-dismissed") === "1") return;
 
   // Always clear interaction blocking first — never leave a stuck click shield.
   el.style.pointerEvents = "none";
@@ -51,4 +52,6 @@ export function showInitialPreloader(message = "Loading") {
     const kicker = el.querySelector("#initial-preloader-kicker");
     if (kicker) kicker.textContent = message;
   }
+  // Auth / dashboard overlays are not the boot shell — boot failsafe must not kill them.
+  el.removeAttribute("data-boot");
 }

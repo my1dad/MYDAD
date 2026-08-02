@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import DadLoginPage from "./pages/DadLoginPage.jsx";
-import PlatformPreloader from "./components/layout/PlatformPreloader";
 import { showInitialPreloader, dismissInitialPreloader } from "./lib/platformPreloader";
 
 const App = lazy(() => import("./App.jsx"));
@@ -26,18 +25,20 @@ export default function DadRoot() {
 
   useEffect(() => {
     if (isAuthenticated) {
+      // Boot / first dashboard open only — never for in-app page nav.
       showInitialPreloader("Opening dashboard");
+      return undefined;
     }
+    // Login / terms must never sit under a stuck shell preloader.
+    dismissInitialPreloader();
+    return undefined;
   }, [isAuthenticated]);
 
   if (isAuthenticated) {
     return (
       <div className="dda-app h-full w-full overflow-hidden">
-        <Suspense
-          fallback={
-            <PlatformPreloader kicker="Opening dashboard" label="Loading dashboard" />
-          }
-        >
+        {/* HTML #initial-preloader covers first open; avoid a second fullscreen React overlay. */}
+        <Suspense fallback={null}>
           <PostAuthWorkspace>
             <AppReady>
               <App />
@@ -51,7 +52,7 @@ export default function DadRoot() {
   if (guestView === "terms") {
     return (
       <div className="dda-app h-full w-full overflow-hidden">
-        <Suspense fallback={<PlatformPreloader kicker="Loading" label="Loading terms" />}>
+        <Suspense fallback={null}>
           <TermsOfServicePage />
         </Suspense>
       </div>
@@ -67,7 +68,6 @@ export default function DadRoot() {
 
 function AppReady({ children }) {
   useEffect(() => {
-    // Dismiss as soon as authenticated app mounts; safety timeout if rAF is delayed.
     const rafId = requestAnimationFrame(() => dismissInitialPreloader());
     const timeoutId = window.setTimeout(() => dismissInitialPreloader(), 800);
     return () => {
