@@ -96,18 +96,25 @@ function readProfiles(): DadProfile[] {
   }
 }
 
+/** Never restamp the whole directory — that let stale pending overwrite cloud approved. */
 function writeProfiles(
   profiles: DadProfile[],
-  options: { stamp?: boolean; pushToCloud?: boolean } = {},
+  options: { stamp?: boolean; stampIds?: string[]; pushToCloud?: boolean } = {},
 ) {
-  const stamp = options.stamp !== false;
   const pushToCloud = options.pushToCloud !== false;
-  const next = stamp
-    ? profiles.map((profile) => ({
-        ...profile,
-        updatedAt: new Date().toISOString(),
-      }))
-    : profiles.map((profile) => ({ ...profile }));
+  const now = new Date().toISOString();
+  let next: DadProfile[];
+
+  if (options.stamp === false) {
+    next = profiles.map((profile) => ({ ...profile }));
+  } else if (options.stampIds?.length) {
+    const ids = new Set(options.stampIds);
+    next = profiles.map((profile) =>
+      ids.has(profile.id) ? { ...profile, updatedAt: now } : { ...profile },
+    );
+  } else {
+    next = profiles.map((profile) => ({ ...profile }));
+  }
 
   localStorage.setItem(PROFILES_KEY, JSON.stringify(next));
   profilesCache = next;
@@ -116,10 +123,18 @@ function writeProfiles(
   if (pushToCloud) {
     queueMicrotask(() => {
       void import("./supabase/cloudSync").then(({ scheduleCloudProfilesPush }) => {
-        scheduleCloudProfilesPush(next);
+        scheduleCloudProfilesPush();
       });
     });
   }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== PROFILES_KEY) return;
+    profilesCache = null;
+    notifyProfileListeners();
+  });
 }
 
 function createId() {
@@ -200,6 +215,9 @@ export async function createDadProfile(input: {
 
   if (!username) return { error: "Username is required." };
   if (username.length < 3) return { error: "Username must be at least 3 characters." };
+  if (username.toLowerCase() === ADMIN_USERNAME) {
+    return { error: "That username is reserved." };
+  }
   if (!password) return { error: "Password is required." };
   if (password.length < 4) return { error: "Password must be at least 4 characters." };
   if (!displayName) return { error: "Full name is required." };
@@ -230,12 +248,20 @@ export async function createDadProfile(input: {
   // Await cloud publish so master admin sees the new member on other devices immediately.
   try {
     const { pushCloudProfilesNow } = await import("./supabase/cloudSync");
-    await pushCloudProfilesNow(next);
+    const pushed = await pushCloudProfilesNow([profile]);
+    if (!pushed) {
+      console.warn("[dadProfileStorage] Cloud profile push failed after create; queued retry.");
+      queueMicrotask(() => {
+        void import("./supabase/cloudSync").then(({ scheduleCloudProfilesPush }) => {
+          scheduleCloudProfilesPush();
+        });
+      });
+    }
   } catch (err) {
     console.warn("[dadProfileStorage] Cloud profile push failed after create:", err);
     queueMicrotask(() => {
       void import("./supabase/cloudSync").then(({ scheduleCloudProfilesPush }) => {
-        scheduleCloudProfilesPush(next);
+        scheduleCloudProfilesPush();
       });
     });
   }
@@ -257,9 +283,13 @@ export async function authenticateDadProfile(
     ...profile,
     password: upgradedPassword,
     lastLoginAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
-  writeProfiles(readProfiles().map((item) => (item.id === profile.id ? updated : item)));
+  writeProfiles(
+    readProfiles().map((item) => (item.id === profile.id ? updated : item)),
+    { stamp: false },
+  );
   return updated;
 }
 
@@ -285,10 +315,12 @@ export async function ensureDadAdminProfile(): Promise<DadProfile> {
       role: ADMIN_ROLE,
       proId: generateProId(ADMIN_USERNAME),
       approvalStatus: "approved",
+      accountStatus: "active",
       createdAt: now,
       lastLoginAt: now,
+      updatedAt: now,
     };
-    writeProfiles([...profiles, profile]);
+    writeProfiles([...profiles, profile], { stamp: false });
     return profile;
   }
 
@@ -298,15 +330,22 @@ export async function ensureDadAdminProfile(): Promise<DadProfile> {
     fullName: profile.fullName?.trim() || ADMIN_ROLE,
     displayName: profile.displayName?.trim() || ADMIN_WORKSPACE_NAME,
     proId: profile.proId || generateProId(ADMIN_USERNAME),
-    approvalStatus: profile.approvalStatus ?? "approved",
+    approvalStatus: "approved",
+    accountStatus: profile.accountStatus === "suspended" ? "suspended" : "active",
   };
 
   if (
     updated.role !== profile.role ||
     updated.fullName !== profile.fullName ||
-    updated.displayName !== profile.displayName
+    updated.displayName !== profile.displayName ||
+    updated.approvalStatus !== profile.approvalStatus ||
+    updated.accountStatus !== profile.accountStatus ||
+    updated.proId !== profile.proId
   ) {
-    writeProfiles(profiles.map((item) => (item.id === profile!.id ? updated : item)));
+    writeProfiles(
+      profiles.map((item) => (item.id === profile!.id ? updated : item)),
+      { stamp: false },
+    );
     return updated;
   }
 
@@ -327,10 +366,15 @@ export async function loginDadAdmin(username: string, password: string): Promise
   const updated: DadProfile = {
     ...profile,
     password: upgradedPassword,
+    approvalStatus: "approved",
     lastLoginAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
-  writeProfiles(readProfiles().map((item) => (item.id === profile.id ? updated : item)));
+  writeProfiles(
+    readProfiles().map((item) => (item.id === profile.id ? updated : item)),
+    { stamp: false },
+  );
   return updated;
 }
 
@@ -413,10 +457,13 @@ export function updateDadProfileRecord(
   const index = profiles.findIndex((item) => item.id === profileId);
   if (index < 0) return null;
 
-  const updated = updater(profiles[index]);
+  const updated: DadProfile = {
+    ...updater(profiles[index]),
+    updatedAt: new Date().toISOString(),
+  };
   const next = [...profiles];
   next[index] = updated;
-  writeProfiles(next);
+  writeProfiles(next, { stamp: false });
   return updated;
 }
 

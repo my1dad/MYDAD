@@ -133,9 +133,10 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
     }
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!window.confirm(t("pages.admin.profileApproveConfirm", { name: record.name }))) return;
-    const result = approveDadProfileByAdmin(profileId);
+    setActionError("");
+    const result = await approveDadProfileByAdmin(profileId);
     if (!result.ok) {
       setActionError(result.error);
     }
@@ -218,7 +219,7 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
 
         {!isProtected ? (
           <div className="dda-admin-member-detail__actions border-b border-white/10 px-5 py-3">
-            {isPending ? (
+            {isPending || isDenied ? (
               <>
                 <button
                   type="button"
@@ -227,16 +228,20 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
                 >
                   {t("pages.admin.profileApprove")}
                 </button>
-                <span className="dda-admin-member-detail__action-sep" aria-hidden="true">
-                  |
-                </span>
-                <button
-                  type="button"
-                  onClick={handleDeny}
-                  className="dda-admin-member-detail__action dda-admin-member-detail__action--danger"
-                >
-                  {t("pages.admin.profileDeny")}
-                </button>
+                {isPending ? (
+                  <>
+                    <span className="dda-admin-member-detail__action-sep" aria-hidden="true">
+                      |
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleDeny}
+                      className="dda-admin-member-detail__action dda-admin-member-detail__action--danger"
+                    >
+                      {t("pages.admin.profileDeny")}
+                    </button>
+                  </>
+                ) : null}
                 <span className="dda-admin-member-detail__action-sep" aria-hidden="true">
                   |
                 </span>

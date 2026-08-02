@@ -7,9 +7,10 @@ import { useDadAuth } from "../context/DadAuthContext.jsx";
 
 /**
  * Keep the UI free. Background work is minimal and delayed:
- * 1) Light local pool hydrate (no member reconcile storm)
- * 2) One cloud pull much later, only when the tab is visible
- * 3) No recurring automations on login — those run on-demand in Accounts
+ * 1) Immediate profile pull so admin sees pending members to approve
+ * 2) Light local pool hydrate (no member reconcile storm)
+ * 3) Full cloud sync later — never on every visibility flip
+ * 4) No recurring automations on login — those run on-demand in Accounts
  */
 export default function PostAuthWorkspace({ children }) {
   const { isAuthenticated } = useDadAuth();
@@ -19,6 +20,16 @@ export default function PostAuthWorkspace({ children }) {
 
     let alive = true;
     const cleanups = [];
+
+    // Profiles first — admin must see new pending members without waiting 12s.
+    const profilePullTimer = window.setTimeout(() => {
+      void import("../lib/supabase/cloudSync")
+        .then(({ pullCloudProfilesNow }) => {
+          if (!alive) return;
+          return pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+        })
+        .catch((err) => console.warn("[PostAuthWorkspace] Profile pull skipped:", err));
+    }, 300);
 
     // Light local hydrate after first paint — no cloud, no registry rebuild.
     const localTimer = window.setTimeout(() => {
@@ -30,7 +41,7 @@ export default function PostAuthWorkspace({ children }) {
         .catch((err) => console.warn("[PostAuthWorkspace] Local hydrate skipped:", err));
     }, 800);
 
-    // Cloud sync once, deferred — never on every visibility flip.
+    // Full cloud sync once, deferred — never on every visibility flip.
     const cloudTimer = window.setTimeout(() => {
       if (!alive || document.visibilityState !== "visible") return;
 
@@ -72,6 +83,7 @@ export default function PostAuthWorkspace({ children }) {
 
     return () => {
       alive = false;
+      window.clearTimeout(profilePullTimer);
       window.clearTimeout(localTimer);
       window.clearTimeout(cloudTimer);
       while (cleanups.length) {

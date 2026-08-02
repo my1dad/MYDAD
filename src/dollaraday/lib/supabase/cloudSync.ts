@@ -222,20 +222,29 @@ function preferApprovalStatus(
   local: DadProfile,
   remote: DadProfile,
 ): DadProfile {
-  const localStatus = local.approvalStatus ?? "approved";
-  const remoteStatus = remote.approvalStatus ?? "approved";
-  // Approval / denial from either side must not be lost to a stale pending copy.
+  const localStatus = local.approvalStatus;
+  const remoteStatus = remote.approvalStatus;
+  const winnerStatus = winner.approvalStatus;
+
+  // Approved always beats a stale pending/unknown — never treat missing as approved.
   if (localStatus === "approved" || remoteStatus === "approved") {
-    if (winner.approvalStatus === "pending" || winner.approvalStatus == null) {
+    if (winnerStatus !== "denied") {
       return { ...winner, approvalStatus: "approved" };
     }
+    // denied vs approved: keep the newer side's decision
+    const localTs = profileTimestamp(local);
+    const remoteTs = profileTimestamp(remote);
+    const decided = localTs >= remoteTs ? localStatus : remoteStatus;
+    return { ...winner, approvalStatus: decided ?? winnerStatus };
   }
+
   if (
     (localStatus === "denied" || remoteStatus === "denied") &&
-    winner.approvalStatus === "pending"
+    (winnerStatus === "pending" || winnerStatus == null)
   ) {
     return { ...winner, approvalStatus: "denied" };
   }
+
   return winner;
 }
 
@@ -256,6 +265,45 @@ function mergeProfiles(local: DadProfile[], remote: DadProfile[]): DadProfile[] 
     map.set(profile.id, preferApprovalStatus(winner, profile, existing));
   }
   return Array.from(map.values());
+}
+
+/** Profiles whose approval should be re-published to cloud after a local merge. */
+function profilesNeedingApprovalPublish(
+  merged: DadProfile[],
+  remote: DadProfile[],
+): DadProfile[] {
+  const remoteById = new Map(remote.map((profile) => [profile.id, profile]));
+  return merged.filter((profile) => {
+    const rem = remoteById.get(profile.id);
+    if (!rem) return profile.approvalStatus === "approved" || profile.approvalStatus === "denied";
+    if (profile.approvalStatus === "approved" && rem.approvalStatus !== "approved") return true;
+    if (profile.approvalStatus === "denied" && rem.approvalStatus === "pending") return true;
+    return false;
+  });
+}
+
+/** Never let a stale pending local row overwrite approved/denied in cloud. */
+function guardAgainstApprovalDowngrade(
+  local: DadProfile,
+  remote: DadProfile | undefined,
+): DadProfile {
+  if (!remote) return local;
+  if (
+    local.approvalStatus === "pending" &&
+    (remote.approvalStatus === "approved" || remote.approvalStatus === "denied")
+  ) {
+    return {
+      ...local,
+      approvalStatus: remote.approvalStatus,
+      accountStatus:
+        remote.approvalStatus === "approved"
+          ? local.accountStatus === "suspended"
+            ? "suspended"
+            : remote.accountStatus ?? local.accountStatus ?? "active"
+          : local.accountStatus,
+    };
+  }
+  return local;
 }
 
 async function fetchCloudBins(): Promise<CloudBinRow[]> {
@@ -345,11 +393,24 @@ export function touchCloudKv(storageKey: SyncedKvKey): void {
   scheduleCloudKvPush(storageKey);
 }
 
-async function upsertCloudProfiles(profiles: DadProfile[]): Promise<void> {
+async function upsertCloudProfiles(profiles: DadProfile[]): Promise<boolean> {
   const supabase = getSupabaseClient();
-  if (!supabase || !profiles.length) return;
+  if (!supabase || !profiles.length) return true;
 
-  const rows = profiles.map((profile) => {
+  // Re-read cloud so a stale pending row cannot overwrite an approved member.
+  let remoteById = new Map<string, DadProfile>();
+  try {
+    const remote = await fetchCloudProfiles();
+    remoteById = new Map(remote.map((profile) => [profile.id, profile]));
+  } catch (err) {
+    console.warn("[cloudSync] Could not verify remote approvals before push:", err);
+  }
+
+  const safeProfiles = profiles.map((profile) =>
+    guardAgainstApprovalDowngrade(profile, remoteById.get(profile.id)),
+  );
+
+  const rows = safeProfiles.map((profile) => {
     const row = profileToRow(profile);
     // Keep REST payloads small — large data-URL photos can fail upserts silently for the whole batch.
     if (row.profile_photo_url && row.profile_photo_url.length > 8_000) {
@@ -365,31 +426,34 @@ async function upsertCloudProfiles(profiles: DadProfile[]): Promise<void> {
     console.warn("[cloudSync] Failed to push profiles:", error.message);
 
     // Retry one-by-one so a single bad row cannot block the whole directory.
+    let failed = 0;
     for (const row of rows) {
       const { error: rowError } = await supabase
         .from("dad_profiles")
         .upsert(row, { onConflict: "id" });
       if (rowError) {
+        failed += 1;
         console.warn(`[cloudSync] Failed to push profile ${row.username}:`, rowError.message);
       }
     }
-    return;
+    return failed === 0;
   }
 
   if (lastSyncError?.startsWith("Failed to push profiles:")) {
     lastSyncError = null;
     notifyCloudStatusListeners();
   }
+  return true;
 }
 
 /** Immediately upsert profiles (used on register / critical writes). */
-export async function pushCloudProfilesNow(profiles: DadProfile[]): Promise<void> {
-  if (!isSupabaseConfigured()) return;
+export async function pushCloudProfilesNow(profiles: DadProfile[]): Promise<boolean> {
+  if (!isSupabaseConfigured()) return true;
   if (pendingProfilePush) {
     clearTimeout(pendingProfilePush);
     pendingProfilePush = null;
   }
-  await upsertCloudProfiles(profiles);
+  return upsertCloudProfiles(profiles);
 }
 
 /**
@@ -406,6 +470,14 @@ export async function pullCloudProfilesNow(
     const remote = await fetchCloudProfiles();
     const merged = mergeProfiles(getLocalProfiles(), remote);
     replaceLocalProfiles(merged);
+
+    const needsPublish = profilesNeedingApprovalPublish(merged, remote);
+    if (needsPublish.length > 0) {
+      void upsertCloudProfiles(needsPublish).catch((err) =>
+        console.warn("[cloudSync] Approval re-publish after pull failed:", err),
+      );
+    }
+
     return merged;
   } catch (err) {
     console.warn("[cloudSync] Auth profile pull failed:", err);
@@ -471,14 +543,47 @@ export async function pushCloudBinsNow(
   await Promise.all(bins.map(({ binId, document }) => upsertCloudBin(binId, document)));
 }
 
-export function scheduleCloudProfilesPush(profiles: DadProfile[]): void {
-  if (!isSupabaseConfigured() || !cloudPushesAllowed()) return;
+let profilePushQueuedWhilePaused = false;
+let pauseFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function schedulePausedProfileFlush(): void {
+  if (pauseFlushTimer) return;
+  const wait = Math.max(0, cloudPushPausedUntil - Date.now()) + 50;
+  pauseFlushTimer = setTimeout(() => {
+    pauseFlushTimer = null;
+    if (!cloudPushesAllowed()) {
+      schedulePausedProfileFlush();
+      return;
+    }
+    if (!profilePushQueuedWhilePaused) return;
+    profilePushQueuedWhilePaused = false;
+    void import("../dadProfileStorage")
+      .then(({ getDadProfiles }) => upsertCloudProfiles(getDadProfiles()))
+      .catch((err) => console.warn("[cloudSync] Paused profile flush failed:", err));
+  }, wait);
+}
+
+export function scheduleCloudProfilesPush(_profiles?: DadProfile[]): void {
+  if (!isSupabaseConfigured()) return;
+
+  if (!cloudPushesAllowed()) {
+    profilePushQueuedWhilePaused = true;
+    schedulePausedProfileFlush();
+    return;
+  }
 
   if (pendingProfilePush) clearTimeout(pendingProfilePush);
   pendingProfilePush = setTimeout(() => {
     pendingProfilePush = null;
-    if (!cloudPushesAllowed()) return;
-    void upsertCloudProfiles(profiles);
+    if (!cloudPushesAllowed()) {
+      profilePushQueuedWhilePaused = true;
+      schedulePausedProfileFlush();
+      return;
+    }
+    // Always read fresh profiles — never push a stale closed-over snapshot.
+    void import("../dadProfileStorage")
+      .then(({ getDadProfiles }) => upsertCloudProfiles(getDadProfiles()))
+      .catch((err) => console.warn("[cloudSync] Scheduled profile push failed:", err));
   }, CLOUD_PUSH_DEBOUNCE_MS);
 }
 
@@ -606,6 +711,13 @@ export function startCloudRealtime(options: {
         const remote = await fetchCloudProfiles();
         const merged = mergeProfiles(options.getLocalProfiles(), remote);
         options.onProfilesChanged(merged);
+
+        const needsPublish = profilesNeedingApprovalPublish(merged, remote);
+        if (needsPublish.length > 0) {
+          void upsertCloudProfiles(needsPublish).catch((err) =>
+            console.warn("[cloudSync] Approval re-publish after realtime merge failed:", err),
+          );
+        }
       },
     )
     .on(

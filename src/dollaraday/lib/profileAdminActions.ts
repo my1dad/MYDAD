@@ -6,7 +6,6 @@ import {
   getDadProfiles,
   getDadSessionId,
   getProfileApprovalStatus,
-  isProfilePendingApproval,
   isProfileSuspended,
   removeDadProfileRecord,
   setDadSessionId,
@@ -121,13 +120,14 @@ export function deleteDadProfileByAdmin(profileId: string): AdminActionResult {
   return { ok: true };
 }
 
-export function approveDadProfileByAdmin(profileId: string): AdminActionResult {
+export async function approveDadProfileByAdmin(profileId: string): Promise<AdminActionResult> {
   const profile = findDadProfileById(profileId);
   const blocked = guardProtectedProfile(profile);
   if (blocked) return blocked;
 
-  if (!isProfilePendingApproval(profile)) {
-    return { ok: false, error: "This member is not awaiting approval." };
+  const status = getProfileApprovalStatus(profile);
+  if (status !== "pending" && status !== "denied") {
+    return { ok: false, error: "This member is already approved." };
   }
 
   const updated = updateDadProfileRecord(profileId, (current) => ({
@@ -146,10 +146,23 @@ export function approveDadProfileByAdmin(profileId: string): AdminActionResult {
     summary: "Membership approved by admin",
   });
 
-  // Await publish so the member can sign in from any device immediately after approve.
-  void import("./supabase/cloudSync")
-    .then(({ pushCloudProfilesNow }) => pushCloudProfilesNow(getDadProfiles()))
-    .catch((err) => console.warn("[profileAdmin] Approval cloud push skipped:", err));
+  try {
+    const { pushCloudProfilesNow } = await import("./supabase/cloudSync");
+    // Push the approved row immediately so the member can sign in from any device.
+    const pushed = await pushCloudProfilesNow([updated]);
+    if (!pushed) {
+      return {
+        ok: false,
+        error: "Approved locally, but cloud sync failed. Try Cloud sync now in Admin settings.",
+      };
+    }
+  } catch (err) {
+    console.warn("[profileAdmin] Approval cloud push failed:", err);
+    return {
+      ok: false,
+      error: "Approved locally, but cloud sync failed. Try Cloud sync now in Admin settings.",
+    };
+  }
 
   return { ok: true, profile: updated };
 }
