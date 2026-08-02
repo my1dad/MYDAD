@@ -67,8 +67,13 @@ export default function DadRoot() {
 
 function AppReady({ children }) {
   useEffect(() => {
-    const id = requestAnimationFrame(() => dismissInitialPreloader());
-    return () => cancelAnimationFrame(id);
+    // Dismiss as soon as authenticated app mounts; safety timeout if rAF is delayed.
+    const rafId = requestAnimationFrame(() => dismissInitialPreloader());
+    const timeoutId = window.setTimeout(() => dismissInitialPreloader(), 800);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+    };
   }, []);
   return children;
 }

@@ -73,9 +73,12 @@ html {
 }
 
 .dda-platform-preloader--inline {
-  min-height: 40vh;
+  min-height: 30vh;
   width: 100%;
   background: transparent;
+  position: relative;
+  z-index: auto;
+  pointer-events: none;
 }
 
 .dda-platform-preloader__backdrop {

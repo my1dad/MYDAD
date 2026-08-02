@@ -4,11 +4,15 @@ export function dismissInitialPreloader() {
   if (typeof document === "undefined") return;
   const el = document.getElementById("initial-preloader");
   if (!el) return;
-  el.setAttribute("data-dismissed", "1");
-  el.style.opacity = "0";
+
+  // Always clear interaction blocking first — never leave a stuck click shield.
   el.style.pointerEvents = "none";
+  el.setAttribute("data-dismissed", "1");
+  el.setAttribute("aria-hidden", "true");
+  el.style.opacity = "0";
+
   window.setTimeout(() => {
-    el.remove();
+    if (el.parentNode) el.remove();
   }, 220);
 }
 
@@ -43,6 +47,7 @@ export function showInitialPreloader(message = "Loading") {
     el.style.opacity = "1";
     el.style.pointerEvents = "auto";
     el.removeAttribute("data-dismissed");
+    el.removeAttribute("aria-hidden");
     const kicker = el.querySelector("#initial-preloader-kicker");
     if (kicker) kicker.textContent = message;
   }

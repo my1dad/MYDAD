@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState, useTransition } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import AppShell from "./components/layout/AppShell";
 import PlatformPreloader from "./components/layout/PlatformPreloader";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
@@ -40,15 +40,19 @@ function hashForPage(page) {
   return `/${page}`;
 }
 
+/** Inline only — never fullscreen during in-app navigation (blocks BottomNav/Sidebar taps). */
 function PageFallback() {
-  return <PlatformPreloader fullScreen={false} kicker="Loading page" label="Loading page" />;
+  return (
+    <div className="flex min-h-[30vh] w-full items-center justify-center py-10" aria-busy="true" aria-label="Loading page">
+      <PlatformPreloader fullScreen={false} kicker="Loading page" label="Loading page" />
+    </div>
+  );
 }
 
 export default function App() {
   const { authEntryTick, isAdmin } = useDadAuth();
-  const [activePage, setActivePage] = useState(() => "dashboard");
+  const [activePage, setActivePage] = useState(() => getPageFromHash());
   const [scrollKey, setScrollKey] = useState(0);
-  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!authEntryTick) return;
@@ -61,10 +65,8 @@ export default function App() {
 
   const navigate = useCallback((page) => {
     const nextPage = pages[page] ? page : "dashboard";
-    startTransition(() => {
-      setActivePage(nextPage);
-      setScrollKey((tick) => tick + 1);
-    });
+    setActivePage(nextPage);
+    setScrollKey((tick) => tick + 1);
     const nextHash = hashForPage(nextPage);
     const currentHash = window.location.hash.replace(/^#/, "");
     if (currentHash !== nextHash) {
@@ -75,10 +77,8 @@ export default function App() {
   useEffect(() => {
     const onHashChange = () => {
       const nextPage = getPageFromHash();
-      startTransition(() => {
-        setActivePage(nextPage);
-        setScrollKey((tick) => tick + 1);
-      });
+      setActivePage(nextPage);
+      setScrollKey((tick) => tick + 1);
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -116,7 +116,6 @@ export default function App() {
         authEntryTick={authEntryTick}
         onNavigate={navigate}
       >
-        {isPending ? <PlatformPreloader fullScreen kicker="Loading page" label="Loading page" /> : null}
         <Suspense fallback={<PageFallback />}>
           <Page key={`${activePage}-${authEntryTick}`} onNavigate={navigate} />
         </Suspense>
