@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useMemo, useState, lazy, Suspense, startTransition } from "react";
 import { Activity, Star, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
@@ -7,7 +7,7 @@ import { getMemberInitials } from "../lib/memberDetails";
 import { useDadAuth } from "../context/DadAuthContext";
 import { isMemberProfile } from "../../config/memberProfile";
 import { setPendingAdminProfileId } from "../lib/adminProfileNavigation";
-import { useFeaturedMembers, useMembers } from "../lib/memberRegistry";
+import { useMembers } from "../lib/memberRegistry";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
 import { usePoolState } from "../lib/poolState";
@@ -74,7 +74,19 @@ export default function MembersPage({ onNavigate }) {
   const [selectedMember, setSelectedMember] = useState(null);
   const { poolSummary } = usePoolState();
   const members = useMembers();
-  const featuredMembers = useFeaturedMembers(3);
+
+  const featuredMembers = useMemo(() => {
+    const registered = members
+      .filter((member) => member.profileId)
+      .sort((a, b) => {
+        const aTime = new Date(a.joinedAt ?? 0).getTime();
+        const bTime = new Date(b.joinedAt ?? 0).getTime();
+        return bTime - aTime;
+      });
+    if (registered.length >= 3) return registered.slice(0, 3);
+    const seed = members.filter((member) => !member.profileId);
+    return [...registered, ...seed].slice(0, 3);
+  }, [members]);
 
   const myMember = useMemo(
     () =>
@@ -85,6 +97,10 @@ export default function MembersPage({ onNavigate }) {
         : null,
     [members, profile],
   );
+
+  const openMember = (member) => {
+    startTransition(() => setSelectedMember(member));
+  };
 
   const isOwnProfileOpen =
     Boolean(selectedMember) &&
@@ -153,7 +169,7 @@ export default function MembersPage({ onNavigate }) {
         >
           <button
             type="button"
-            onClick={() => setSelectedMember(myMember)}
+            onClick={() => openMember(myMember)}
             className="dda-glass-btn flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:border-dda-green-light/25"
           >
             <span className="flex min-w-0 items-center gap-3">
@@ -186,8 +202,17 @@ export default function MembersPage({ onNavigate }) {
       ) : null}
 
       <section className="grid grid-cols-3 gap-2 sm:gap-4">
-        {memberStats.map((stat) => (
-          <MemberStatCard key={stat.key} {...stat} value={stat.value(poolSummary)} />
+        {memberStats.map(({ key, title, icon, accent, bg, bgDeep, border, value }) => (
+          <MemberStatCard
+            key={key}
+            title={title}
+            icon={icon}
+            accent={accent}
+            bg={bg}
+            bgDeep={bgDeep}
+            border={border}
+            value={value(poolSummary)}
+          />
         ))}
       </section>
 
@@ -202,7 +227,7 @@ export default function MembersPage({ onNavigate }) {
               key={member.id}
               type="button"
               role="listitem"
-              onClick={() => setSelectedMember(member)}
+              onClick={() => openMember(member)}
               className="dda-members-list__row group"
             >
               <span className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
@@ -288,7 +313,7 @@ export default function MembersPage({ onNavigate }) {
               <button
                 key={member.id}
                 type="button"
-                onClick={() => setSelectedMember(fullMember)}
+                onClick={() => openMember(fullMember)}
                 className="dda-featured-member dda-glass-btn group flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm transition hover:border-dda-green-light/20"
               >
                 <span className="relative flex min-w-0 items-center gap-2.5">
@@ -325,7 +350,13 @@ export default function MembersPage({ onNavigate }) {
       </DashboardCard>
 
       {selectedMember ? (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+              <p className="text-sm text-gray-300">Opening profile…</p>
+            </div>
+          }
+        >
           <MemberDetailModal
             member={selectedMember}
             open={Boolean(selectedMember)}

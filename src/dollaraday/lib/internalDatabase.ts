@@ -237,8 +237,9 @@ export function applyExternalBinDocument(
   }
   notifyListeners();
 
-  // Remote settings/contributions must refresh member ledgers, member stats, and pool totals.
-  if (key === "settings" || key === "contributions" || key === "members") {
+  // Remote contributions/settings refresh ledgers. Never re-reconcile on "members"
+  // apply — that wrote members again and created a sync/render freeze loop.
+  if (key === "settings" || key === "contributions") {
     queueMicrotask(() => {
       void Promise.all([
         import("./memberAccounts"),
@@ -253,9 +254,7 @@ export function applyExternalBinDocument(
           { reconcileMemberEscrowFromContributions },
         ]) => {
           invalidateMemberAccountsCache();
-          if (key === "contributions" || key === "settings") {
-            reconcileMemberEscrowFromContributions();
-          }
+          reconcileMemberEscrowFromContributions();
           if (key === "contributions") {
             reconcileMembersFromContributions();
           }
@@ -289,6 +288,28 @@ export function appendDataRecord(
   return record;
 }
 
+function payloadsEqual(
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (const key of leftKeys) {
+    if (!(key in right)) return false;
+    const a = left[key];
+    const b = right[key];
+    if (a === b) continue;
+    // Avoid JSON.stringify on huge values (e.g. photos) unless both are objects.
+    if (a && b && typeof a === "object" && typeof b === "object") {
+      if (JSON.stringify(a) !== JSON.stringify(b)) return false;
+      continue;
+    }
+    if (a !== b) return false;
+  }
+  return true;
+}
+
 export function upsertDataRecord(
   key: DataBinKey,
   recordId: string,
@@ -300,10 +321,15 @@ export function upsertDataRecord(
   const existing = bin.records.find((item) => item.id === recordId);
 
   if (existing) {
+    const nextPayload = { ...existing.payload, ...payload };
+    // Skip no-op writes — endless members upserts were freezing Members page re-renders.
+    if (payloadsEqual(existing.payload, nextPayload)) {
+      return existing;
+    }
     const updated: StoredRecord = {
       ...existing,
       source,
-      payload: { ...existing.payload, ...payload },
+      payload: nextPayload,
       updatedAt: timestamp,
     };
     writeDataBin(key, {

@@ -94,20 +94,30 @@ export function resolveMemberStatus(profile: DadProfile): string {
   return "active";
 }
 
-function enrichMemberWithProfileStatus(member: Member): Member {
+function enrichMemberWithProfileStatus(
+  member: Member,
+  profilesById?: Map<string, DadProfile>,
+): Member {
   if (!member.profileId) return member;
-  const profile = getDadProfiles().find((item) => item.id === member.profileId);
+  const profile = profilesById
+    ? profilesById.get(member.profileId)
+    : getDadProfiles().find((item) => item.id === member.profileId);
   if (!profile) return member;
   return { ...member, status: resolveMemberStatus(profile) };
 }
 
 const NON_APPROVED_MEMBER_STATUSES = new Set(["pending", "declined", "denied"]);
 
-function isApprovedDirectoryMember(member: Member): boolean {
+function isApprovedDirectoryMember(
+  member: Member,
+  profilesById?: Map<string, DadProfile>,
+): boolean {
   if (isAdminMember(member)) return true;
 
   if (member.profileId) {
-    const profile = getDadProfiles().find((item) => item.id === member.profileId);
+    const profile = profilesById
+      ? profilesById.get(member.profileId)
+      : getDadProfiles().find((item) => item.id === member.profileId);
     if (!profile) return false;
     return getProfileApprovalStatus(profile) === "approved";
   }
@@ -326,6 +336,7 @@ export function getRegisteredMembers(): Member[] {
 }
 
 export function getMembersList(): Member[] {
+  const profilesById = new Map(getDadProfiles().map((profile) => [profile.id, profile]));
   const stored = getStoredMembers();
   const storedProfileIds = new Set(
     stored.map((member) => member.profileId ?? member.id),
@@ -336,8 +347,8 @@ export function getMembersList(): Member[] {
   );
 
   return mergeMemberLists(stored, seeded)
-    .map(enrichMemberWithProfileStatus)
-    .filter(isApprovedDirectoryMember);
+    .map((member) => enrichMemberWithProfileStatus(member, profilesById))
+    .filter((member) => isApprovedDirectoryMember(member, profilesById));
 }
 
 export function useFeaturedMembers(limit = 3): Member[] {
@@ -374,6 +385,7 @@ export function useMembers(): Member[] {
   );
 
   return useMemo(() => {
+    const profilesById = new Map(getDadProfiles().map((profile) => [profile.id, profile]));
     const stored = snapshot.bins.members.records
       .map(payloadToMember)
       .filter((member): member is Member => member !== null);
@@ -388,8 +400,8 @@ export function useMembers(): Member[] {
     );
 
     return mergeMemberLists(stored, seeded)
-      .map(enrichMemberWithProfileStatus)
-      .filter(isApprovedDirectoryMember);
+      .map((member) => enrichMemberWithProfileStatus(member, profilesById))
+      .filter((member) => isApprovedDirectoryMember(member, profilesById));
   }, [profileRevision, snapshot.syncedAt, snapshot.bins.members.records]);
 }
 

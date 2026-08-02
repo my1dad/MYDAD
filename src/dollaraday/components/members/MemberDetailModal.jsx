@@ -1,16 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import {
   Banknote,
   Calendar,
@@ -26,9 +15,11 @@ import { lockBodyScroll } from "@/lib/modalBodyLock";
 import { cn } from "@/lib/utils";
 import { Badge, ProgressBar } from "../layout/DashboardCard";
 import { buildMemberDetail } from "../../lib/memberDetails";
-import MemberSettingsCard from "./MemberSettingsCard";
 import { useLocale } from "../../i18n/LocaleContext";
 import { useLocalizedData } from "../../i18n/localizedData";
+
+/** Settings only when needed — keeps modal open path free of heavy forms. */
+const MemberSettingsCard = lazy(() => import("./MemberSettingsCard"));
 
 const loanStatusStyles = {
   approved: "text-dda-green-light",
@@ -36,24 +27,57 @@ const loanStatusStyles = {
   declined: "text-red-400",
 };
 
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
+function ContributionBars({ data }) {
+  const max = Math.max(1, ...data.map((row) => Number(row.amount) || 0));
   return (
-    <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2 text-xs shadow-xl">
-      <p className="text-gray-400">{label}</p>
-      <p className="mt-0.5 font-semibold text-dda-green-light">${payload[0].value}</p>
+    <div className="flex h-40 items-end gap-2 px-1">
+      {data.map((row) => {
+        const amount = Number(row.amount) || 0;
+        const height = Math.max(amount > 0 ? 12 : 4, Math.round((amount / max) * 100));
+        return (
+          <div key={row.label} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+            <div
+              className="w-full max-w-[1.75rem] rounded-t-md bg-dda-green-light/85"
+              style={{ height: `${height}%` }}
+              title={`$${amount}`}
+            />
+            <span className="text-[10px] text-gray-500">{row.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function AccountTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const item = payload[0].payload;
+function AccountBars({ accounts, total }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-dda-bg/95 px-3 py-2 text-xs shadow-xl">
-      <p className="font-medium text-white">{item.name}</p>
-      <p className="mt-0.5 text-dda-green-light">${item.value.toLocaleString()}</p>
-    </div>
+    <ul className="space-y-2">
+      {accounts.map((account) => {
+        const pct = total ? Math.round((account.value / total) * 100) : 0;
+        return (
+          <li key={account.name} className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex items-center gap-2 text-gray-300">
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: account.color }}
+                />
+                {account.name}
+              </span>
+              <span className="tabular-nums text-gray-200">
+                {pct}% · ${account.value.toLocaleString()}
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-white/5">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${pct}%`, backgroundColor: account.color }}
+              />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -233,27 +257,7 @@ export default function MemberDetailModal({
             <div className="space-y-4">
               <div className="dda-panel rounded-xl p-4">
                 <p className="mb-3 text-sm font-medium text-white">{t("memberModal.contributionTrend")}</p>
-                <div className="h-40 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={detail.contributionTrend} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fontSize: 10, fill: "#6b7280" }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: "#6b7280" }}
-                        axisLine={false}
-                        tickLine={false}
-                        domain={[0, 1.2]}
-                        ticks={[0, 1]}
-                      />
-                      <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(52,211,153,0.08)" }} />
-                      <Bar dataKey="amount" fill="var(--color-dda-green-light)" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                <ContributionBars data={detail.contributionTrend} />
               </div>
 
               <div className="dda-glass overflow-hidden rounded-2xl">
@@ -301,61 +305,14 @@ export default function MemberDetailModal({
             <div className="space-y-4">
               <div className="dda-panel rounded-xl p-4">
                 <p className="mb-3 text-sm font-medium text-white">{t("memberModal.accountBreakdown")}</p>
-                <div className="grid gap-4 sm:grid-cols-[1fr_1.2fr] sm:items-center">
-                  <div className="relative h-44">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={detail.accounts}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={48}
-                          outerRadius={68}
-                          paddingAngle={2}
-                          dataKey="value"
-                          stroke="#071013"
-                          strokeWidth={2}
-                        >
-                          {detail.accounts.map((entry) => (
-                            <Cell key={entry.name} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip content={<AccountTooltip />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                      <CircleDollarSign className="h-5 w-5 text-dda-green-light" />
-                      <span className="mt-1 text-xs font-bold text-white">
-                        ${detail.accountTotal.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  <ul className="space-y-2">
-                    {detail.accounts.map((account) => {
-                      const pct = detail.accountTotal
-                        ? Math.round((account.value / detail.accountTotal) * 100)
-                        : 0;
-                      return (
-                        <li
-                          key={account.name}
-                          className="dda-glass-btn flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm"
-                        >
-                          <span className="flex items-center gap-2 text-gray-300">
-                            <span
-                              className="h-2.5 w-2.5 rounded-full"
-                              style={{ backgroundColor: account.color }}
-                            />
-                            {account.name}
-                          </span>
-                          <span className="tabular-nums text-gray-200">
-                            {pct}% · ${account.value.toLocaleString()}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                <div className="mb-4 flex items-center gap-2 text-sm text-gray-400">
+                  <CircleDollarSign className="h-4 w-4 text-dda-green-light" />
+                  <span className="font-semibold tabular-nums text-white">
+                    ${detail.accountTotal.toLocaleString()}
+                  </span>
+                  <span>{t("memberModal.total")}</span>
                 </div>
+                <AccountBars accounts={detail.accounts} total={detail.accountTotal} />
               </div>
 
               <div className="dda-panel rounded-xl p-4 text-sm text-gray-400">
@@ -411,7 +368,9 @@ export default function MemberDetailModal({
           )}
 
           {activeTab === "settings" && isOwnProfile ? (
-            <MemberSettingsCard embedded />
+            <Suspense fallback={<p className="py-6 text-center text-sm text-gray-500">Loading…</p>}>
+              <MemberSettingsCard embedded />
+            </Suspense>
           ) : null}
         </div>
       </div>
