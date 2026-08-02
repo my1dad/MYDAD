@@ -6,7 +6,9 @@ import { workspaceBinsPlugin } from "./vite-plugin-workspace-bins.js";
 import { massiveApiPlugin } from "./vite-plugin-massive-api.js";
 
 export default defineConfig({
-  base: "./",
+  // Vercel serves from a web root — absolute `/` so SPA rewrites cannot break `./assets/*`.
+  // Local + Electron (file://) keep relative `./`.
+  base: process.env.VERCEL ? "/" : "./",
   plugins: [react(), tailwindcss(), workspaceBinsPlugin(path.resolve(__dirname, "bins")), massiveApiPlugin()],
   resolve: {
     alias: {

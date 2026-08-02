@@ -1,11 +1,11 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [
-    { "source": "/", "destination": "/dollaraday.html" },
+  "redirects": [
     {
-      "source": "/((?!api/|assets/|app-icon\\.png|dollaraday\\.html|index\\.html).*)",
-      "destination": "/dollaraday.html"
+      "source": "/",
+      "destination": "/dollaraday.html",
+      "permanent": false
     }
   ]
 }

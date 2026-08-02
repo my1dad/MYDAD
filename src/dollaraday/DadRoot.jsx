@@ -23,6 +23,21 @@ export default function DadRoot() {
     return () => window.removeEventListener("hashchange", syncGuestView);
   }, []);
 
+  // Prefetch the app shell while the user is on login so post-auth isn't a blank wait.
+  useEffect(() => {
+    if (isAuthenticated) return undefined;
+    const idle = window.requestIdleCallback
+      ? (cb) => window.requestIdleCallback(cb, { timeout: 2000 })
+      : (cb) => window.setTimeout(cb, 100);
+    const cancelIdle = window.cancelIdleCallback
+      ? (id) => window.cancelIdleCallback(id)
+      : (id) => window.clearTimeout(id);
+    const idleId = idle(() => {
+      void import("./App.jsx").catch(() => {});
+    });
+    return () => cancelIdle(idleId);
+  }, [isAuthenticated]);
+
   // Guests must never sit under the boot shell. Returning sessions dismiss in AppReady.
   useEffect(() => {
     if (!isAuthenticated) dismissInitialPreloader();
