@@ -82,7 +82,7 @@ export function getVisibleMobileMoreItems(isAdmin) {
   return ids.map((id) => navItemById[id]).filter(Boolean);
 }
 
-export default function Sidebar({ activePage, onNavigate }) {
+export default function Sidebar({ activePage, onNavigate, onPrefetch }) {
   const { t } = useLocale();
   const { isAdmin } = useDadAuth();
   const visibleNavItems = getVisibleNavItems(isAdmin);
@@ -109,6 +109,8 @@ export default function Sidebar({ activePage, onNavigate }) {
             <button
               key={id}
               type="button"
+              onPointerEnter={() => onPrefetch?.(id)}
+              onPointerDown={() => onPrefetch?.(id)}
               onClick={() => onNavigate(id)}
               className={cn(
                 "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",

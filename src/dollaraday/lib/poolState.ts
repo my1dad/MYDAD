@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import {
   allocationComparisons as seedComparisons,
   currentMember as seedCurrentMember,
@@ -7,7 +7,7 @@ import {
   poolComposition as seedComposition,
   poolSummary as seedPoolSummary,
 } from "../data/mockData";
-import { readDataBin, upsertDataRecord } from "./internalDatabase";
+import { readDataBin, upsertDataRecord, subscribeInternalDatabase } from "./internalDatabase";
 import {
   easternNow,
   formatEasternIsoDate,
@@ -18,9 +18,9 @@ import { getPoolCashEscrowBalance } from "./memberEscrowTotals";
 import { getTotalDeployedCapital } from "./allocationSleeves";
 import { computePoolInflowMetrics } from "./poolInflow";
 import { POOL_CAPITAL_COLORS } from "./theme";
-import { subscribeInternalDatabase } from "./internalDatabase";
 
 const POOL_STATE_RECORD_ID = "pool-live-state";
+const INFLOW_SYNC_DEBOUNCE_MS = 120;
 
 export interface TodayDonation {
   id: string;
@@ -139,25 +139,36 @@ function createSeedState(): PoolLiveState {
 
 let state: PoolLiveState = createSeedState();
 let inflowSyncSubscribed = false;
+let poolRevision = 0;
+let inflowSyncTimer: number | null = null;
 
 function ensureInflowSyncSubscription(): void {
   if (inflowSyncSubscribed) return;
   inflowSyncSubscribed = true;
   subscribeInternalDatabase(() => {
-    // Keep pool totals and today's donations live when bins change (including cloud pulls).
-    const deployed = getTotalDeployedCapital();
-    const cashEscrow = getPoolCashEscrowBalance(deployed);
-    state.poolSummary.deployedCapital = deployed;
-    state.poolSummary.escrowBalance = cashEscrow;
-    state.poolSummary.availableToDeploy = cashEscrow;
-    syncCompositionAndReserve();
-    syncPoolInflowMetrics();
-    notifyPoolListeners();
+    // Debounce — bulk member/cloud writes must not recompute pool on every record.
+    if (inflowSyncTimer) window.clearTimeout(inflowSyncTimer);
+    inflowSyncTimer = window.setTimeout(() => {
+      inflowSyncTimer = null;
+      const deployed = getTotalDeployedCapital();
+      const cashEscrow = getPoolCashEscrowBalance(deployed);
+      state.poolSummary.deployedCapital = deployed;
+      state.poolSummary.escrowBalance = cashEscrow;
+      state.poolSummary.availableToDeploy = cashEscrow;
+      syncCompositionAndReserve();
+      syncPoolInflowMetrics();
+      notifyPoolListeners();
+    }, INFLOW_SYNC_DEBOUNCE_MS);
   });
 }
 
 function notifyPoolListeners(): void {
+  poolRevision += 1;
   listeners.forEach((listener) => listener(state));
+}
+
+export function getPoolRevision(): number {
+  return poolRevision;
 }
 
 function bumpBalanceHistory(amount: number): void {
@@ -449,9 +460,13 @@ export function subscribePoolState(listener: PoolListener): () => void {
 }
 
 export function usePoolState(): PoolLiveState & { dashboardStats: ReturnType<typeof getDashboardStats> } {
-  const liveState = useSyncExternalStore(subscribePoolState, getPoolState, getPoolState);
-  return {
-    ...liveState,
-    dashboardStats: getDashboardStats(),
-  };
+  const revision = useSyncExternalStore(subscribePoolState, getPoolRevision, () => 0);
+  return useMemo(() => {
+    void revision;
+    const liveState = getPoolState();
+    return {
+      ...liveState,
+      dashboardStats: getDashboardStats(),
+    };
+  }, [revision]);
 }

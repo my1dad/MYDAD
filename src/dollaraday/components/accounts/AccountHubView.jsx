@@ -29,9 +29,18 @@ export default function AccountHubView({ onSelectAccount }) {
   const ledger = useMemberAccounts(profileId);
 
   useEffect(() => {
-    // Backfill Chase Escrow from completed contributions so Accounts matches Members/Pool.
-    reconcileMemberEscrowFromContributions();
-    processRecurringCashflows();
+    // After paint — never block Accounts hub open with ledger rebuild.
+    const idle = window.requestIdleCallback
+      ? (cb) => window.requestIdleCallback(cb, { timeout: 2500 })
+      : (cb) => window.setTimeout(cb, 400);
+    const cancel = window.cancelIdleCallback
+      ? (id) => window.cancelIdleCallback(id)
+      : (id) => window.clearTimeout(id);
+    const id = idle(() => {
+      reconcileMemberEscrowFromContributions();
+      processRecurringCashflows();
+    });
+    return () => cancel(id);
   }, [profileId]);
 
   return (

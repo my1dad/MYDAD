@@ -12,7 +12,7 @@ import {
   getVisibleMobileNavItems,
 } from "./Sidebar";
 
-export default function BottomNav({ activePage, onNavigate }) {
+export default function BottomNav({ activePage, onNavigate, onPrefetch }) {
   const { t } = useLocale();
   const { isAdmin } = useDadAuth();
   const visibleNavItems = getVisibleMobileNavItems(isAdmin);
@@ -21,6 +21,10 @@ export default function BottomNav({ activePage, onNavigate }) {
   const moreMenuRef = useRef(null);
   const moreTriggerRef = useRef(null);
   const moreActive = visibleMoreItems.some((item) => item.id === activePage);
+
+  const warm = (id) => {
+    onPrefetch?.(id);
+  };
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -54,6 +58,7 @@ export default function BottomNav({ activePage, onNavigate }) {
               <button
                 key={id}
                 type="button"
+                onPointerDown={() => warm(id)}
                 onClick={() => onNavigate(id)}
                 className={cn(
                   "flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 px-1.5 touch-manipulation",
@@ -94,6 +99,7 @@ export default function BottomNav({ activePage, onNavigate }) {
                       key={id}
                       type="button"
                       role="menuitem"
+                      onPointerDown={() => warm(id)}
                       onClick={() => {
                         onNavigate(id);
                         setMoreOpen(false);

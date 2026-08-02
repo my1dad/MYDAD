@@ -15,7 +15,7 @@ import {
   subscribeDadProfiles,
   subscribeDadSession,
 } from "./dadProfileStorage";
-import { getDatabaseSnapshot, readDataBin, subscribeInternalDatabase } from "./internalDatabase";
+import { getDatabaseRevision, readDataBin, subscribeInternalDatabase } from "./internalDatabase";
 import { getProfileActivityEvents } from "./profileActivity";
 
 export type DdaNotificationKind =
@@ -278,10 +278,10 @@ export function getNotifications(isAdmin: boolean): DdaNotification[] {
 export function useNotifications(isAdmin: boolean, profileId?: string | null) {
   const profileRevision = useSyncExternalStore(subscribeDadProfiles, getDadProfileRevision, () => 0);
   const sessionRevision = useSyncExternalStore(subscribeDadSession, getDadSessionRevision, () => 0);
-  const snapshot = useSyncExternalStore(
+  const dbRevision = useSyncExternalStore(
     subscribeInternalDatabase,
-    getDatabaseSnapshot,
-    getDatabaseSnapshot,
+    getDatabaseRevision,
+    () => 0,
   );
   const readRevision = useSyncExternalStore(
     subscribeReadState,
@@ -293,6 +293,7 @@ export function useNotifications(isAdmin: boolean, profileId?: string | null) {
   const activeProfileId = profileId ?? getActiveDadProfile()?.id;
 
   return useMemo(() => {
+    void dbRevision;
     const notifications = buildNotifications(activeProfileId, isAdmin);
     const unreadCount = notifications.filter((item) => item.unread).length;
     return { notifications, unreadCount };
@@ -301,9 +302,7 @@ export function useNotifications(isAdmin: boolean, profileId?: string | null) {
     activeProfileId,
     profileRevision,
     sessionRevision,
-    snapshot.syncedAt,
-    snapshot.bins.adminCaptures.records,
-    snapshot.bins.contributions.records,
+    dbRevision,
     readRevision,
     dmReadRevision,
   ]);

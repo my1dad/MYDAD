@@ -1,7 +1,16 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { DadProfile } from "./dadProfileStorage";
 import { findDadProfileByProId, getDadProfileRevision, getDadProfiles, subscribeDadProfiles } from "./dadProfileStorage";
-import { getDatabaseSnapshot, readDataBin, subscribeInternalDatabase, upsertDataRecord, type StoredRecord } from "./internalDatabase";
+import {
+  beginBulkWrite,
+  endBulkWrite,
+  getDatabaseRevision,
+  getDatabaseSnapshot,
+  readDataBin,
+  subscribeInternalDatabase,
+  upsertDataRecord,
+  type StoredRecord,
+} from "./internalDatabase";
 import {
   buildHandle,
   findStoredMemberByProfileId,
@@ -116,9 +125,14 @@ export function syncProfileToMemberRegistry(
 }
 
 export function syncAllProfilesToMemberRegistry(): void {
-  getDadProfiles().forEach((profile) => {
-    syncProfileToMemberRegistry(profile);
-  });
+  beginBulkWrite();
+  try {
+    getDadProfiles().forEach((profile) => {
+      syncProfileToMemberRegistry(profile);
+    });
+  } finally {
+    endBulkWrite();
+  }
 }
 
 export function getAdminMemberRecords(): AdminMemberRecord[] {
@@ -199,10 +213,10 @@ export function buildAdminMemberDetail(profileId: string) {
 }
 
 export function useAdminMemberRecords(): AdminMemberRecord[] {
-  const snapshot = useSyncExternalStore(
+  const dbRevision = useSyncExternalStore(
     subscribeInternalDatabase,
-    getDatabaseSnapshot,
-    getDatabaseSnapshot,
+    getDatabaseRevision,
+    () => 0,
   );
   const profileRevision = useSyncExternalStore(
     subscribeDadProfiles,
@@ -211,10 +225,8 @@ export function useAdminMemberRecords(): AdminMemberRecord[] {
   );
 
   return useMemo(() => {
-    void snapshot.syncedAt;
-    void snapshot.bins.members.records;
-    void snapshot.bins.adminCaptures.records;
-    void profileRevision;
+    void dbRevision;
+    void getDatabaseSnapshot();
     return getAdminMemberRecords();
-  }, [snapshot.syncedAt, snapshot.bins.members.records, snapshot.bins.adminCaptures.records, profileRevision]);
+  }, [dbRevision, profileRevision]);
 }

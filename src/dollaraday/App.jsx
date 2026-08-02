@@ -1,4 +1,4 @@
-import { lazy, Suspense, startTransition, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "./components/layout/AppShell";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
@@ -6,15 +6,27 @@ import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
 /** Home is sync — everything else loads on demand so nav never downloads the world. */
 import DashboardPage from "./pages/DashboardPage";
 
-const LiquidityPoolPage = lazy(() => import("./pages/LiquidityPoolPage"));
-const AccountsPage = lazy(() => import("./pages/AccountsPage"));
-const MembersPage = lazy(() => import("./pages/MembersPage"));
-const DailyAllocationsPage = lazy(() => import("./pages/DailyAllocationsPage"));
-const LoansPage = lazy(() => import("./pages/LoansPage"));
-const CommunityPage = lazy(() => import("./pages/CommunityPage"));
-const AdminPage = lazy(() => import("./pages/AdminPage"));
-const InvestmentsPage = lazy(() => import("./pages/InvestmentsPage"));
-const AdminDataBinsPage = lazy(() => import("./pages/AdminDataBinsPage"));
+const pageLoaders = {
+  pool: () => import("./pages/LiquidityPoolPage"),
+  accounts: () => import("./pages/AccountsPage"),
+  members: () => import("./pages/MembersPage"),
+  allocations: () => import("./pages/DailyAllocationsPage"),
+  loans: () => import("./pages/LoansPage"),
+  community: () => import("./pages/CommunityPage"),
+  admin: () => import("./pages/AdminPage"),
+  investments: () => import("./pages/InvestmentsPage"),
+  "admin-bins": () => import("./pages/AdminDataBinsPage"),
+};
+
+const LiquidityPoolPage = lazy(pageLoaders.pool);
+const AccountsPage = lazy(pageLoaders.accounts);
+const MembersPage = lazy(pageLoaders.members);
+const DailyAllocationsPage = lazy(pageLoaders.allocations);
+const LoansPage = lazy(pageLoaders.loans);
+const CommunityPage = lazy(pageLoaders.community);
+const AdminPage = lazy(pageLoaders.admin);
+const InvestmentsPage = lazy(pageLoaders.investments);
+const AdminDataBinsPage = lazy(pageLoaders["admin-bins"]);
 
 const pages = {
   dashboard: DashboardPage,
@@ -28,6 +40,15 @@ const pages = {
   investments: InvestmentsPage,
   "admin-bins": AdminDataBinsPage,
 };
+
+const warmed = new Set(["dashboard"]);
+
+export function prefetchPage(pageId) {
+  const loader = pageLoaders[pageId];
+  if (!loader || warmed.has(pageId)) return;
+  warmed.add(pageId);
+  void loader();
+}
 
 function getPageFromHash() {
   const hash = window.location.hash.replace(/^#\/?/, "");
@@ -48,9 +69,12 @@ export default function App() {
   const { authEntryTick, isAdmin } = useDadAuth();
   const [activePage, setActivePage] = useState(() => getPageFromHash());
   const [scrollKey, setScrollKey] = useState(0);
+  const navigatingRef = useRef(false);
 
   const goTo = useCallback((page) => {
     const nextPage = pages[page] ? page : "dashboard";
+    prefetchPage(nextPage);
+    navigatingRef.current = true;
     startTransition(() => {
       setActivePage(nextPage);
       setScrollKey((tick) => tick + 1);
@@ -59,6 +83,10 @@ export default function App() {
     if (window.location.hash.replace(/^#/, "") !== nextHash) {
       window.location.hash = nextHash;
     }
+    // Allow hashchange echo to be ignored briefly.
+    window.setTimeout(() => {
+      navigatingRef.current = false;
+    }, 50);
   }, []);
 
   useEffect(() => {
@@ -72,7 +100,9 @@ export default function App() {
 
   useEffect(() => {
     const onHashChange = () => {
+      if (navigatingRef.current) return;
       const nextPage = getPageFromHash();
+      prefetchPage(nextPage);
       startTransition(() => {
         setActivePage(nextPage);
         setScrollKey((tick) => tick + 1);
@@ -98,6 +128,20 @@ export default function App() {
     }
   }, [authEntryTick]);
 
+  // Warm primary destinations after first paint so first tap is usually cached.
+  useEffect(() => {
+    const idle = window.requestIdleCallback
+      ? (cb) => window.requestIdleCallback(cb, { timeout: 4000 })
+      : (cb) => window.setTimeout(cb, 1200);
+    const cancel = window.cancelIdleCallback
+      ? (id) => window.cancelIdleCallback(id)
+      : (id) => window.clearTimeout(id);
+    const id = idle(() => {
+      ["pool", "accounts", "members", "allocations"].forEach(prefetchPage);
+    });
+    return () => cancel(id);
+  }, []);
+
   const Page = pages[activePage] ?? DashboardPage;
   const isDashboard = activePage === "dashboard";
 
@@ -108,6 +152,7 @@ export default function App() {
         scrollKey={scrollKey}
         authEntryTick={authEntryTick}
         onNavigate={goTo}
+        onPrefetch={prefetchPage}
       >
         {isDashboard ? (
           <Page key={`${activePage}-${authEntryTick}`} onNavigate={goTo} />

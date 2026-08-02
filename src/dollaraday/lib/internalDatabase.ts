@@ -44,6 +44,9 @@ const FETCH_TIMEOUT_MS = 5000;
 let mode: StorageMode = "local";
 let binsRoot: string | null = null;
 let initialized = false;
+let databaseRevision = 0;
+let bulkWriteDepth = 0;
+let bulkWriteDirty = false;
 
 const cache = Object.create(null) as Record<string, DataBinDocument | null>;
 const pendingWrites = Object.create(null) as Record<string, ReturnType<typeof setTimeout>>;
@@ -139,7 +142,7 @@ function schedulePersist(binId: string): void {
     } catch (err) {
       console.warn(`[internalDatabase] Could not save ${binId} to localStorage:`, err);
     }
-    notifyListeners();
+    scheduleNotifyListeners();
     return;
   }
 
@@ -148,7 +151,7 @@ function schedulePersist(binId: string): void {
     const nextPayload = cache[binId];
     if (!nextPayload) return;
     persistToDisk(binId, nextPayload)
-      .then(() => notifyListeners())
+      .then(() => scheduleNotifyListeners())
       .catch((err) => console.warn(`[internalDatabase] Could not persist ${binId}:`, err));
   }, WRITE_DEBOUNCE_MS);
 }
@@ -174,10 +177,36 @@ function normalizeBinDocument(key: DataBinKey, raw: unknown): DataBinDocument {
   };
 }
 
+function scheduleNotifyListeners(): void {
+  if (bulkWriteDepth > 0) {
+    bulkWriteDirty = true;
+    return;
+  }
+  notifyListeners();
+}
+
 function notifyListeners(): void {
+  databaseRevision += 1;
   invalidateSnapshot();
   const snapshot = getDatabaseSnapshot();
   listeners.forEach((listener) => listener(snapshot));
+}
+
+/** Collapse N writes into one React notify — use around registry/cloud bulk sync. */
+export function beginBulkWrite(): void {
+  bulkWriteDepth += 1;
+}
+
+export function endBulkWrite(): void {
+  bulkWriteDepth = Math.max(0, bulkWriteDepth - 1);
+  if (bulkWriteDepth === 0 && bulkWriteDirty) {
+    bulkWriteDirty = false;
+    notifyListeners();
+  }
+}
+
+export function getDatabaseRevision(): number {
+  return databaseRevision;
 }
 
 export function subscribeInternalDatabase(listener: DatabaseListener): () => void {
@@ -397,7 +426,8 @@ export function getDatabaseSnapshot(): DatabaseSnapshot {
     profileId: DAD_STORAGE_PROFILE_ID,
     mode,
     binsRoot,
-    syncedAt: nowIso(),
+    // Stable for a given revision — hooks should key off bin updatedAt / revision, not a fresh ISO.
+    syncedAt: `rev-${databaseRevision}`,
     bins,
   };
 

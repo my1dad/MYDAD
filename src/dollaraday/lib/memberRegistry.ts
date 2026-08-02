@@ -19,6 +19,9 @@ import { formatContributionDueLabel, formatEasternIsoDate } from "./dateTime";
 import { members as seedMembers } from "../data/mockData";
 import {
   appendDataRecord,
+  beginBulkWrite,
+  endBulkWrite,
+  getDatabaseRevision,
   getDatabaseSnapshot,
   readDataBin,
   subscribeInternalDatabase,
@@ -378,16 +381,17 @@ export function useMembers(): Member[] {
     getDadProfileRevision,
     () => 0,
   );
-  const snapshot = useSyncExternalStore(
+  const dbRevision = useSyncExternalStore(
     subscribeInternalDatabase,
-    getDatabaseSnapshot,
-    getDatabaseSnapshot,
+    getDatabaseRevision,
+    () => 0,
   );
 
   return useMemo(() => {
+    void dbRevision;
     const profilesById = new Map(getDadProfiles().map((profile) => [profile.id, profile]));
-    const stored = snapshot.bins.members.records
-      .map(payloadToMember)
+    const stored = getDatabaseSnapshot()
+      .bins.members.records.map(payloadToMember)
       .filter((member): member is Member => member !== null);
 
     const storedIds = new Set(stored.map((member) => member.id));
@@ -402,21 +406,20 @@ export function useMembers(): Member[] {
     return mergeMemberLists(stored, seeded)
       .map((member) => enrichMemberWithProfileStatus(member, profilesById))
       .filter((member) => isApprovedDirectoryMember(member, profilesById));
-  }, [profileRevision, snapshot.syncedAt, snapshot.bins.members.records]);
+  }, [profileRevision, dbRevision]);
 }
 
 export function useRegisteredMembers(): Member[] {
-  const snapshot = useSyncExternalStore(
+  const dbRevision = useSyncExternalStore(
     subscribeInternalDatabase,
-    getDatabaseSnapshot,
-    getDatabaseSnapshot,
+    getDatabaseRevision,
+    () => 0,
   );
 
   return useMemo(() => {
-    void snapshot.syncedAt;
-    void snapshot.bins.members.records;
+    void dbRevision;
     return getRegisteredMembers();
-  }, [snapshot.syncedAt, snapshot.bins.members.records]);
+  }, [dbRevision]);
 }
 
 export function useAllProfileMembers(): Member[] {
@@ -425,18 +428,17 @@ export function useAllProfileMembers(): Member[] {
     getDadProfileRevision,
     () => 0,
   );
-  const snapshot = useSyncExternalStore(
+  const dbRevision = useSyncExternalStore(
     subscribeInternalDatabase,
-    getDatabaseSnapshot,
-    getDatabaseSnapshot,
+    getDatabaseRevision,
+    () => 0,
   );
 
   return useMemo(() => {
     void profileRevision;
-    void snapshot.syncedAt;
-    void snapshot.bins.members.records;
+    void dbRevision;
     return getAllProfileMembers();
-  }, [profileRevision, snapshot.syncedAt, snapshot.bins.members.records]);
+  }, [profileRevision, dbRevision]);
 }
 
 export function persistMemberFromProfile(
@@ -569,10 +571,15 @@ export function reconcileMembersFromContributions(): boolean {
     ...getStoredMembers().map((member) => member.profileId ?? member.id),
   ]);
 
+  beginBulkWrite();
   let changed = false;
-  profileIds.forEach((profileId) => {
-    if (applyMemberStatsFromContributions(profileId)) changed = true;
-  });
+  try {
+    profileIds.forEach((profileId) => {
+      if (applyMemberStatsFromContributions(profileId)) changed = true;
+    });
+  } finally {
+    endBulkWrite();
+  }
   return changed;
 }
 

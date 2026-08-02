@@ -13,6 +13,10 @@ const EasternTimeContext = createContext(null);
 const RELATIVE_TICK_MS = 30_000;
 const DAY_CHECK_MS = 60_000;
 
+/**
+ * Shell-wide provider — NO relativeTick here.
+ * A 30s tick in this value was re-rendering AppShell + active page + nav.
+ */
 export function EasternTimeProvider({ children }) {
   const { locale } = useLocale();
   const settingsRevision = useSyncExternalStore(
@@ -21,16 +25,8 @@ export function EasternTimeProvider({ children }) {
     () => 0,
   );
   const appSettings = useMemo(() => getAppSettings(), [settingsRevision]);
-  const [relativeTick, setRelativeTick] = useState(0);
   const [easternDay, setEasternDay] = useState(() => formatEasternIsoDate());
 
-  // Relative labels refresh periodically — no live ticking clock in the chrome.
-  useEffect(() => {
-    const relativeId = window.setInterval(() => setRelativeTick((tick) => tick + 1), RELATIVE_TICK_MS);
-    return () => window.clearInterval(relativeId);
-  }, []);
-
-  // Day-boundary cashflow processing — check once a minute, not every second.
   useEffect(() => {
     const checkDay = () => {
       const day = formatEasternIsoDate();
@@ -49,11 +45,10 @@ export function EasternTimeProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      relativeTick,
       easternDay,
       longDate: formatEasternLongDate(easternNow(), locale),
     }),
-    [relativeTick, easternDay, locale, appSettings.timezone],
+    [easternDay, locale, appSettings.timezone],
   );
 
   return <EasternTimeContext.Provider value={value}>{children}</EasternTimeContext.Provider>;
@@ -65,12 +60,19 @@ export function useEasternLiveTime() {
   return ctx;
 }
 
+/** Local tick — only remounts the leaf that shows a relative timestamp. */
 export function useLiveRelativeTime(iso, options = {}) {
   const { t, locale } = useLocale();
-  const { relativeTick } = useEasternLiveTime();
+  const [relativeTick, setRelativeTick] = useState(0);
   const fallback = options.fallback ?? t("common.justNow");
 
+  useEffect(() => {
+    const id = window.setInterval(() => setRelativeTick((tick) => tick + 1), RELATIVE_TICK_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
   return useMemo(() => {
+    void relativeTick;
     if (!iso) return fallback;
     const label = formatRelativeTimeFromNow(iso, t, locale);
     return label || fallback;
