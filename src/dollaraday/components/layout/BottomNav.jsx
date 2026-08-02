@@ -12,7 +12,7 @@ import {
   getVisibleMobileNavItems,
 } from "./Sidebar";
 
-export default function BottomNav({ activePage, onNavigate, onPrefetch }) {
+export default function BottomNav({ activePage, onNavigate }) {
   const { t } = useLocale();
   const { isAdmin } = useDadAuth();
   const visibleNavItems = getVisibleMobileNavItems(isAdmin);
@@ -21,10 +21,6 @@ export default function BottomNav({ activePage, onNavigate, onPrefetch }) {
   const moreMenuRef = useRef(null);
   const moreTriggerRef = useRef(null);
   const moreActive = visibleMoreItems.some((item) => item.id === activePage);
-
-  const warm = (id) => {
-    onPrefetch?.(id);
-  };
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -40,12 +36,6 @@ export default function BottomNav({ activePage, onNavigate, onPrefetch }) {
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [moreOpen]);
-
-  // When More opens, warm every overflow destination immediately.
-  useEffect(() => {
-    if (!moreOpen) return;
-    visibleMoreItems.forEach((item) => onPrefetch?.(item.id));
-  }, [moreOpen, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps -- warm on open only
 
   return (
     <>
@@ -65,9 +55,6 @@ export default function BottomNav({ activePage, onNavigate, onPrefetch }) {
                 key={id}
                 type="button"
                 onClick={() => onNavigate(id)}
-                onPointerEnter={() => warm(id)}
-                onTouchStart={() => warm(id)}
-                onFocus={() => warm(id)}
                 className={cn(
                   "flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 px-1.5 touch-manipulation",
                   active ? "text-dda-green-light" : "hover:text-white"
@@ -85,7 +72,6 @@ export default function BottomNav({ activePage, onNavigate, onPrefetch }) {
               aria-expanded={moreOpen}
               aria-haspopup="menu"
               onClick={() => setMoreOpen((open) => !open)}
-              onPointerEnter={() => visibleMoreItems.forEach((item) => warm(item.id))}
               className={cn(
                 "flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 px-1.5 touch-manipulation",
                 moreOpen || moreActive ? "text-dda-green-light" : "hover:text-white"
@@ -104,25 +90,24 @@ export default function BottomNav({ activePage, onNavigate, onPrefetch }) {
                 {visibleMoreItems.map(({ id, icon: DefaultIcon }) => {
                   const Icon = getNavItemIcon(id, DefaultIcon, isAdmin);
                   return (
-                  <button
-                    key={id}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      onNavigate(id);
-                      setMoreOpen(false);
-                    }}
-                    onPointerEnter={() => warm(id)}
-                    className={cn(
-                      "flex w-full items-center gap-2 px-3 py-2.5 text-sm",
-                      activePage === id
-                        ? "dda-nav-active"
-                        : "text-gray-300 hover:bg-white/5"
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {getNavItemLabel(id, t, isAdmin)}
-                  </button>
+                    <button
+                      key={id}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        onNavigate(id);
+                        setMoreOpen(false);
+                      }}
+                      className={cn(
+                        "flex w-full items-center gap-2 px-3 py-2.5 text-sm",
+                        activePage === id
+                          ? "dda-nav-active"
+                          : "text-gray-300 hover:bg-white/5"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {getNavItemLabel(id, t, isAdmin)}
+                    </button>
                   );
                 })}
                 <div className="my-1 border-t border-white/10" />

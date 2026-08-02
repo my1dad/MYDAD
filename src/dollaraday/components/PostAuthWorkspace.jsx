@@ -22,8 +22,8 @@ export default function PostAuthWorkspace({ children }) {
     const cleanups = [];
 
     const idle = window.requestIdleCallback
-      ? (cb) => window.requestIdleCallback(cb, { timeout: 2500 })
-      : (cb) => window.setTimeout(cb, 50);
+      ? (cb) => window.requestIdleCallback(cb, { timeout: 8000 })
+      : (cb) => window.setTimeout(cb, 2500);
 
     const cancelIdle = window.cancelIdleCallback
       ? (id) => window.cancelIdleCallback(id)
