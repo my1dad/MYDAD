@@ -1,11 +1,13 @@
 import { useState } from "react";
+import { lazy, Suspense } from "react";
 import PageHeader from "../components/layout/PageHeader";
-import AccountDetailView from "../components/accounts/AccountDetailView";
 import AccountHubView from "../components/accounts/AccountHubView";
 import { useDadAuth } from "../context/DadAuthContext.jsx";
 import { useLocale } from "../i18n/LocaleContext";
 
-export default function AccountsPage() {
+const AccountDetailView = lazy(() => import("../components/accounts/AccountDetailView"));
+
+export default function AccountsPage({ onNavigate }) {
   const { t } = useLocale();
   const { isAdmin } = useDadAuth();
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -19,9 +21,11 @@ export default function AccountsPage() {
       />
 
       {selectedAccount ? (
-        <AccountDetailView accountId={selectedAccount} onBack={() => setSelectedAccount(null)} />
+        <Suspense fallback={<div className="dda-glass min-h-[240px] animate-pulse rounded-2xl" aria-hidden="true" />}>
+          <AccountDetailView accountId={selectedAccount} onBack={() => setSelectedAccount(null)} />
+        </Suspense>
       ) : (
-        <AccountHubView onSelectAccount={setSelectedAccount} />
+        <AccountHubView onSelectAccount={setSelectedAccount} onNavigate={onNavigate} />
       )}
     </div>
   );

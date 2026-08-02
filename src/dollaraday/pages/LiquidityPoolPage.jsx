@@ -1,13 +1,19 @@
 import { Lock } from "lucide-react";
+import { lazy, Suspense } from "react";
 import PageHeader from "../components/layout/PageHeader";
 import DashboardCard, { PoolSecondaryStats, ProgressBar } from "../components/layout/DashboardCard";
-import LiquidityPoolInfographic from "../components/layout/LiquidityPoolInfographic";
 import { useDadAuth } from "../context/DadAuthContext";
 import { formatPoolCurrency } from "../data/mockData";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
 import { useEscrowLedgerEntries, useLiveInvestmentFunnel } from "../lib/allocationSleeves";
 import { usePoolState } from "../lib/poolState";
+
+const LiquidityPoolInfographic = lazy(() => import("../components/layout/LiquidityPoolInfographic"));
+
+function ChartSlot({ className = "min-h-[220px]" }) {
+  return <div className={`dda-glass animate-pulse rounded-2xl ${className}`} aria-hidden="true" />;
+}
 
 export default function LiquidityPoolPage() {
   const { t } = useLocale();
@@ -30,8 +36,9 @@ export default function LiquidityPoolPage() {
         description={t("pages.poolPage.description")}
       />
 
-      <LiquidityPoolInfographic />
-
+      <Suspense fallback={<ChartSlot className="min-h-[280px]" />}>
+        <LiquidityPoolInfographic />
+      </Suspense>
       {isAdmin ? (
         <PoolSecondaryStats stats={localizedStats} hints={statHints} />
       ) : null}

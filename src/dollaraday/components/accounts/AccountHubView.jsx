@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { lazy, Suspense } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPoolCurrency } from "../../data/mockData";
@@ -7,13 +8,14 @@ import { useLocale } from "../../i18n/LocaleContext";
 import { maskAccountNumber, resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
 import { reconcileMemberEscrowFromContributions } from "../../lib/poolEscrowReconcile";
 import { processRecurringCashflows } from "../../lib/recurringCashflow";
-import AccountsOverviewInfographic from "./AccountsOverviewInfographic";
 import BankAccountLogo from "./BankAccountLogo";
 import { getVisibleBankAccounts } from "./bankAccounts";
 import { getAccountDisplay } from "./accountDisplay";
 import RecurringCashflowPanel from "./RecurringCashflowPanel";
 import WalletFundingTabs from "./WalletFundingTabs";
 import RedemptionsCard from "./RedemptionsCard";
+
+const AccountsOverviewInfographic = lazy(() => import("./AccountsOverviewInfographic"));
 
 export default function AccountHubView({ onSelectAccount }) {
   const { t } = useLocale();
@@ -83,7 +85,9 @@ export default function AccountHubView({ onSelectAccount }) {
       })}
       </div>
 
-      <AccountsOverviewInfographic />
+      <Suspense fallback={<div className="dda-glass min-h-[200px] animate-pulse rounded-2xl" aria-hidden="true" />}>
+        <AccountsOverviewInfographic />
+      </Suspense>
       {isAdmin ? <RedemptionsCard /> : null}
       <RecurringCashflowPanel />
       <WalletFundingTabs />

@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { Activity, Star, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import DashboardCard from "../components/layout/DashboardCard";
-import MemberDetailModal from "../components/members/MemberDetailModal";
 import { getMemberInitials } from "../lib/memberDetails";
 import { useDadAuth } from "../context/DadAuthContext";
 import { isMemberProfile } from "../../config/memberProfile";
@@ -12,6 +11,8 @@ import { useFeaturedMembers, useMembers } from "../lib/memberRegistry";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
 import { usePoolState } from "../lib/poolState";
+
+const MemberDetailModal = lazy(() => import("../components/members/MemberDetailModal"));
 
 function MemberStatCard({ title, value, icon: Icon, accent, bg, bgDeep, border }) {
   return (
@@ -323,14 +324,18 @@ export default function MembersPage({ onNavigate }) {
         </div>
       </DashboardCard>
 
-      <MemberDetailModal
-        member={selectedMember}
-        open={Boolean(selectedMember)}
-        onClose={() => setSelectedMember(null)}
-        isAdmin={isAdmin}
-        isOwnProfile={isOwnProfileOpen}
-        onOpenProfileRegistry={handleOpenProfileRegistry}
-      />
+      {selectedMember ? (
+        <Suspense fallback={null}>
+          <MemberDetailModal
+            member={selectedMember}
+            open={Boolean(selectedMember)}
+            onClose={() => setSelectedMember(null)}
+            isAdmin={isAdmin}
+            isOwnProfile={isOwnProfileOpen}
+            onOpenProfileRegistry={handleOpenProfileRegistry}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

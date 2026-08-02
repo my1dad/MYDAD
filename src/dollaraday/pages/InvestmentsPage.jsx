@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import InvestmentHighlights from "../components/investments/InvestmentHighlights";
 import BuyAllocationsCard from "../components/investments/BuyAllocationsCard";
-import InvestmentInfographic from "../components/investments/InvestmentInfographic";
-import InvestmentYieldChart from "../components/investments/InvestmentYieldChart";
 import DashboardCard from "../components/layout/DashboardCard";
 import { formatPoolCurrency } from "../data/mockData";
 import { useLocale } from "../i18n/LocaleContext";
@@ -18,6 +16,13 @@ import { useAllocationPositions } from "../lib/allocationPositions";
 import { isStockPosition, syncStockMarketPrices } from "../lib/stockAllocations";
 import { useStockQuotes } from "../hooks/useStockMarketData";
 import { usePoolState } from "../lib/poolState";
+
+const InvestmentInfographic = lazy(() => import("../components/investments/InvestmentInfographic"));
+const InvestmentYieldChart = lazy(() => import("../components/investments/InvestmentYieldChart"));
+
+function ChartSlot({ className = "min-h-[220px]" }) {
+  return <div className={`dda-glass animate-pulse rounded-2xl ${className}`} aria-hidden="true" />;
+}
 
 function InvestmentSheetStats({ rows, metricLabel, valueLabel }) {
   return (
@@ -148,20 +153,24 @@ export default function InvestmentsPage() {
 
       <BuyAllocationsCard />
 
-      <InvestmentInfographic
-        investments={sleeveInvestments}
-        positions={positions}
-        totalAllocated={totalAllocated}
-        poolApy={poolSummary.poolApy}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-      />
+      <Suspense fallback={<ChartSlot className="min-h-[280px]" />}>
+        <InvestmentInfographic
+          investments={sleeveInvestments}
+          positions={positions}
+          totalAllocated={totalAllocated}
+          poolApy={poolSummary.poolApy}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
+      </Suspense>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <InvestmentYieldChart
-          investments={sleeveInvestments}
-          blendedApy={poolSummary.poolApy}
-        />
+        <Suspense fallback={<ChartSlot />}>
+          <InvestmentYieldChart
+            investments={sleeveInvestments}
+            blendedApy={poolSummary.poolApy}
+          />
+        </Suspense>
 
         <DashboardCard
           title={t("pages.investments.sleeveComparison")}

@@ -1,9 +1,9 @@
-import { lazy, Suspense, startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useEffect, useState } from "react";
 import AppShell from "./components/layout/AppShell";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
 
-/** Only home is sync — post-login paint stays light (no recharts in the critical path). */
+/** Home only — never block first paint on recharts. */
 import DashboardPage from "./pages/DashboardPage";
 
 const LiquidityPoolPage = lazy(() => import("./pages/LiquidityPoolPage"));
@@ -17,20 +17,6 @@ const AdminPage = lazy(() => import("./pages/AdminPage"));
 const InvestmentsPage = lazy(() => import("./pages/InvestmentsPage"));
 const AdminDataBinsPage = lazy(() => import("./pages/AdminDataBinsPage"));
 
-const PAGE_LOADERS = {
-  dashboard: () => Promise.resolve({ default: DashboardPage }),
-  pool: () => import("./pages/LiquidityPoolPage"),
-  accounts: () => import("./pages/AccountsPage"),
-  members: () => import("./pages/MembersPage"),
-  allocations: () => import("./pages/DailyAllocationsPage"),
-  loans: () => import("./pages/LoansPage"),
-  community: () => import("./pages/CommunityPage"),
-  post: () => import("./pages/NewPostPage"),
-  admin: () => import("./pages/AdminPage"),
-  investments: () => import("./pages/InvestmentsPage"),
-  "admin-bins": () => import("./pages/AdminDataBinsPage"),
-};
-
 const PAGE_COMPONENTS = {
   dashboard: DashboardPage,
   pool: LiquidityPoolPage,
@@ -43,6 +29,19 @@ const PAGE_COMPONENTS = {
   admin: AdminPage,
   investments: InvestmentsPage,
   "admin-bins": AdminDataBinsPage,
+};
+
+const PAGE_LOADERS = {
+  pool: () => import("./pages/LiquidityPoolPage"),
+  accounts: () => import("./pages/AccountsPage"),
+  members: () => import("./pages/MembersPage"),
+  allocations: () => import("./pages/DailyAllocationsPage"),
+  loans: () => import("./pages/LoansPage"),
+  community: () => import("./pages/CommunityPage"),
+  post: () => import("./pages/NewPostPage"),
+  admin: () => import("./pages/AdminPage"),
+  investments: () => import("./pages/InvestmentsPage"),
+  "admin-bins": () => import("./pages/AdminDataBinsPage"),
 };
 
 function getPageFromHash() {
@@ -69,66 +68,45 @@ export default function App() {
     dashboard: true,
     [getPageFromHash()]: true,
   }));
-  const navSeq = useRef(0);
 
-  const applyPage = useCallback((nextPage) => {
+  /** Instant switch — page body paints immediately; charts hydrate inside the page. */
+  const goTo = useCallback((page) => {
+    const nextPage = PAGE_COMPONENTS[page] ? page : "dashboard";
     setMountedPages((prev) => (prev[nextPage] ? prev : { ...prev, [nextPage]: true }));
     startTransition(() => {
       setActivePage(nextPage);
       setScrollKey((tick) => tick + 1);
     });
     const nextHash = hashForPage(nextPage);
-    const currentHash = window.location.hash.replace(/^#/, "");
-    if (currentHash !== nextHash) {
+    if (window.location.hash.replace(/^#/, "") !== nextHash) {
       window.location.hash = nextHash;
     }
   }, []);
 
-  /** Wait for the chunk, keep current page on screen — never show a loading spinner. */
-  const goTo = useCallback(
-    (page) => {
-      const nextPage = PAGE_COMPONENTS[page] ? page : "dashboard";
-      if (nextPage === activePage) return;
-
-      const seq = ++navSeq.current;
-      const loader = PAGE_LOADERS[nextPage] ?? PAGE_LOADERS.dashboard;
-
-      void loader()
-        .then(() => {
-          if (seq !== navSeq.current) return;
-          applyPage(nextPage);
-        })
-        .catch(() => {
-          if (seq !== navSeq.current) return;
-          applyPage(nextPage);
-        });
-    },
-    [activePage, applyPage],
-  );
-
   useEffect(() => {
     if (!authEntryTick) return;
-    applyPage("dashboard");
-  }, [authEntryTick, applyPage]);
+    setMountedPages((prev) => ({ ...prev, dashboard: true }));
+    startTransition(() => {
+      setActivePage("dashboard");
+      setScrollKey((tick) => tick + 1);
+    });
+    if (window.location.hash.replace(/^#/, "") !== "") {
+      window.location.hash = "";
+    }
+  }, [authEntryTick]);
 
   useEffect(() => {
     const onHashChange = () => {
       const nextPage = getPageFromHash();
-      if (nextPage === activePage) return;
-      const seq = ++navSeq.current;
-      const loader = PAGE_LOADERS[nextPage] ?? PAGE_LOADERS.dashboard;
-      void loader().then(() => {
-        if (seq !== navSeq.current) return;
-        setMountedPages((prev) => (prev[nextPage] ? prev : { ...prev, [nextPage]: true }));
-        startTransition(() => {
-          setActivePage(nextPage);
-          setScrollKey((tick) => tick + 1);
-        });
+      setMountedPages((prev) => (prev[nextPage] ? prev : { ...prev, [nextPage]: true }));
+      startTransition(() => {
+        setActivePage(nextPage);
+        setScrollKey((tick) => tick + 1);
       });
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, [activePage]);
+  }, []);
 
   useEffect(() => {
     if (isAdmin) return;
@@ -146,15 +124,10 @@ export default function App() {
     }
   }, [authEntryTick]);
 
-  // Warm light routes immediately; chart-heavy routes shortly after so home stays snappy.
+  // Prefetch only light routes (no recharts). Chart pages load on tap.
   useEffect(() => {
-    const light = ["allocations", "loans", "community", "post", "admin", "admin-bins"];
-    const heavy = ["pool", "accounts", "members", "investments"];
+    const light = ["allocations", "loans", "community", "post", "admin", "admin-bins", "members"];
     void Promise.all(light.map((id) => PAGE_LOADERS[id]().catch(() => {})));
-    const heavyId = window.setTimeout(() => {
-      void Promise.all(heavy.map((id) => PAGE_LOADERS[id]().catch(() => {})));
-    }, 1200);
-    return () => window.clearTimeout(heavyId);
   }, []);
 
   return (

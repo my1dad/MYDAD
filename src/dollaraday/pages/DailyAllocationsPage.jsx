@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import DashboardCard from "../components/layout/DashboardCard";
 import ContributeTodaySection from "../components/home/ContributeTodaySection";
 import ContributeOnboardingModal from "../components/onboarding/ContributeOnboardingModal";
-import MemberDetailModal from "../components/members/MemberDetailModal";
 import { useMembers } from "../lib/memberRegistry";
 import { resolveMemberFromDonation } from "../lib/memberDetails";
 import { useLocale } from "../i18n/LocaleContext";
@@ -13,6 +12,8 @@ import { useEasternLiveTime, useLiveRelativeTime } from "../context/EasternTimeC
 import { usePoolState } from "../lib/poolState";
 import { saveContribution } from "../lib/storageWrites";
 import { formatPoolCurrency } from "../data/mockData";
+
+const MemberDetailModal = lazy(() => import("../components/members/MemberDetailModal"));
 
 const statusStyles = {
   completed: "text-dda-green-light",
@@ -180,11 +181,15 @@ export default function DailyAllocationsPage() {
         }}
       />
 
-      <MemberDetailModal
-        member={selectedMember}
-        open={Boolean(selectedMember)}
-        onClose={() => setSelectedMember(null)}
-      />
+      {selectedMember ? (
+        <Suspense fallback={null}>
+          <MemberDetailModal
+            member={selectedMember}
+            open={Boolean(selectedMember)}
+            onClose={() => setSelectedMember(null)}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }
