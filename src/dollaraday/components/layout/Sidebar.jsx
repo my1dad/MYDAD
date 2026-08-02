@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocale } from "../../i18n/LocaleContext";
 import { logoutDollarADay } from "../../lib/logout";
-import EasternLiveClock from "./EasternLiveClock";
 
 const navItemById = {
   dashboard: { id: "dashboard", icon: LayoutDashboard },
@@ -130,10 +129,6 @@ export default function Sidebar({ activePage, onNavigate }) {
           {t("nav.logout")}
         </button>
       </nav>
-
-      <div className="mt-auto border-t border-white/10 px-2 pt-3">
-        <EasternLiveClock variant="sidebar" className="w-full text-right" />
-      </div>
     </aside>
   );
 }

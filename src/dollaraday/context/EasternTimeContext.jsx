@@ -26,7 +26,7 @@ export function EasternTimeProvider({ children }) {
   const [relativeTick, setRelativeTick] = useState(0);
   const [easternDay, setEasternDay] = useState(() => formatEasternIsoDate());
 
-  // Relative labels refresh periodically; live clock ticks live only in EasternLiveClock.
+  // Relative labels refresh periodically — no live ticking clock in the chrome.
   useEffect(() => {
     const relativeId = window.setInterval(() => setRelativeTick((tick) => tick + 1), RELATIVE_TICK_MS);
     return () => window.clearInterval(relativeId);
