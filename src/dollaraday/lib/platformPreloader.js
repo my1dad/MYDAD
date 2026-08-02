@@ -1,10 +1,15 @@
-/** Controllers for the HTML shell preloader and in-app PlatformPreloader overlays. */
+/** Boot-only controller for the HTML `#initial-preloader` in dollaraday.html.
+ * Never re-show after dismiss — that was the click-shield that broke BottomNav.
+ */
 
 export function dismissInitialPreloader() {
   if (typeof document === "undefined") return;
   const el = document.getElementById("initial-preloader");
   if (!el) return;
-  if (el.getAttribute("data-dismissed") === "1") return;
+  if (el.getAttribute("data-dismissed") === "1") {
+    el.style.pointerEvents = "none";
+    return;
+  }
 
   // Always clear interaction blocking first — never leave a stuck click shield.
   el.style.pointerEvents = "none";
@@ -15,43 +20,4 @@ export function dismissInitialPreloader() {
   window.setTimeout(() => {
     if (el.parentNode) el.remove();
   }, 220);
-}
-
-export function showInitialPreloader(message = "Loading") {
-  if (typeof document === "undefined") return;
-  let el = document.getElementById("initial-preloader");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "initial-preloader";
-    el.setAttribute("aria-live", "polite");
-    el.setAttribute("aria-label", "Loading My Dollar A Day");
-    el.innerHTML = `
-      <div id="initial-preloader-backdrop" aria-hidden="true"></div>
-      <div id="initial-preloader-card">
-        <div id="initial-preloader-shell">
-          <div id="initial-preloader-stage">
-            <span id="initial-preloader-glow" aria-hidden="true"></span>
-            <div id="initial-preloader-ring">
-              <span class="track" aria-hidden="true"></span>
-              <span class="spin" aria-hidden="true"></span>
-            </div>
-          </div>
-          <div id="initial-preloader-copy">
-            <p id="initial-preloader-kicker">${message}</p>
-            <p id="initial-preloader-brand">My Dollar A Day</p>
-          </div>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(el);
-  } else {
-    el.style.opacity = "1";
-    el.style.pointerEvents = "auto";
-    el.removeAttribute("data-dismissed");
-    el.removeAttribute("aria-hidden");
-    const kicker = el.querySelector("#initial-preloader-kicker");
-    if (kicker) kicker.textContent = message;
-  }
-  // Auth / dashboard overlays are not the boot shell — boot failsafe must not kill them.
-  el.removeAttribute("data-boot");
 }

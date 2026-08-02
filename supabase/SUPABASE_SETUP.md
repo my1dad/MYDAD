@@ -47,7 +47,7 @@ Restart the dev server after changing env vars.
 | Login profiles (every member + admin) | `dad_profiles` | Shared worldwide — any device can log in |
 | App settings, notifications read state, DM read state, locale | `dad_kv` | Shared workspace defaults |
 
-**Worldwide login:** when a member creates an account or signs in from any device, their profile is stored in `dad_profiles`. The next device pulls that directory on startup (and every ~45s / via Realtime).
+**Worldwide login:** when a member creates an account or signs in from any device, their profile is stored in `dad_profiles`. The next device pulls that directory on startup (and via Realtime, with a rare ~5 min backup poll).
 
 **Master admin visibility:** the admin Members page and detail modals read from the shared profile directory + shared bins (contributions, wallets in settings, community posts, activity). After cloud sync, every member’s created data is visible to master admin.
 

@@ -1,12 +1,12 @@
 /**
  * Platform preloader — same visual language as dollaraday.html #initial-preloader.
- * Use for Suspense, bootstrap, auth, and page transitions.
+ * Default inline — never fullscreen during in-app nav (covers BottomNav).
  */
 export default function PlatformPreloader({
   label = "Loading My Dollar A Day",
   kicker = "Loading",
   brand = "My Dollar A Day",
-  fullScreen = true,
+  fullScreen = false,
   className = "",
 }) {
   return (

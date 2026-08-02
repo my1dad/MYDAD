@@ -28,7 +28,8 @@ interface RecurringSchedulesPayload {
   subscriptions: RecurringSubscription[];
 }
 
-const CHECK_INTERVAL_MS = 60_000;
+/** Run once on start, then every 5 min + visibility — avoid bin rewrite churn. */
+const CHECK_INTERVAL_MS = 5 * 60_000;
 
 function readSchedulesPayload(): RecurringSchedulesPayload {
   const settings = readDataBin("settings");

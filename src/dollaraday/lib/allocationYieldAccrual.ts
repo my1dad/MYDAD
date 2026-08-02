@@ -18,7 +18,8 @@ import {
   rolloverEasternDayIfNeeded,
 } from "./poolState";
 
-const CHECK_INTERVAL_MS = 60_000;
+/** Run once on start, then every 5 min + visibility — avoid bin rewrite churn. */
+const CHECK_INTERVAL_MS = 5 * 60_000;
 const MAX_CATCH_UP = 366;
 
 let automationTimer: ReturnType<typeof setInterval> | null = null;

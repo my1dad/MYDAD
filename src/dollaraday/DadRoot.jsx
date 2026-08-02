@@ -1,10 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import DadLoginPage from "./pages/DadLoginPage.jsx";
-import { showInitialPreloader, dismissInitialPreloader } from "./lib/platformPreloader";
+import PostAuthWorkspace from "./components/PostAuthWorkspace.jsx";
+import { dismissInitialPreloader } from "./lib/platformPreloader";
 
 const App = lazy(() => import("./App.jsx"));
-const PostAuthWorkspace = lazy(() => import("./components/PostAuthWorkspace.jsx"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage.jsx"));
 
 function resolveGuestView() {
@@ -23,28 +23,21 @@ export default function DadRoot() {
     return () => window.removeEventListener("hashchange", syncGuestView);
   }, []);
 
+  // Guests must never sit under the boot shell. Returning sessions dismiss in AppReady.
   useEffect(() => {
-    if (isAuthenticated) {
-      // Boot / first dashboard open only — never for in-app page nav.
-      showInitialPreloader("Opening dashboard");
-      return undefined;
-    }
-    // Login / terms must never sit under a stuck shell preloader.
-    dismissInitialPreloader();
-    return undefined;
+    if (!isAuthenticated) dismissInitialPreloader();
   }, [isAuthenticated]);
 
   if (isAuthenticated) {
     return (
       <div className="dda-app h-full w-full overflow-hidden">
-        {/* HTML #initial-preloader covers first open; avoid a second fullscreen React overlay. */}
-        <Suspense fallback={null}>
-          <PostAuthWorkspace>
+        <PostAuthWorkspace>
+          <Suspense fallback={null}>
             <AppReady>
               <App />
             </AppReady>
-          </PostAuthWorkspace>
-        </Suspense>
+          </Suspense>
+        </PostAuthWorkspace>
       </div>
     );
   }
@@ -66,10 +59,12 @@ export default function DadRoot() {
   );
 }
 
+/** Dismiss the HTML boot shell once the authenticated app tree mounts. */
 function AppReady({ children }) {
   useEffect(() => {
     const rafId = requestAnimationFrame(() => dismissInitialPreloader());
-    const timeoutId = window.setTimeout(() => dismissInitialPreloader(), 800);
+    // Belt-and-suspenders: never leave a click shield after mount.
+    const timeoutId = window.setTimeout(() => dismissInitialPreloader(), 400);
     return () => {
       cancelAnimationFrame(rafId);
       window.clearTimeout(timeoutId);

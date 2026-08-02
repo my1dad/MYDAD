@@ -4,16 +4,19 @@ import PlatformPreloader from "./components/layout/PlatformPreloader";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
 
-const DashboardPage = lazy(() => import("./pages/DashboardPage"));
-const DailyAllocationsPage = lazy(() => import("./pages/DailyAllocationsPage"));
-const MembersPage = lazy(() => import("./pages/MembersPage"));
-const LiquidityPoolPage = lazy(() => import("./pages/LiquidityPoolPage"));
+// Eager: primary BottomNav / Sidebar destinations — instant taps, no chunk wait.
+import DashboardPage from "./pages/DashboardPage";
+import DailyAllocationsPage from "./pages/DailyAllocationsPage";
+import MembersPage from "./pages/MembersPage";
+import LiquidityPoolPage from "./pages/LiquidityPoolPage";
+import AccountsPage from "./pages/AccountsPage";
+import LoansPage from "./pages/LoansPage";
+import CommunityPage from "./pages/CommunityPage";
+import NewPostPage from "./pages/NewPostPage";
+import AdminPage from "./pages/AdminPage";
+
+// Lazy: heavy outliers only (charts / admin tooling).
 const InvestmentsPage = lazy(() => import("./pages/InvestmentsPage"));
-const AccountsPage = lazy(() => import("./pages/AccountsPage"));
-const LoansPage = lazy(() => import("./pages/LoansPage"));
-const CommunityPage = lazy(() => import("./pages/CommunityPage"));
-const NewPostPage = lazy(() => import("./pages/NewPostPage"));
-const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminDataBinsPage = lazy(() => import("./pages/AdminDataBinsPage"));
 
 const pages = {
@@ -28,6 +31,11 @@ const pages = {
   post: NewPostPage,
   admin: AdminPage,
   "admin-bins": AdminDataBinsPage,
+};
+
+const LAZY_PAGE_LOADERS = {
+  investments: () => import("./pages/InvestmentsPage"),
+  "admin-bins": () => import("./pages/AdminDataBinsPage"),
 };
 
 function getPageFromHash() {
@@ -100,6 +108,23 @@ export default function App() {
     }
   }, [authEntryTick]);
 
+  // Idle-prefetch heavy lazy pages after first dashboard paint.
+  useEffect(() => {
+    const idle = window.requestIdleCallback
+      ? (cb) => window.requestIdleCallback(cb, { timeout: 3000 })
+      : (cb) => window.setTimeout(cb, 200);
+    const cancelIdle = window.cancelIdleCallback
+      ? (id) => window.cancelIdleCallback(id)
+      : (id) => window.clearTimeout(id);
+
+    const idleId = idle(() => {
+      Object.values(LAZY_PAGE_LOADERS).forEach((load) => {
+        void load().catch(() => {});
+      });
+    });
+    return () => cancelIdle(idleId);
+  }, []);
+
   const Page = pages[activePage] ?? DashboardPage;
   const shellPage =
     activePage === "post"
@@ -107,6 +132,7 @@ export default function App() {
       : activePage === "admin-bins"
         ? "admin"
         : activePage;
+  const isLazyPage = activePage === "investments" || activePage === "admin-bins";
 
   return (
     <EasternTimeProvider>
@@ -116,9 +142,13 @@ export default function App() {
         authEntryTick={authEntryTick}
         onNavigate={navigate}
       >
-        <Suspense fallback={<PageFallback />}>
+        {isLazyPage ? (
+          <Suspense fallback={<PageFallback />}>
+            <Page key={`${activePage}-${authEntryTick}`} onNavigate={navigate} />
+          </Suspense>
+        ) : (
           <Page key={`${activePage}-${authEntryTick}`} onNavigate={navigate} />
-        </Suspense>
+        )}
       </AppShell>
     </EasternTimeProvider>
   );

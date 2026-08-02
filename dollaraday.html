@@ -209,12 +209,12 @@
     </div>
     <div id="root"></div>
     <script>
-      // Failsafe for the initial boot shell only (not sign-in / dashboard preloaders).
+      // Absolute failsafe: never leave a click shield after cold boot.
       window.setTimeout(function () {
         var el = document.getElementById("initial-preloader");
-        if (!el || el.getAttribute("data-boot") !== "1") return;
-        if (el.getAttribute("data-dismissed") === "1") return;
+        if (!el) return;
         el.style.pointerEvents = "none";
+        if (el.getAttribute("data-dismissed") === "1") return;
         el.setAttribute("data-dismissed", "1");
         el.setAttribute("aria-hidden", "true");
         el.style.opacity = "0";

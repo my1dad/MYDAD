@@ -9,7 +9,8 @@ import { useDadAuth } from "../context/DadAuthContext.jsx";
 
 /**
  * Starts cloud sync + background automations only after the user is signed in.
- * All heavy modules are dynamically imported so this file stays out of the login bundle.
+ * UI paints from localStorage first — this work is idle-deferred and never blocks nav.
+ * Heavy modules are dynamically imported so this stays out of the login bundle.
  */
 export default function PostAuthWorkspace({ children }) {
   const { isAuthenticated } = useDadAuth();
@@ -53,18 +54,16 @@ export default function PostAuthWorkspace({ children }) {
 
           if (!alive) return;
 
-          const hydrateOnce = () => {
-            syncAllProfilesToMemberRegistry();
-            pruneDuplicateAdminMemberRecords();
-            ensureProfileProIds();
-            hydratePoolStateFromStorage();
-            syncAllocationPoolMetrics();
-            const profile = getActiveDadProfile();
-            if (profile) persistMemberFromProfile(profile);
-          };
+          // Local hydrate first (cheap) — cloud pull follows once.
+          syncAllProfilesToMemberRegistry();
+          pruneDuplicateAdminMemberRecords();
+          ensureProfileProIds();
+          hydratePoolStateFromStorage();
+          syncAllocationPoolMetrics();
+          const profile = getActiveDadProfile();
+          if (profile) persistMemberFromProfile(profile);
 
-          hydrateOnce();
-
+          // One initial sync, then realtime + rare backup poll (see cloudSync).
           const cleanupCloud = await initCloudSync({
             getLocalProfiles: getDadProfiles,
             replaceLocalProfiles: (profiles) => {
@@ -89,6 +88,7 @@ export default function PostAuthWorkspace({ children }) {
           );
 
           if (!alive) return;
+          // Each automation: run once on start, then long interval + visibility.
           cleanups.push(startRecurringCashflowAutomation());
           cleanups.push(startAllocationYieldAutomation());
           cleanups.push(startRecurringAutomation());
