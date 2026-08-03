@@ -81,14 +81,6 @@ function getRemoteWorkspaceEpoch(rows: CloudKvRow[]): string | null {
   return parseEpochValue(remote.value);
 }
 
-/** True when cloud published a newer factory wipe than this device. */
-function isCloudFactoryWipeAuthoritative(remoteKv: CloudKvRow[]): boolean {
-  const remoteEpoch = getRemoteWorkspaceEpoch(remoteKv);
-  if (!remoteEpoch) return false;
-  const localEpoch = getWorkspaceEpoch();
-  return !localEpoch || remoteEpoch > localEpoch;
-}
-
 function isAdminOnlyDirectory(profiles: DadProfile[]): boolean {
   return profiles.length === 1 && isAdminProfile(profiles[0]);
 }
