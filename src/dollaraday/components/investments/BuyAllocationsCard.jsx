@@ -3,7 +3,10 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import DashboardCard from "../layout/DashboardCard";
 import { formatPoolCurrency } from "../../data/mockData";
-import { resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
+import {
+  resolvePlatformEscrowProfileId,
+  useMemberAccounts,
+} from "../../lib/memberAccounts";
 import { useLocale } from "../../i18n/LocaleContext";
 import { useAllocationPositions } from "../../lib/allocationPositions";
 import { isStockPosition } from "../../lib/stockAllocations";
@@ -104,9 +107,10 @@ function PortfolioRow({ position, index, sleeveLabel, accent, onSelect }) {
 
 export default function BuyAllocationsCard() {
   const { t } = useLocale();
-  const profileId = resolveMemberProfileId();
-  const ledger = useMemberAccounts(profileId);
-  const positions = useAllocationPositions(profileId);
+  const escrowProfileId = resolvePlatformEscrowProfileId();
+  const ledger = useMemberAccounts(escrowProfileId);
+  // Portfolio list = all active sleeve buys (deployed capital); escrow spend stays platform-scoped.
+  const positions = useAllocationPositions();
   const [activeSleeveId, setActiveSleeveId] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
   const [entityInitialMode, setEntityInitialMode] = useState("buy");

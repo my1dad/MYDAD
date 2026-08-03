@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from "react";
+import { isAdminProfile } from "../../config/admin";
 import {
   allocationComparisons as seedComparisons,
   currentMember as seedCurrentMember,
@@ -14,6 +15,11 @@ import {
   formatEasternLongDate,
 } from "./dateTime";
 import { buildEasternPoolSeed } from "./easternSeedData";
+import {
+  getDadProfiles,
+  getProfileApprovalStatus,
+  subscribeDadProfiles,
+} from "./dadProfileStorage";
 import { getPoolCashEscrowBalance } from "./memberEscrowTotals";
 import { getTotalDeployedCapital } from "./allocationSleeves";
 import { computePoolInflowMetrics } from "./poolInflow";
@@ -142,6 +148,30 @@ let inflowSyncSubscribed = false;
 let poolRevision = 0;
 let inflowSyncTimer: number | null = null;
 
+/** Approved platform profiles (master admin counted once). */
+function countPlatformMembers(): number {
+  const approved = getDadProfiles().filter(
+    (profile) => getProfileApprovalStatus(profile) === "approved",
+  );
+  let adminCounted = false;
+  let count = 0;
+  for (const profile of approved) {
+    if (isAdminProfile(profile)) {
+      if (adminCounted) continue;
+      adminCounted = true;
+    }
+    count += 1;
+  }
+  return count;
+}
+
+function syncPlatformMemberCount(): boolean {
+  const next = countPlatformMembers();
+  if (state.poolSummary.memberCount === next) return false;
+  state.poolSummary.memberCount = next;
+  return true;
+}
+
 function ensureInflowSyncSubscription(): void {
   if (inflowSyncSubscribed) return;
   inflowSyncSubscribed = true;
@@ -159,6 +189,12 @@ function ensureInflowSyncSubscription(): void {
       syncPoolInflowMetrics();
       notifyPoolListeners();
     }, INFLOW_SYNC_DEBOUNCE_MS);
+  });
+  subscribeDadProfiles(() => {
+    if (syncPlatformMemberCount()) {
+      persistPoolState();
+      notifyPoolListeners();
+    }
   });
 }
 
@@ -276,6 +312,7 @@ export function syncPoolInflowMetrics(): void {
 
   state.poolSummary.dailyInflow = metrics.dailyInflow;
   state.poolSummary.monthlyInflow = metrics.monthlyInflow;
+  syncPlatformMemberCount();
   state.todaysDonations = metrics.todaysDonations;
   state.dailyAllocationSummary = {
     ...state.dailyAllocationSummary,
@@ -378,8 +415,8 @@ export function activateMemberSession(member: CurrentMemberState): void {
 }
 
 export function registerNewPoolMember(member: CurrentMemberState): void {
-  state.poolSummary.memberCount += 1;
   state.currentMember = member;
+  syncPlatformMemberCount();
   persistPoolState();
   notifyPoolListeners();
 }

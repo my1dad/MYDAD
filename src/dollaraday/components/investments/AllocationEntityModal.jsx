@@ -11,7 +11,6 @@ import {
 } from "../../lib/allocationInstruments";
 import { purchasePoolAllocationOrder } from "../../lib/allocationPurchases";
 import { useAllocationPositions } from "../../lib/allocationPositions";
-import { resolveMemberProfileId } from "../../lib/memberAccounts";
 import { formatPositionMaturity } from "../../lib/allocationSleeves";
 import {
   isFixedIncomePosition,
@@ -58,8 +57,7 @@ export default function AllocationEntityModal({
   initialSellPositionId = "",
 }) {
   const { t } = useLocale();
-  const profileId = resolveMemberProfileId();
-  const positions = useAllocationPositions(profileId);
+  const positions = useAllocationPositions();
   const [mode, setMode] = useState("buy");
   const [selectedContractId, setSelectedContractId] = useState("");
   const [price, setPrice] = useState("");

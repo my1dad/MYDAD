@@ -1,6 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bell, CheckCheck, CircleDollarSign, MessageCircle, Trash2, UserCheck, UserPlus, UserX } from "lucide-react";
+import {
+  Bell,
+  CheckCheck,
+  CircleDollarSign,
+  MessageCircle,
+  RefreshCw,
+  Trash2,
+  UserCheck,
+  UserPlus,
+  UserX,
+  Wallet,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDadAuth } from "../../context/DadAuthContext";
 import { useLocale } from "../../i18n/LocaleContext";
@@ -24,6 +35,8 @@ const kindIcons = {
   profile_approved: UserCheck,
   profile_denied: UserX,
   donation: CircleDollarSign,
+  wallet_deposit: Wallet,
+  recurring_donation: RefreshCw,
 };
 
 function NotificationTime({ occurredAt }) {
@@ -31,7 +44,7 @@ function NotificationTime({ occurredAt }) {
   return <span className="dda-notification-item__time">{label}</span>;
 }
 
-function getNotificationTitle(item, t) {
+function getNotificationTitle(item, t, isAdmin) {
   switch (item.kind) {
     case "community_dm":
       return item.senderName ?? t("notifications.communityDm");
@@ -41,14 +54,21 @@ function getNotificationTitle(item, t) {
       return t("notifications.approvedTitle");
     case "profile_denied":
       return t("notifications.deniedTitle");
+    case "wallet_deposit":
+      return t("notifications.depositTitle");
+    case "recurring_donation":
+      return t("notifications.recurringDonationTitle");
     case "donation":
-      return item.memberName ?? t("notifications.donationMember");
+      return isAdmin
+        ? (item.memberName ?? t("notifications.donationMember"))
+        : t("notifications.donationTitleSelf");
     default:
       return t("notifications.title");
   }
 }
 
-function getNotificationBody(item, t) {
+function getNotificationBody(item, t, isAdmin) {
+  const amount = (item.donationAmount ?? 0).toFixed(2);
   switch (item.kind) {
     case "community_dm":
       return item.messageBody ?? "";
@@ -58,20 +78,24 @@ function getNotificationBody(item, t) {
       return item.messageBody ?? t("notifications.approvedBody");
     case "profile_denied":
       return item.messageBody ?? t("notifications.deniedBody");
+    case "wallet_deposit":
+      return t("notifications.depositBody", { amount });
+    case "recurring_donation":
+      return t("notifications.recurringDonationBody", { amount });
     case "donation":
-      return t("notifications.donationBody", {
-        amount: (item.donationAmount ?? 0).toFixed(2),
-      });
+      return isAdmin
+        ? t("notifications.donationBody", { amount })
+        : t("notifications.donationBodySelf", { amount });
     default:
       return "";
   }
 }
 
-function NotificationItem({ item, onSelect }) {
+function NotificationItem({ item, onSelect, isAdmin }) {
   const { t } = useLocale();
   const Icon = kindIcons[item.kind] ?? Bell;
-  const title = getNotificationTitle(item, t);
-  const body = getNotificationBody(item, t);
+  const title = getNotificationTitle(item, t, isAdmin);
+  const body = getNotificationBody(item, t, isAdmin);
 
   return (
     <button
@@ -260,7 +284,12 @@ export default function NotificationBell({ onNavigate }) {
             >
               {notifications.length ? (
                 notifications.map((item) => (
-                  <NotificationItem key={item.id} item={item} onSelect={handleSelect} />
+                  <NotificationItem
+                    key={item.id}
+                    item={item}
+                    onSelect={handleSelect}
+                    isAdmin={isAdmin}
+                  />
                 ))
               ) : (
                 <p className="dda-notification-panel__empty">{t("notifications.empty")}</p>

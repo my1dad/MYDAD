@@ -177,7 +177,7 @@ function isAdminMember(member: Member): boolean {
   );
 }
 
-function getCanonicalAdminProfileId(): string | undefined {
+export function getCanonicalAdminProfileId(): string | undefined {
   return findDadProfileByUsername(ADMIN_USERNAME)?.id;
 }
 

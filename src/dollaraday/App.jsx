@@ -14,6 +14,7 @@ const pageLoaders = {
   loans: () => import("./pages/LoansPage"),
   community: () => import("./pages/CommunityPage"),
   admin: () => import("./pages/AdminPage"),
+  profile: () => import("./pages/ProfilePage"),
   investments: () => import("./pages/InvestmentsPage"),
   "admin-bins": () => import("./pages/AdminDataBinsPage"),
 };
@@ -25,6 +26,7 @@ const DailyAllocationsPage = lazy(pageLoaders.allocations);
 const LoansPage = lazy(pageLoaders.loans);
 const CommunityPage = lazy(pageLoaders.community);
 const AdminPage = lazy(pageLoaders.admin);
+const ProfilePage = lazy(pageLoaders.profile);
 const InvestmentsPage = lazy(pageLoaders.investments);
 const AdminDataBinsPage = lazy(pageLoaders["admin-bins"]);
 
@@ -37,6 +39,7 @@ const pages = {
   loans: LoansPage,
   community: CommunityPage,
   admin: AdminPage,
+  profile: ProfilePage,
   investments: InvestmentsPage,
   "admin-bins": AdminDataBinsPage,
 };
@@ -114,7 +117,12 @@ export default function App() {
 
   useEffect(() => {
     if (isAdmin) return;
-    if (activePage === "admin-bins" || activePage === "investments") {
+    if (
+      activePage === "admin-bins" ||
+      activePage === "investments" ||
+      activePage === "allocations" ||
+      activePage === "members"
+    ) {
       goTo("dashboard");
     }
   }, [activePage, isAdmin, goTo]);

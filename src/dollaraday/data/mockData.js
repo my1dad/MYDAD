@@ -1,4 +1,4 @@
-import { DDA_THEME, POOL_CAPITAL_COLORS } from "../lib/theme.js";
+import { DDA_THEME_VARS, POOL_CAPITAL_COLORS } from "../lib/theme.js";
 
 /** Empty guest profile — replaced when a member signs in. */
 export const currentMember = {
@@ -64,7 +64,7 @@ export const investmentFunnel = [
     key: "treasury",
     name: "Treasury Bills",
     percent: 0,
-    color: DDA_THEME.green,
+    color: DDA_THEME_VARS.green,
     returnPct: 0,
     risk: "Low",
     liquidity: "High",

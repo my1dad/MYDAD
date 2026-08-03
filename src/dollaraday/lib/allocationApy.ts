@@ -46,8 +46,9 @@ export function getEffectivePoolApy(): number {
 
 export function syncAllocationPoolMetrics(): void {
   const effectiveApy = getEffectivePoolApy();
+  // YTD starts at 0% and compounds from each day's logged portfolio return — never APY.
   const ytdGrowth = getYtdCompoundReturnPct();
   setPoolApy(effectiveApy);
-  setPoolYtdGrowthFromYield(ytdGrowth !== 0 ? ytdGrowth : effectiveApy);
+  setPoolYtdGrowthFromYield(ytdGrowth);
   syncPoolCapitalFromLedger();
 }

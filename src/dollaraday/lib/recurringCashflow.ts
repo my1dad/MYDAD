@@ -7,10 +7,12 @@ import {
 } from "./dateTime";
 import { readDataBin, subscribeInternalDatabase, upsertDataRecord } from "./internalDatabase";
 import {
+  depositDonationToPlatformEscrow,
   depositToMemberAccount,
   hydrateMemberAccounts,
   invalidateMemberAccountsCache,
   resolveMemberProfileId,
+  resolvePlatformEscrowProfileId,
   spendFromMemberAccount,
   transferBetweenMemberAccounts,
   type MemberAccountId,
@@ -42,10 +44,26 @@ interface RecurringCashflowsPayload {
 }
 
 export const RECURRING_CASHFLOWS_ID = "recurring-cashflows";
+/** Label used by contribute-today / donation onboarding schedules. */
+export const HOME_CONTRIBUTION_LABEL = "Home contribution";
+/** Stable schedule id prefix for each contribute-onboarding donation record. */
+export const DONATION_SCHEDULE_ID_PREFIX = "rcf-donate-";
 /** Backup interval; midnight + visibilitychange cover the primary path. */
 const CHECK_INTERVAL_MS = 5 * 60_000;
 const MAX_CATCH_UP = 30;
 const EMPTY_SCHEDULES: RecurringCashflow[] = [];
+
+export function isHomeContributionSchedule(
+  schedule: Pick<RecurringCashflow, "label" | "id"> | { label?: string; id?: string },
+): boolean {
+  const id = String(schedule.id ?? "");
+  if (id.startsWith(DONATION_SCHEDULE_ID_PREFIX) || id.startsWith("rcf-home-")) return true;
+  return String(schedule.label ?? "").trim() === HOME_CONTRIBUTION_LABEL;
+}
+
+export function donationScheduleIdForContribution(recordId: string): string {
+  return `${DONATION_SCHEDULE_ID_PREFIX}${recordId}`;
+}
 
 const listeners = new Set<() => void>();
 let automationTimer: ReturnType<typeof setInterval> | null = null;
@@ -94,7 +112,8 @@ function normalizeSchedule(raw: RecurringCashflow): RecurringCashflow {
 
   return {
     ...raw,
-    profileId: String(raw.profileId || resolveMemberProfileId()),
+    // Keep stored owner as-is — never rewrite to the viewer (that leaked other members' dates).
+    profileId: String(raw.profileId ?? "").trim(),
     accountId,
     transferToAccountId,
     amount,
@@ -196,6 +215,10 @@ export interface RecurringDaySummary {
   income: number;
   expense: number;
   transfer: number;
+  /** Sum of income/donation amounts due on this day. */
+  incomeAmount: number;
+  expenseAmount: number;
+  transferAmount: number;
 }
 
 const MAX_RANGE_OCCURRENCES = 400;
@@ -239,11 +262,26 @@ export function buildRecurringOccurrenceMap(
   const map = new Map<string, RecurringDaySummary>();
 
   schedules.forEach((schedule) => {
+    const amount = Number(schedule.amount) || 0;
     collectScheduleOccurrencesInRange(schedule, fromYmd, toYmd).forEach((ymd) => {
-      const summary = map.get(ymd) ?? { income: 0, expense: 0, transfer: 0 };
-      if (schedule.type === "income") summary.income += 1;
-      else if (schedule.type === "expense") summary.expense += 1;
-      else summary.transfer += 1;
+      const summary = map.get(ymd) ?? {
+        income: 0,
+        expense: 0,
+        transfer: 0,
+        incomeAmount: 0,
+        expenseAmount: 0,
+        transferAmount: 0,
+      };
+      if (schedule.type === "income") {
+        summary.income += 1;
+        summary.incomeAmount += amount;
+      } else if (schedule.type === "expense") {
+        summary.expense += 1;
+        summary.expenseAmount += amount;
+      } else {
+        summary.transfer += 1;
+        summary.transferAmount += amount;
+      }
       map.set(ymd, summary);
     });
   });
@@ -287,9 +325,15 @@ function memoMatchesSchedule(schedule: RecurringCashflow, memo: string | undefin
 }
 
 function hasLedgerEntryForOccurrence(schedule: RecurringCashflow, dayYmd: string): boolean {
-  const profileIds = [...new Set([schedule.profileId, resolveMemberProfileId()].filter(Boolean))];
+  const profileIds = new Set<string>(
+    [schedule.profileId, resolveMemberProfileId()].filter(Boolean),
+  );
+  // Home donations settle on master admin Chase Escrow.
+  if (isHomeContributionSchedule(schedule)) {
+    profileIds.add(resolvePlatformEscrowProfileId(schedule.profileId));
+  }
 
-  return profileIds.some((profileId) => {
+  return [...profileIds].some((profileId) => {
     const ledger = hydrateMemberAccounts(profileId);
     return ledger.transactions.some((tx) => {
       if (Math.abs(Number(tx.amount) - schedule.amount) > 0.009) return false;
@@ -410,17 +454,70 @@ function occurrenceTimestamp(dayYmd: string): string {
   return easternDateAt(year, month, day, Math.min(hour, 11), 5).toISOString();
 }
 
+function mirrorHomeContributionOccurrence(
+  profileId: string,
+  schedule: RecurringCashflow,
+  occurredAt: string,
+): void {
+  void Promise.all([
+    import("./internalDatabase"),
+    import("./memberRegistry"),
+    import("./poolState"),
+    import("./dadProfileStorage"),
+  ]).then(
+    ([
+      { appendDataRecord },
+      { updateMemberAfterContribution, findStoredMemberByProfileId },
+      { registerContribution },
+      { findDadProfileById },
+    ]) => {
+      const profile = findDadProfileById(profileId);
+      const member = findStoredMemberByProfileId(profileId);
+      const memberName = member?.name || profile?.displayName || "Member";
+      const handle = member?.handle || (profile ? `@${profile.username}` : "");
+
+      appendDataRecord("contributions", "recurring-home-contribution", {
+        type: "recurring",
+        amount: schedule.amount,
+        recurringEnabled: true,
+        frequency: schedule.frequency,
+        profileId,
+        memberId: profileId,
+        memberName,
+        handle,
+        contributedAt: occurredAt,
+        status: "completed",
+      });
+      updateMemberAfterContribution(profileId, schedule.amount);
+      registerContribution({
+        amount: schedule.amount,
+        recurringEnabled: true,
+        memberId: profileId,
+        memberName,
+        handle,
+      });
+    },
+  );
+}
+
 function applyScheduleOccurrence(schedule: RecurringCashflow, dayYmd: string): boolean {
   const memo = occurrenceMemo(schedule);
   const occurredAt = occurrenceTimestamp(dayYmd);
   const profileId = resolveScheduleProfileId(schedule);
 
   if (schedule.type === "income") {
-    return (
-      depositToMemberAccount(profileId, schedule.accountId, schedule.amount, memo, {
-        occurredAt,
-      }) !== null
-    );
+    const deposited = isHomeContributionSchedule(schedule)
+      ? depositDonationToPlatformEscrow(schedule.amount, memo, {
+          occurredAt,
+          donorProfileId: profileId,
+        }) !== null
+      : depositToMemberAccount(profileId, schedule.accountId, schedule.amount, memo, {
+          occurredAt,
+        }) !== null;
+    if (deposited && isHomeContributionSchedule(schedule)) {
+      mirrorHomeContributionOccurrence(profileId, schedule, occurredAt);
+    }
+    return deposited;
   }
 
   if (schedule.type === "expense") {
@@ -431,9 +528,22 @@ function applyScheduleOccurrence(schedule: RecurringCashflow, dayYmd: string): b
     );
   }
 
+  // Legacy home-contribution transfers → settle on master admin Chase Escrow.
+  if (isHomeContributionSchedule(schedule)) {
+    const deposited =
+      depositDonationToPlatformEscrow(schedule.amount, memo, {
+        occurredAt,
+        donorProfileId: profileId,
+      }) !== null;
+    if (deposited) {
+      mirrorHomeContributionOccurrence(profileId, schedule, occurredAt);
+    }
+    return deposited;
+  }
+
   if (!schedule.transferToAccountId) return false;
 
-  const transferred =
+  return (
     transferBetweenMemberAccounts(
       profileId,
       schedule.accountId,
@@ -441,58 +551,184 @@ function applyScheduleOccurrence(schedule: RecurringCashflow, dayYmd: string): b
       schedule.amount,
       memo,
       { occurredAt },
-    ) !== null;
+    ) !== null
+  );
+}
 
-  // Home contribution schedules credit escrow — mirror into contributions + member equity
-  // so liquidity pool / admin views stay cloud-accurate.
+function normalizeContributionFrequency(raw: unknown): RecurringFrequency {
   if (
-    transferred &&
-    schedule.accountId === "checking" &&
-    schedule.transferToAccountId === "escrow" &&
-    schedule.label.trim() === "Home contribution"
+    raw === "daily" ||
+    raw === "weekly" ||
+    raw === "biweekly" ||
+    raw === "monthly" ||
+    raw === "yearly"
   ) {
-    void Promise.all([
-      import("./internalDatabase"),
-      import("./memberRegistry"),
-      import("./poolState"),
-      import("./dadProfileStorage"),
-    ]).then(
-      ([
-        { appendDataRecord },
-        { updateMemberAfterContribution, findStoredMemberByProfileId },
-        { registerContribution },
-        { findDadProfileById },
-      ]) => {
-        const profile = findDadProfileById(profileId);
-        const member = findStoredMemberByProfileId(profileId);
-        const memberName = member?.name || profile?.displayName || "Member";
-        const handle = member?.handle || (profile ? `@${profile.username}` : "");
+    return raw;
+  }
+  return "monthly";
+}
 
-        appendDataRecord("contributions", "recurring-home-contribution", {
-          type: "recurring",
-          amount: schedule.amount,
-          recurringEnabled: true,
-          frequency: schedule.frequency,
-          profileId,
-          memberId: profileId,
-          memberName,
-          handle,
-          contributedAt: occurredAt,
-          status: "completed",
-        });
-        updateMemberAfterContribution(profileId, schedule.amount);
-        registerContribution({
-          amount: schedule.amount,
-          recurringEnabled: true,
-          memberId: profileId,
-          memberName,
-          handle,
-        });
-      },
-    );
+function nextStartForFrequency(frequency: RecurringFrequency, fromYmd: string): string {
+  switch (frequency) {
+    case "daily":
+      return addEasternDays(fromYmd, 1);
+    case "weekly":
+      return addEasternDays(fromYmd, 7);
+    case "biweekly":
+      return addEasternDays(fromYmd, 14);
+    case "yearly":
+      return addYearsYmd(fromYmd, 1);
+    case "monthly":
+    default:
+      return addMonthsYmd(fromYmd, 1);
+  }
+}
+
+/** User-started recurring donations only — not automated occurrence mirrors. */
+function isRecurringDonationSeedRecord(record: {
+  source: string;
+  payload?: Record<string, unknown>;
+}): boolean {
+  const entry = record.payload ?? {};
+  if (!entry.recurringEnabled) return false;
+  if (entry.automated) return false;
+  if (record.source === "recurring-home-contribution" || record.source === "recurring-automation") {
+    return false;
+  }
+  if (record.source === "wallet-deposit") return false;
+  if (record.source === "contribute-onboarding") return true;
+  return String(entry.type ?? "") === "recurring";
+}
+
+/**
+ * Keep donation (contribute-today) schedules aligned with contribution records:
+ * one enabled recurring donation → one income schedule (so same-day multiples all show).
+ */
+export function ensureHomeContributionSchedulesFromContributions(profileId?: string): boolean {
+  const contributions = readDataBin("contributions");
+  const desired = new Map<
+    string,
+    {
+      profileId: string;
+      amount: number;
+      frequency: RecurringFrequency;
+      contributedAt: string;
+    }
+  >();
+
+  for (const record of contributions.records) {
+    if (!isRecurringDonationSeedRecord(record)) continue;
+
+    const entry = record.payload as Record<string, unknown> | undefined;
+    if (!entry?.profileId) continue;
+    const pid = String(entry.profileId);
+    if (profileId && pid !== profileId) continue;
+
+    const amount = Number(entry.amount);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+
+    desired.set(donationScheduleIdForContribution(record.id), {
+      profileId: pid,
+      amount,
+      frequency: normalizeContributionFrequency(entry.frequency),
+      contributedAt: String(entry.contributedAt ?? record.updatedAt ?? ""),
+    });
   }
 
-  return transferred;
+  const payload = readPayload();
+  let changed = false;
+  const profilesWithDonateSchedules = new Set<string>();
+
+  payload.schedules = payload.schedules.map((schedule) => {
+    if (!isHomeContributionSchedule(schedule)) return schedule;
+    if (profileId && schedule.profileId !== profileId) return schedule;
+    if (
+      schedule.type === "income" &&
+      schedule.accountId === "escrow" &&
+      schedule.transferToAccountId === undefined
+    ) {
+      return schedule;
+    }
+    changed = true;
+    return {
+      ...schedule,
+      type: "income" as const,
+      accountId: "escrow" as const,
+      transferToAccountId: undefined,
+    };
+  });
+
+  for (const [scheduleId, info] of desired) {
+    profilesWithDonateSchedules.add(info.profileId);
+    const index = payload.schedules.findIndex((schedule) => schedule.id === scheduleId);
+    const contributedYmd = info.contributedAt
+      ? formatEasternIsoDate(info.contributedAt)
+      : formatEasternIsoDate();
+
+    if (index >= 0) {
+      const existing = payload.schedules[index];
+      if (
+        existing.amount !== info.amount ||
+        existing.frequency !== info.frequency ||
+        !existing.enabled ||
+        existing.type !== "income" ||
+        existing.accountId !== "escrow" ||
+        existing.label !== HOME_CONTRIBUTION_LABEL
+      ) {
+        payload.schedules[index] = {
+          ...existing,
+          amount: info.amount,
+          frequency: info.frequency,
+          enabled: true,
+          type: "income",
+          accountId: "escrow",
+          transferToAccountId: undefined,
+          label: HOME_CONTRIBUTION_LABEL,
+        };
+        changed = true;
+      }
+      continue;
+    }
+
+    payload.schedules.push({
+      id: scheduleId,
+      profileId: info.profileId,
+      accountId: "escrow",
+      type: "income",
+      amount: info.amount,
+      frequency: info.frequency,
+      label: HOME_CONTRIBUTION_LABEL,
+      enabled: true,
+      startDate: nextStartForFrequency(info.frequency, contributedYmd),
+      lastProcessedDate: contributedYmd,
+      settledDates: [contributedYmd],
+      createdAt: info.contributedAt || easternNow().toISOString(),
+    });
+    changed = true;
+  }
+
+  // Drop per-donation schedules whose contribution was removed / turned off.
+  const before = payload.schedules.length;
+  payload.schedules = payload.schedules.filter((schedule) => {
+    if (!schedule.id.startsWith(DONATION_SCHEDULE_ID_PREFIX)) return true;
+    if (profileId && schedule.profileId !== profileId) return true;
+    return desired.has(schedule.id);
+  });
+  if (payload.schedules.length !== before) changed = true;
+
+  // Legacy single-slot home schedules duplicate once per-donation rows exist.
+  const afterLegacy = payload.schedules.filter((schedule) => {
+    if (!schedule.id.startsWith("rcf-home-")) return true;
+    if (profileId && schedule.profileId !== profileId) return true;
+    return !profilesWithDonateSchedules.has(schedule.profileId);
+  });
+  if (afterLegacy.length !== payload.schedules.length) {
+    payload.schedules = afterLegacy;
+    changed = true;
+  }
+
+  if (changed) writePayload(payload);
+  return changed;
 }
 
 export function getRecurringCashflows(profileId?: string): RecurringCashflow[] {
@@ -503,7 +739,8 @@ export function getRecurringCashflows(profileId?: string): RecurringCashflow[] {
   const cached = filteredSnapshotCache.get(profileId);
   if (cached?.source === schedules) return cached.result;
 
-  const result = schedules.filter((item) => item.profileId === profileId);
+  const ownerId = String(profileId).trim();
+  const result = schedules.filter((item) => String(item.profileId ?? "").trim() === ownerId);
   const snapshot = result.length === 0 ? EMPTY_SCHEDULES : result;
   filteredSnapshotCache.set(profileId, { source: schedules, result: snapshot });
   return snapshot;
@@ -518,6 +755,9 @@ export function addRecurringCashflow(input: {
   frequency: RecurringFrequency;
   label: string;
   startDate?: string;
+  id?: string;
+  lastProcessedDate?: string;
+  settledDates?: string[];
 }): RecurringCashflow | null {
   if (!Number.isFinite(input.amount) || input.amount <= 0) return null;
   if (
@@ -528,8 +768,21 @@ export function addRecurringCashflow(input: {
   }
 
   const payload = readPayload();
+  if (input.id && payload.schedules.some((schedule) => schedule.id === input.id)) {
+    return updateRecurringCashflow(input.id, {
+      accountId: input.accountId,
+      transferToAccountId: input.transferToAccountId,
+      type: input.type,
+      amount: input.amount,
+      frequency: input.frequency,
+      label: input.label,
+      enabled: true,
+      startDate: input.startDate,
+    });
+  }
+
   const schedule: RecurringCashflow = {
-    id: `rcf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: input.id ?? `rcf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     profileId: input.profileId,
     accountId: input.accountId,
     transferToAccountId: input.type === "transfer" ? input.transferToAccountId : undefined,
@@ -539,7 +792,8 @@ export function addRecurringCashflow(input: {
     label: input.label.trim(),
     enabled: true,
     startDate: input.startDate ?? formatEasternIsoDate(),
-    lastProcessedDate: "",
+    lastProcessedDate: input.lastProcessedDate ?? "",
+    settledDates: input.settledDates,
     createdAt: easternNow().toISOString(),
   };
 
@@ -573,11 +827,17 @@ export function updateRecurringCashflow(
   const nextAmount = updates.amount ?? current.amount;
   if (!Number.isFinite(nextAmount) || nextAmount <= 0) return null;
 
+  const nextType = updates.type ?? current.type;
   const updated: RecurringCashflow = {
     ...current,
     ...updates,
     amount: nextAmount,
+    type: nextType,
     label: updates.label !== undefined ? updates.label.trim() : current.label,
+    transferToAccountId:
+      nextType === "transfer"
+        ? (updates.transferToAccountId ?? current.transferToAccountId)
+        : undefined,
   };
 
   payload.schedules[index] = updated;
@@ -597,6 +857,7 @@ export function deleteRecurringCashflow(id: string): boolean {
 export function processRecurringCashflows(): number {
   rolloverEasternDayIfNeeded();
   invalidateMemberAccountsCache();
+  ensureHomeContributionSchedulesFromContributions();
 
   const today = formatEasternIsoDate();
   const payload = readPayload();

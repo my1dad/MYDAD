@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Bell, Download, Globe, Upload, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PasswordInput from "../auth/PasswordInput";
+import ProfilePhotoPicker from "../auth/ProfilePhotoPicker";
 import { useDadAuth } from "../../context/DadAuthContext";
 import { useLocale } from "../../i18n/LocaleContext";
 import {
@@ -52,12 +53,14 @@ export default function MemberSettingsCard({ embedded = false }) {
   const [email, setEmail] = useState(profile?.email ?? "");
   const [phone, setPhone] = useState(profile?.phone ?? "");
   const [password, setPassword] = useState("");
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState(profile?.profilePhotoUrl ?? "");
 
   useEffect(() => {
     if (!profile) return;
     setDisplayName(profile.displayName ?? "");
     setEmail(profile.email ?? "");
     setPhone(profile.phone ?? "");
+    setProfilePhotoUrl(profile.profilePhotoUrl ?? "");
   }, [profile]);
 
   if (!profile?.id) return null;
@@ -137,6 +140,7 @@ export default function MemberSettingsCard({ embedded = false }) {
         email,
         phone,
         password: password || undefined,
+        profilePhotoUrl,
       });
 
       if (!result.ok) {
@@ -155,6 +159,75 @@ export default function MemberSettingsCard({ embedded = false }) {
 
   const content = (
     <div className="space-y-4">
+      <SettingsSection
+        icon={UserCog}
+        title={t("memberProfile.settings.accountTitle")}
+        description={t("memberProfile.settings.accountDesc")}
+      >
+        <form onSubmit={handleAccountSave} className="space-y-4">
+          <ProfilePhotoPicker
+            photoUrl={profilePhotoUrl}
+            name={displayName || profile.username}
+            onPhotoChange={setProfilePhotoUrl}
+            onError={setError}
+          />
+          <div>
+            <label htmlFor="member-settings-name" className="mb-1.5 block text-xs font-semibold text-gray-400">
+              {t("login.fullName")}
+            </label>
+            <input
+              id="member-settings-name"
+              type="text"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              className="dda-input"
+            />
+          </div>
+          <div>
+            <label htmlFor="member-settings-email" className="mb-1.5 block text-xs font-semibold text-gray-400">
+              {t("login.email")}
+            </label>
+            <input
+              id="member-settings-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="dda-input"
+            />
+          </div>
+          <div>
+            <label htmlFor="member-settings-phone" className="mb-1.5 block text-xs font-semibold text-gray-400">
+              {t("login.phone")}
+            </label>
+            <input
+              id="member-settings-phone"
+              type="tel"
+              value={phone}
+              onChange={(event) => setPhone(formatPhoneInput(event.target.value))}
+              className="dda-input"
+            />
+          </div>
+          <div>
+            <label htmlFor="member-settings-password" className="mb-1.5 block text-xs font-semibold text-gray-400">
+              {t("login.password")}
+            </label>
+            <PasswordInput
+              id="member-settings-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder={t("pages.admin.profileEditPasswordPlaceholder")}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={savingAccount}
+            className="dda-btn-primary px-4 py-2.5 text-sm disabled:opacity-60"
+          >
+            {t("memberProfile.settings.accountSave")}
+          </button>
+        </form>
+      </SettingsSection>
+
       <SettingsSection
         icon={Download}
         title={t("memberProfile.settings.csvTitle")}
@@ -236,69 +309,6 @@ export default function MemberSettingsCard({ embedded = false }) {
             </option>
           ))}
         </select>
-      </SettingsSection>
-
-      <SettingsSection
-        icon={UserCog}
-        title={t("memberProfile.settings.accountTitle")}
-        description={t("memberProfile.settings.accountDesc")}
-      >
-        <form onSubmit={handleAccountSave} className="space-y-3">
-          <div>
-            <label htmlFor="member-settings-name" className="mb-1.5 block text-xs font-semibold text-gray-400">
-              {t("login.fullName")}
-            </label>
-            <input
-              id="member-settings-name"
-              type="text"
-              value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
-              className="dda-input"
-            />
-          </div>
-          <div>
-            <label htmlFor="member-settings-email" className="mb-1.5 block text-xs font-semibold text-gray-400">
-              {t("login.email")}
-            </label>
-            <input
-              id="member-settings-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="dda-input"
-            />
-          </div>
-          <div>
-            <label htmlFor="member-settings-phone" className="mb-1.5 block text-xs font-semibold text-gray-400">
-              {t("login.phone")}
-            </label>
-            <input
-              id="member-settings-phone"
-              type="tel"
-              value={phone}
-              onChange={(event) => setPhone(formatPhoneInput(event.target.value))}
-              className="dda-input"
-            />
-          </div>
-          <div>
-            <label htmlFor="member-settings-password" className="mb-1.5 block text-xs font-semibold text-gray-400">
-              {t("login.password")}
-            </label>
-            <PasswordInput
-              id="member-settings-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder={t("pages.admin.profileEditPasswordPlaceholder")}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={savingAccount}
-            className="dda-btn-primary px-4 py-2.5 text-sm disabled:opacity-60"
-          >
-            {t("memberProfile.settings.accountSave")}
-          </button>
-        </form>
       </SettingsSection>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}

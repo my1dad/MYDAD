@@ -18,6 +18,7 @@ export async function updateMemberOwnProfile(input: {
   email?: string;
   phone?: string;
   password?: string;
+  profilePhotoUrl?: string | null;
 }): Promise<MemberActionResult> {
   const profile = getActiveDadProfile();
   if (!profile) return { ok: false, error: "Not signed in." };
@@ -27,6 +28,11 @@ export async function updateMemberOwnProfile(input: {
 
   const displayName = input.displayName.trim();
   const password = input.password?.trim() ?? "";
+  const photoProvided = Object.prototype.hasOwnProperty.call(input, "profilePhotoUrl");
+  const nextPhoto =
+    photoProvided
+      ? input.profilePhotoUrl?.trim() || undefined
+      : profile.profilePhotoUrl;
 
   if (!displayName) return { ok: false, error: "Full name is required." };
   if (password && password.length < 4) {
@@ -40,6 +46,7 @@ export async function updateMemberOwnProfile(input: {
     fullName: displayName,
     email: input.email?.trim() || undefined,
     phone: input.phone?.trim() ? formatPhoneInput(input.phone) : undefined,
+    profilePhotoUrl: nextPhoto,
     password: hashedPassword ?? current.password,
     updatedAt: new Date().toISOString(),
   }));
@@ -51,14 +58,18 @@ export async function updateMemberOwnProfile(input: {
     profileId: updated.id,
     proId: updated.proId,
     type: "profile_edit",
-    summary: password ? "Member password updated" : "Member profile updated",
+    summary: password
+      ? "Member password updated"
+      : photoProvided
+        ? "Member profile photo updated"
+        : "Member profile updated",
   });
 
-  // Force cloud publish so the new hash isn't overwritten by a stale remote profile.
-  if (password) {
+  // Force cloud publish for password/photo so other devices stay in sync.
+  if (password || photoProvided) {
     void import("./supabase/cloudSync")
       .then(({ pushCloudProfilesNow }) => pushCloudProfilesNow(getDadProfiles()))
-      .catch((err) => console.warn("[memberProfile] Password cloud push skipped:", err));
+      .catch((err) => console.warn("[memberProfile] Profile cloud push skipped:", err));
   }
 
   return { ok: true, profile: updated };

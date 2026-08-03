@@ -21,7 +21,9 @@ import {
   addRecurringCashflow,
   collectDueDates,
   deleteRecurringCashflow,
+  ensureHomeContributionSchedulesFromContributions,
   getNextDueDate,
+  isHomeContributionSchedule,
   payRecurringOccurrenceNow,
   processRecurringCashflows,
   updateRecurringCashflow,
@@ -47,6 +49,8 @@ const FREQUENCY_OPTIONS = [
   { id: "monthly", labelKey: "freqMonthly" },
   { id: "yearly", labelKey: "freqYearly" },
 ];
+
+const RECURRING_LIST_PAGE_SIZE = 5;
 
 function sanitizeMoneyInput(value) {
   const cleaned = String(value).replace(/[^0-9.]/g, "");
@@ -85,14 +89,22 @@ function handleAmountChange(value, setAmount) {
 
 export default function RecurringCashflowPanel({ accountId = null }) {
   const { t } = useLocale();
-  const { isAdmin } = useDadAuth();
-  const profileId = resolveMemberProfileId();
+  const { isAdmin, profile } = useDadAuth();
+  // Prefer the signed-in profile so member calendars never mix other accounts.
+  const profileId = profile?.id || resolveMemberProfileId();
   const ledger = useMemberAccounts(profileId);
   const schedules = useRecurringCashflows(profileId);
-  const accountOptions = useMemo(() => ACCOUNT_OPTIONS, []);
+  const unifiedWallet = !isAdmin;
+  const memberLedgerAccountId = "escrow";
+  const accountOptions = useMemo(
+    () => (unifiedWallet ? ACCOUNT_OPTIONS.filter((option) => option.id === "checking") : ACCOUNT_OPTIONS),
+    [unifiedWallet],
+  );
 
   const [type, setType] = useState("income");
-  const [selectedAccountId, setSelectedAccountId] = useState(accountId ?? "checking");
+  const [selectedAccountId, setSelectedAccountId] = useState(
+    unifiedWallet ? "checking" : accountId ?? "checking",
+  );
   const [transferFromId, setTransferFromId] = useState(accountId ?? "checking");
   const [transferToId, setTransferToId] = useState(
     accountId === "checking" ? "escrow" : accountId === "escrow" ? "checking" : "escrow",
@@ -104,6 +116,7 @@ export default function RecurringCashflowPanel({ accountId = null }) {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [editingId, setEditingId] = useState(null);
+  const [listVisibleCount, setListVisibleCount] = useState(RECURRING_LIST_PAGE_SIZE);
 
   const transferFromBalance =
     transferFromId === "checking" ? ledger.checkingBalance : ledger.escrowBalance;
@@ -111,17 +124,37 @@ export default function RecurringCashflowPanel({ accountId = null }) {
     transferToId === "checking" ? ledger.checkingBalance : ledger.escrowBalance;
 
   const visibleSchedules = useMemo(() => {
+    const ownerId = String(profileId ?? "").trim();
+    const owned = schedules.filter((item) => String(item.profileId ?? "").trim() === ownerId);
+    const walletAccountIds = new Set(["checking", "escrow"]);
     const scoped = !accountId
-      ? schedules
-      : schedules.filter((item) => {
+      ? owned
+      : owned.filter((item) => {
+          if (unifiedWallet && accountId === "checking") {
+            if (item.type === "transfer") return false;
+            return walletAccountIds.has(item.accountId);
+          }
           if (item.type === "transfer") {
             return item.accountId === accountId || item.transferToAccountId === accountId;
           }
           return item.accountId === accountId;
         });
     if (isAdmin) return scoped;
-    return scoped.filter((item) => item.type !== "transfer" && item.accountId !== "escrow");
-  }, [schedules, accountId, isAdmin]);
+    // Keep donation schedules visible; hide other internal transfers.
+    return scoped.filter(
+      (item) => item.type !== "transfer" || isHomeContributionSchedule(item),
+    );
+  }, [schedules, accountId, isAdmin, unifiedWallet, profileId]);
+
+  useEffect(() => {
+    setListVisibleCount(RECURRING_LIST_PAGE_SIZE);
+  }, [profileId, accountId, visibleSchedules.length]);
+
+  const listedSchedules = useMemo(
+    () => visibleSchedules.slice(0, listVisibleCount),
+    [visibleSchedules, listVisibleCount],
+  );
+  const hasMoreSchedules = listedSchedules.length < visibleSchedules.length;
 
   const unpaidDue = useMemo(() => {
     const today = formatEasternIsoDate();
@@ -131,8 +164,9 @@ export default function RecurringCashflowPanel({ accountId = null }) {
   }, [visibleSchedules]);
 
   useEffect(() => {
+    ensureHomeContributionSchedulesFromContributions(profileId);
     processRecurringCashflows();
-  }, []);
+  }, [profileId]);
 
   useEffect(() => {
     if (!unpaidDue.length) return;
@@ -141,17 +175,18 @@ export default function RecurringCashflowPanel({ accountId = null }) {
 
   useEffect(() => {
     if (accountId) {
-      setSelectedAccountId(accountId);
+      setSelectedAccountId(unifiedWallet ? "checking" : accountId);
       setTransferFromId(accountId);
       setTransferToId(accountId === "checking" ? "escrow" : "checking");
     }
-  }, [accountId]);
+  }, [accountId, unifiedWallet]);
 
   useEffect(() => {
-    if (!isAdmin && type === "transfer") {
+    // Members create income-only schedules; keep existing type while editing.
+    if (!isAdmin && !editingId && type !== "income") {
       setType("income");
     }
-  }, [isAdmin, type]);
+  }, [isAdmin, type, editingId]);
 
   const handleSwapTransferAccounts = () => {
     setTransferFromId(transferToId);
@@ -204,9 +239,15 @@ export default function RecurringCashflowPanel({ accountId = null }) {
       return;
     }
 
+    const resolveLedgerAccountId = () => {
+      if (type === "transfer") return transferFromId;
+      if (unifiedWallet) return memberLedgerAccountId;
+      return accountId ?? selectedAccountId;
+    };
+
     if (editingId) {
       const result = updateRecurringCashflow(editingId, {
-        accountId: type === "transfer" ? transferFromId : accountId ?? selectedAccountId,
+        accountId: resolveLedgerAccountId(),
         transferToAccountId: type === "transfer" ? transferToId : undefined,
         type,
         amount: parsed,
@@ -227,7 +268,7 @@ export default function RecurringCashflowPanel({ accountId = null }) {
 
     const result = addRecurringCashflow({
       profileId,
-      accountId: type === "transfer" ? transferFromId : accountId ?? selectedAccountId,
+      accountId: resolveLedgerAccountId(),
       transferToAccountId: type === "transfer" ? transferToId : undefined,
       type,
       amount: parsed,
@@ -256,8 +297,9 @@ export default function RecurringCashflowPanel({ accountId = null }) {
 
   return (
     <DashboardCard
-      title={t("pages.accounts.recurringTitle")}
-      subtitle={t("pages.accounts.recurringSub")}
+      title={t(
+        isAdmin ? "pages.accounts.recurringTitle" : "pages.accounts.recurringTitleMember",
+      )}
       collapsible
       defaultCollapsed
       collapseAriaLabel={t("pages.accounts.collapseRecurring")}
@@ -268,11 +310,16 @@ export default function RecurringCashflowPanel({ accountId = null }) {
           <p className="font-semibold">{t("pages.accounts.recurringUnpaidTitle")}</p>
           <ul className="mt-2 space-y-1.5">
             {unpaidDue.map(({ schedule, dayYmd }) => {
-              const accountBalance =
-                schedule.accountId === "checking"
+              const accountBalance = unifiedWallet
+                ? ledger.checkingBalance + ledger.escrowBalance
+                : schedule.accountId === "checking"
                   ? ledger.checkingBalance
                   : ledger.escrowBalance;
-              const accountLabel = getAccountOptionLabel(schedule.accountId, isAdmin, t);
+              const accountLabel = getAccountOptionLabel(
+                unifiedWallet ? "checking" : schedule.accountId,
+                isAdmin,
+                t,
+              );
               return (
                 <li key={`${schedule.id}-${dayYmd}`} className="text-xs text-amber-100/90">
                   {t("pages.accounts.recurringUnpaidItem", {
@@ -293,30 +340,30 @@ export default function RecurringCashflowPanel({ accountId = null }) {
       ) : null}
 
       <form onSubmit={handleSubmit} className="dda-recurring-form space-y-4">
-        <div className="dda-recurring-type">
-          <button
-            type="button"
-            onClick={() => setType("income")}
-            className={cn(
-              "dda-recurring-type__btn",
-              type === "income" && "dda-recurring-type__btn--income",
-            )}
-          >
-            <ArrowDownLeft className="h-4 w-4" />
-            {t("pages.accounts.recurringIncome")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setType("expense")}
-            className={cn(
-              "dda-recurring-type__btn",
-              type === "expense" && "dda-recurring-type__btn--expense",
-            )}
-          >
-            <ArrowUpRight className="h-4 w-4" />
-            {t("pages.accounts.recurringExpense")}
-          </button>
-          {isAdmin ? (
+        {isAdmin ? (
+          <div className="dda-recurring-type">
+            <button
+              type="button"
+              onClick={() => setType("income")}
+              className={cn(
+                "dda-recurring-type__btn",
+                type === "income" && "dda-recurring-type__btn--income",
+              )}
+            >
+              <ArrowDownLeft className="h-4 w-4" />
+              {t("pages.accounts.recurringIncome")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setType("expense")}
+              className={cn(
+                "dda-recurring-type__btn",
+                type === "expense" && "dda-recurring-type__btn--expense",
+              )}
+            >
+              <ArrowUpRight className="h-4 w-4" />
+              {t("pages.accounts.recurringExpense")}
+            </button>
             <button
               type="button"
               onClick={() => setType("transfer")}
@@ -328,8 +375,8 @@ export default function RecurringCashflowPanel({ accountId = null }) {
               <ArrowLeftRight className="h-4 w-4" />
               {t("pages.accounts.recurringTransfer")}
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         {type === "transfer" ? (
           <div className="dda-bank-transfer-route">
@@ -389,7 +436,7 @@ export default function RecurringCashflowPanel({ accountId = null }) {
               </p>
             </div>
           </div>
-        ) : (
+        ) : isAdmin ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {!accountId ? (
             <div>
@@ -429,7 +476,7 @@ export default function RecurringCashflowPanel({ accountId = null }) {
             </select>
           </div>
         </div>
-        )}
+        ) : null}
 
         {type === "transfer" ? (
           <div>
@@ -465,66 +512,70 @@ export default function RecurringCashflowPanel({ accountId = null }) {
           />
         </div>
 
-        <div>
-          <label htmlFor="recurring-amount" className="mb-1.5 block text-sm text-gray-400">
-            {t("pages.accounts.amount")}
-          </label>
-          <div className="dda-bank-amount-input">
-            <input
-              id="recurring-amount"
-              inputMode="decimal"
-              value={amount}
-              onChange={(event) => handleAmountChange(event.target.value, setAmount)}
-              placeholder="$0.00"
-              className="w-full bg-transparent text-xl font-bold tabular-nums text-white outline-none placeholder:text-gray-600"
-            />
-          </div>
-        </div>
+        {isAdmin || editingId ? (
+          <>
+            <div>
+              <label htmlFor="recurring-amount" className="mb-1.5 block text-sm text-gray-400">
+                {t("pages.accounts.amount")}
+              </label>
+              <div className="dda-bank-amount-input">
+                <input
+                  id="recurring-amount"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(event) => handleAmountChange(event.target.value, setAmount)}
+                  placeholder="$0.00"
+                  className="w-full bg-transparent text-xl font-bold tabular-nums text-white outline-none placeholder:text-gray-600"
+                />
+              </div>
+            </div>
 
-        <div>
-          <label htmlFor="recurring-label" className="mb-1.5 block text-sm text-gray-400">
-            {t("pages.accounts.recurringLabel")}
-          </label>
-          <input
-            id="recurring-label"
-            type="text"
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder={t("pages.accounts.recurringLabelPlaceholder")}
-            className="dda-bank-field"
-          />
-        </div>
+            <div>
+              <label htmlFor="recurring-label" className="mb-1.5 block text-sm text-gray-400">
+                {t("pages.accounts.recurringLabel")}
+              </label>
+              <input
+                id="recurring-label"
+                type="text"
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+                placeholder={t("pages.accounts.recurringLabelPlaceholder")}
+                className="dda-bank-field"
+              />
+            </div>
 
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
-        {status ? <p className="text-sm text-dda-green-light">{status}</p> : null}
+            {error ? <p className="text-sm text-red-400">{error}</p> : null}
+            {status ? <p className="text-sm text-dda-green-light">{status}</p> : null}
 
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className="dda-btn-primary inline-flex flex-1 items-center justify-center gap-2 py-3 text-sm font-semibold"
-          >
-            {editingId ? (
-              <>
-                <Pencil className="h-4 w-4" />
-                {t("pages.accounts.recurringUpdate")}
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4" />
-                {t("pages.accounts.recurringAdd")}
-              </>
-            )}
-          </button>
-          {editingId ? (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="dda-bank-ledger__action-btn shrink-0 px-4 py-3 text-sm"
-            >
-              {t("pages.accounts.cancelEdit")}
-            </button>
-          ) : null}
-        </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="dda-btn-primary inline-flex flex-1 items-center justify-center gap-2 py-3 text-sm font-semibold"
+              >
+                {editingId ? (
+                  <>
+                    <Pencil className="h-4 w-4" />
+                    {t("pages.accounts.recurringUpdate")}
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4" />
+                    {t("pages.accounts.recurringAdd")}
+                  </>
+                )}
+              </button>
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="dda-bank-ledger__action-btn shrink-0 px-4 py-3 text-sm"
+                >
+                  {t("pages.accounts.cancelEdit")}
+                </button>
+              ) : null}
+            </div>
+          </>
+        ) : null}
       </form>
 
       <div className="mt-6">
@@ -535,136 +586,156 @@ export default function RecurringCashflowPanel({ accountId = null }) {
         </p>
 
         {visibleSchedules.length ? (
-          <ul className="dda-recurring-list">
-            {visibleSchedules.map((schedule) => {
-              const nextDue = getNextDueDate(schedule);
-              const accountLabel = getAccountOptionLabel(schedule.accountId, isAdmin, t);
-              const transferToLabel =
-                schedule.type === "transfer" && schedule.transferToAccountId
-                  ? getAccountOptionLabel(schedule.transferToAccountId, isAdmin, t)
-                  : null;
-              const freqLabel = t(
-                `pages.accounts.${FREQUENCY_OPTIONS.find((item) => item.id === schedule.frequency)?.labelKey ?? "freqMonthly"}`,
-              );
+          <>
+            <ul className="dda-recurring-list">
+              {listedSchedules.map((schedule) => {
+                const nextDue = getNextDueDate(schedule);
+                const accountLabel = getAccountOptionLabel(schedule.accountId, isAdmin, t);
+                const transferToLabel =
+                  schedule.type === "transfer" && schedule.transferToAccountId
+                    ? getAccountOptionLabel(schedule.transferToAccountId, isAdmin, t)
+                    : null;
+                const freqLabel = t(
+                  `pages.accounts.${FREQUENCY_OPTIONS.find((item) => item.id === schedule.frequency)?.labelKey ?? "freqMonthly"}`,
+                );
 
-              return (
-                <li
-                  key={schedule.id}
-                  className={cn(
-                    "dda-recurring-list__item",
-                    !schedule.enabled && "dda-recurring-list__item--paused",
-                    editingId === schedule.id && "dda-recurring-list__item--editing",
-                  )}
-                >
-                  <span
+                return (
+                  <li
+                    key={schedule.id}
                     className={cn(
-                      "dda-recurring-list__icon",
-                      schedule.type === "income" && "dda-recurring-list__icon--income",
-                      schedule.type === "expense" && "dda-recurring-list__icon--expense",
-                      schedule.type === "transfer" && "dda-recurring-list__icon--transfer",
+                      "dda-recurring-list__item",
+                      !schedule.enabled && "dda-recurring-list__item--paused",
+                      editingId === schedule.id && "dda-recurring-list__item--editing",
                     )}
                   >
-                    {schedule.type === "income" ? (
-                      <ArrowDownLeft className="h-4 w-4" />
-                    ) : schedule.type === "expense" ? (
-                      <ArrowUpRight className="h-4 w-4" />
-                    ) : (
-                      <ArrowLeftRight className="h-4 w-4" />
-                    )}
-                  </span>
-
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-white">
-                      {schedule.label || t("pages.accounts.recurringUntitled")}
-                    </span>
-                    <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
-                      <span>{freqLabel}</span>
-                      {schedule.type === "transfer" && transferToLabel ? (
-                        <span>
-                          {t("pages.accounts.recurringTransferRoute", {
-                            from: accountLabel,
-                            to: transferToLabel,
-                          })}
-                        </span>
-                      ) : !accountId ? (
-                        <span>· {accountLabel}</span>
-                      ) : null}
-                      {schedule.startDate ? (
-                        <span>
-                          {t("pages.accounts.recurringStartsOn", {
-                            date: formatEasternShortDate(schedule.startDate),
-                          })}
-                        </span>
-                      ) : null}
-                      {nextDue ? (
-                        <span className="inline-flex items-center gap-1">
-                          <CalendarClock className="h-3 w-3" />
-                          {t("pages.accounts.recurringNextDue", {
-                            date: formatEasternShortDate(nextDue),
-                          })}
-                        </span>
-                      ) : null}
-                    </span>
-                  </span>
-
-                  <span className="text-right">
                     <span
                       className={cn(
-                        "block text-sm font-bold tabular-nums",
-                        schedule.type === "income" && "text-dda-green-light",
-                        schedule.type === "expense" && "text-red-400",
-                        schedule.type === "transfer" && "text-sky-300",
+                        "dda-recurring-list__icon",
+                        schedule.type === "income" && "dda-recurring-list__icon--income",
+                        schedule.type === "expense" && "dda-recurring-list__icon--expense",
+                        schedule.type === "transfer" && "dda-recurring-list__icon--transfer",
                       )}
                     >
-                      {schedule.type === "income" ? "+" : schedule.type === "expense" ? "−" : "↔"}
-                      {formatPoolCurrency(schedule.amount)}
-                    </span>
-                    <span className="block text-[10px] text-gray-500">
-                      {schedule.enabled
-                        ? t("pages.accounts.recurringActive")
-                        : t("pages.accounts.recurringPaused")}
-                    </span>
-                  </span>
-
-                  <span className="dda-recurring-list__actions">
-                    <button
-                      type="button"
-                      onClick={() => handleEdit(schedule)}
-                      className="dda-bank-ledger__icon-btn"
-                      aria-label={t("pages.accounts.recurringEdit")}
-                      aria-pressed={editingId === schedule.id}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleToggle(schedule)}
-                      className="dda-bank-ledger__icon-btn"
-                      aria-label={
-                        schedule.enabled
-                          ? t("pages.accounts.recurringPause")
-                          : t("pages.accounts.recurringResume")
-                      }
-                    >
-                      {schedule.enabled ? (
-                        <Pause className="h-3.5 w-3.5" />
+                      {schedule.type === "income" ? (
+                        <ArrowDownLeft className="h-4 w-4" />
+                      ) : schedule.type === "expense" ? (
+                        <ArrowUpRight className="h-4 w-4" />
                       ) : (
-                        <Play className="h-3.5 w-3.5" />
+                        <ArrowLeftRight className="h-4 w-4" />
                       )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(schedule.id)}
-                      className="dda-bank-ledger__icon-btn dda-bank-ledger__icon-btn--danger"
-                      aria-label={t("pages.accounts.recurringDelete")}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+                    </span>
+
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-white">
+                        {isHomeContributionSchedule(schedule)
+                          ? t("pages.accounts.recurringDonationLabelWithAmount", {
+                              amount: formatPoolCurrency(schedule.amount),
+                            })
+                          : schedule.label || t("pages.accounts.recurringUntitled")}
+                      </span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
+                        <span>{freqLabel}</span>
+                        {schedule.type === "transfer" && transferToLabel ? (
+                          <span>
+                            {t("pages.accounts.recurringTransferRoute", {
+                              from: accountLabel,
+                              to: transferToLabel,
+                            })}
+                          </span>
+                        ) : !accountId ? (
+                          <span>· {accountLabel}</span>
+                        ) : null}
+                        {schedule.startDate ? (
+                          <span>
+                            {t("pages.accounts.recurringStartsOn", {
+                              date: formatEasternShortDate(schedule.startDate),
+                            })}
+                          </span>
+                        ) : null}
+                        {nextDue ? (
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarClock className="h-3 w-3" />
+                            {t("pages.accounts.recurringNextDue", {
+                              date: formatEasternShortDate(nextDue),
+                            })}
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
+
+                    <span className="text-right">
+                      <span
+                        className={cn(
+                          "block text-sm font-bold tabular-nums",
+                          schedule.type === "income" && "text-dda-green-light",
+                          schedule.type === "expense" && "text-red-400",
+                          schedule.type === "transfer" && "text-sky-300",
+                        )}
+                      >
+                        {schedule.type === "income" ? "+" : schedule.type === "expense" ? "−" : "↔"}
+                        {formatPoolCurrency(schedule.amount)}
+                      </span>
+                      <span className="block text-[10px] text-gray-500">
+                        {schedule.enabled
+                          ? t("pages.accounts.recurringActive")
+                          : t("pages.accounts.recurringPaused")}
+                      </span>
+                    </span>
+
+                    <span className="dda-recurring-list__actions">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(schedule)}
+                        className="dda-bank-ledger__icon-btn"
+                        aria-label={t("pages.accounts.recurringEdit")}
+                        aria-pressed={editingId === schedule.id}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(schedule)}
+                        className="dda-bank-ledger__icon-btn"
+                        aria-label={
+                          schedule.enabled
+                            ? t("pages.accounts.recurringPause")
+                            : t("pages.accounts.recurringResume")
+                        }
+                      >
+                        {schedule.enabled ? (
+                          <Pause className="h-3.5 w-3.5" />
+                        ) : (
+                          <Play className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(schedule.id)}
+                        className="dda-bank-ledger__icon-btn dda-bank-ledger__icon-btn--danger"
+                        aria-label={t("pages.accounts.recurringDelete")}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {hasMoreSchedules ? (
+              <button
+                type="button"
+                className="dda-recurring-list__load-more"
+                onClick={() =>
+                  setListVisibleCount((count) => count + RECURRING_LIST_PAGE_SIZE)
+                }
+              >
+                {t("pages.accounts.recurringLoadMore", {
+                  remaining: visibleSchedules.length - listedSchedules.length,
+                })}
+              </button>
+            ) : null}
+          </>
         ) : (
           <div className="dda-panel rounded-xl p-5 text-center text-sm text-gray-500">
             {t("pages.accounts.recurringEmpty")}

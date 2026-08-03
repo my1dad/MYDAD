@@ -1,4 +1,5 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { isAdminProfile } from "../../../config/admin";
 import { DAD_BIN_IDS, DAD_STORAGE_PROFILE_ID, DATA_BIN_DEFINITIONS, type DataBinKey } from "../dataBins";
 import type { DadProfile } from "../dadProfileStorage";
 import {
@@ -12,6 +13,9 @@ const CLOUD_PUSH_DEBOUNCE_MS = 2500;
 const CLOUD_POLL_MS = 10 * 60_000;
 const CLOUD_VISIBLE_RESYNC_MIN_MS = 5 * 60_000;
 const GLOBAL_KV_SCOPE = "global";
+
+/** Marks a factory reset so sync cannot resurrect wiped members/data. */
+export const WORKSPACE_EPOCH_KEY = "dollar-a-day-workspace-epoch";
 
 let lastFullSyncAt = 0;
 let cloudPushPausedUntil = 0;
@@ -32,7 +36,35 @@ export const SYNCED_KV_KEYS = [
   "dollar-a-day-notification-dismissed",
   "dollar-a-day-dm-read",
   "dda-locale",
+  WORKSPACE_EPOCH_KEY,
 ] as const;
+
+export function bumpWorkspaceEpoch(): string {
+  const epoch = new Date().toISOString();
+  try {
+    localStorage.setItem(WORKSPACE_EPOCH_KEY, epoch);
+  } catch {
+    /* ignore quota */
+  }
+  return epoch;
+}
+
+export function getWorkspaceEpoch(): string | null {
+  try {
+    return localStorage.getItem(WORKSPACE_EPOCH_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function isAdminOnlyDirectory(profiles: DadProfile[]): boolean {
+  return profiles.length === 1 && isAdminProfile(profiles[0]);
+}
+
+/** After master reset, never merge remote members back on top of the admin-only directory. */
+function shouldHonorFactoryResetDirectory(localProfiles: DadProfile[]): boolean {
+  return Boolean(getWorkspaceEpoch()) && isAdminOnlyDirectory(localProfiles);
+}
 
 type SyncedKvKey = (typeof SYNCED_KV_KEYS)[number];
 
@@ -170,8 +202,27 @@ function mergeBinDocuments(
     return { merged: remote, source: "remote" };
   }
 
+  const epoch = getWorkspaceEpoch();
+
+  // After master reset: local post-wipe bins win over any pre-reset cloud history.
+  if (epoch && local.updatedAt >= epoch && remote.updatedAt < epoch) {
+    return { merged: local, source: "local" };
+  }
+
+  // Master reset / factory wipe: newer empty bin replaces remote history entirely.
+  const localEmpty = Array.isArray(local.records) && local.records.length === 0;
+  const remoteEmpty = Array.isArray(remote.records) && remote.records.length === 0;
+  if (localEmpty && local.updatedAt >= remote.updatedAt) {
+    return { merged: local, source: "local" };
+  }
+  if (remoteEmpty && remote.updatedAt >= local.updatedAt) {
+    return { merged: remote, source: "remote" };
+  }
+
   const byId = new Map<string, DataBinDocument["records"][number]>();
   for (const record of remote.records ?? []) {
+    // Drop cloud records that predate the factory reset epoch.
+    if (epoch && (record.updatedAt ?? remote.updatedAt) < epoch) continue;
     byId.set(record.id, record);
   }
 
@@ -249,8 +300,16 @@ function preferApprovalStatus(
 }
 
 function mergeProfiles(local: DadProfile[], remote: DadProfile[]): DadProfile[] {
+  const epoch = getWorkspaceEpoch();
+  const remoteUsable = epoch
+    ? remote.filter(
+        (profile) =>
+          isAdminProfile(profile) || profileTimestamp(profile) >= epoch,
+      )
+    : remote;
+
   const map = new Map<string, DadProfile>();
-  for (const profile of remote) map.set(profile.id, profile);
+  for (const profile of remoteUsable) map.set(profile.id, profile);
   for (const profile of local) {
     const existing = map.get(profile.id);
     if (!existing) {
@@ -365,6 +424,14 @@ function applyKvToLocalStorage(rows: CloudKvRow[]): void {
     try {
       const serialized =
         typeof remote.value === "string" ? remote.value : JSON.stringify(remote.value);
+
+      // Never let an older cloud epoch overwrite a newer local factory-reset marker.
+      if (key === WORKSPACE_EPOCH_KEY) {
+        const localEpoch = getWorkspaceEpoch();
+        const remoteEpoch = serialized.replace(/^"|"$/g, "");
+        if (localEpoch && remoteEpoch && localEpoch >= remoteEpoch) continue;
+      }
+
       localStorage.setItem(key, serialized);
     } catch (err) {
       console.warn(`[cloudSync] Could not apply kv ${key}:`, err);
@@ -457,6 +524,102 @@ export async function pushCloudProfilesNow(profiles: DadProfile[]): Promise<bool
 }
 
 /**
+ * Master reset: delete every cloud profile not in `profiles`, then upsert the keepers.
+ * Upsert alone cannot remove members, so a factory reset would otherwise resurrect them.
+ */
+export async function replaceCloudProfilesDirectory(profiles: DadProfile[]): Promise<boolean> {
+  if (!isSupabaseConfigured()) return true;
+
+  const supabase = getSupabaseClient();
+  if (!supabase) return true;
+
+  if (pendingProfilePush) {
+    clearTimeout(pendingProfilePush);
+    pendingProfilePush = null;
+  }
+
+  try {
+    const remote = await fetchCloudProfiles();
+    const keepIds = new Set(profiles.map((profile) => profile.id));
+    const staleIds = remote.map((profile) => profile.id).filter((id) => !keepIds.has(id));
+
+    if (staleIds.length) {
+      // Delete in chunks — some PostgREST gateways cap `.in()` lists.
+      for (let index = 0; index < staleIds.length; index += 100) {
+        const chunk = staleIds.slice(index, index + 100);
+        const { error } = await supabase.from("dad_profiles").delete().in("id", chunk);
+        if (error) {
+          console.warn("[cloudSync] Failed to delete stale profiles during reset:", error.message);
+          throw new Error(`Failed to delete cloud members: ${error.message}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[cloudSync] Could not prune remote profiles during reset:", err);
+    throw err;
+  }
+
+  return upsertCloudProfiles(profiles);
+}
+
+/**
+ * Hard wipe Supabase workspace data (bins + kv + non-admin profiles).
+ * Used by master reset so past platform data cannot reload from the cloud.
+ */
+export async function wipeCloudWorkspaceExceptAdmin(admin: DadProfile): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+
+  for (const timer of pendingBinPushes.values()) clearTimeout(timer);
+  pendingBinPushes.clear();
+  if (pendingProfilePush) {
+    clearTimeout(pendingProfilePush);
+    pendingProfilePush = null;
+  }
+  for (const timer of pendingKvPushes.values()) clearTimeout(timer);
+  pendingKvPushes.clear();
+
+  // 1) Profiles: only master admin remains.
+  await replaceCloudProfilesDirectory([admin]);
+
+  // 2) Bins: push the post-reset local documents (empty members/txns + seeded $0 pool).
+  const wipedAt = new Date().toISOString();
+  await Promise.all(
+    DATA_BIN_DEFINITIONS.map((definition) => {
+      const local = readDataBin(definition.key);
+      const document: DataBinDocument = {
+        ...local,
+        version: local.version ?? 1,
+        binKey: definition.key,
+        // Ensure cloud timestamp beats any pre-reset remote row.
+        updatedAt: local.updatedAt && local.updatedAt > wipedAt ? local.updatedAt : wipedAt,
+        records: Array.isArray(local.records) ? local.records : [],
+      };
+      return upsertCloudBin(definition.binId, document);
+    }),
+  );
+
+  // 3) Clear synced kv noise (notifications, etc.), then publish reset epoch.
+  for (const key of SYNCED_KV_KEYS) {
+    if (key === WORKSPACE_EPOCH_KEY) continue;
+    const { error } = await supabase
+      .from("dad_kv")
+      .delete()
+      .eq("workspace_id", DAD_WORKSPACE_ID)
+      .eq("scope_key", GLOBAL_KV_SCOPE)
+      .eq("kv_key", key);
+    if (error) {
+      console.warn(`[cloudSync] Failed to clear kv ${key} during reset:`, error.message);
+    }
+  }
+
+  const epoch = getWorkspaceEpoch() ?? bumpWorkspaceEpoch();
+  await upsertCloudKv(GLOBAL_KV_SCOPE, WORKSPACE_EPOCH_KEY, JSON.stringify(epoch));
+}
+
+/**
  * Pull profiles before login/register so approval status and credentials
  * from other devices are visible on the auth screen (which has no cloud sync).
  */
@@ -467,8 +630,19 @@ export async function pullCloudProfilesNow(
   if (!isSupabaseConfigured()) return getLocalProfiles();
 
   try {
+    const localProfiles = getLocalProfiles();
+
+    // After master reset, keep admin-only local directory and re-prune cloud members.
+    if (shouldHonorFactoryResetDirectory(localProfiles)) {
+      replaceLocalProfiles(localProfiles);
+      void replaceCloudProfilesDirectory(localProfiles).catch((err) =>
+        console.warn("[cloudSync] Post-reset profile prune failed:", err),
+      );
+      return localProfiles;
+    }
+
     const remote = await fetchCloudProfiles();
-    const merged = mergeProfiles(getLocalProfiles(), remote);
+    const merged = mergeProfiles(localProfiles, remote);
     replaceLocalProfiles(merged);
 
     const needsPublish = profilesNeedingApprovalPublish(merged, remote);
@@ -623,6 +797,7 @@ export async function syncCloudWorkspace(options: {
     const cloudEmpty = remoteBins.length === 0 && remoteProfiles.length === 0;
 
     const binUpserts: Promise<unknown>[] = [];
+    const honorReset = Boolean(getWorkspaceEpoch());
 
     for (const binId of DAD_BIN_IDS) {
       const binKey = binKeyForBinId(binId);
@@ -630,6 +805,14 @@ export async function syncCloudWorkspace(options: {
 
       const remoteRow = remoteBins.find((row) => row.bin_id === binId);
       const localDoc = readDataBin(binKey);
+
+      if (honorReset) {
+        // Factory reset: local wiped/seeded bins are authoritative — never merge pre-reset cloud rows.
+        applyExternalBinDocument(binId, binKey, localDoc);
+        binUpserts.push(upsertCloudBin(binId, localDoc));
+        continue;
+      }
+
       const { merged, source } = mergeBinDocuments(localDoc, remoteRow?.document ?? null);
 
       applyExternalBinDocument(binId, binKey, merged);
@@ -644,12 +827,21 @@ export async function syncCloudWorkspace(options: {
     await Promise.all(binUpserts);
 
     const localProfiles = options.getLocalProfiles();
-    const mergedProfiles = mergeProfiles(localProfiles, remoteProfiles);
-    options.replaceLocalProfiles(mergedProfiles);
+    let mergedProfiles: DadProfile[];
 
-    // Always publish the merged profile directory so master admin sees every member worldwide.
-    if (mergedProfiles.length > 0) {
-      await upsertCloudProfiles(mergedProfiles);
+    if (shouldHonorFactoryResetDirectory(localProfiles)) {
+      // Factory reset is authoritative — do not resurrect deleted members from cloud.
+      mergedProfiles = localProfiles;
+      options.replaceLocalProfiles(mergedProfiles);
+      await replaceCloudProfilesDirectory(mergedProfiles);
+    } else {
+      mergedProfiles = mergeProfiles(localProfiles, remoteProfiles);
+      options.replaceLocalProfiles(mergedProfiles);
+
+      // Always publish the merged profile directory so master admin sees every member worldwide.
+      if (mergedProfiles.length > 0) {
+        await upsertCloudProfiles(mergedProfiles);
+      }
     }
 
     applyKvToLocalStorage(remoteKv);
@@ -675,9 +867,17 @@ export async function syncCloudWorkspace(options: {
 }
 
 function handleRemoteBinChange(binId: string, document: DataBinDocument): void {
+  // Client-delivery lock: ignore realtime cloud pushes that would resurrect balances.
+  try {
+    if (localStorage.getItem("dollar-a-day-factory-zero") === "1") return;
+  } catch {
+    /* ignore */
+  }
   const binKey = binKeyForBinId(binId);
   if (!binKey) return;
-  applyExternalBinDocument(binId, binKey, document);
+  const localDoc = readDataBin(binKey);
+  const { merged } = mergeBinDocuments(localDoc, document);
+  applyExternalBinDocument(binId, binKey, merged);
 }
 
 export function startCloudRealtime(options: {
@@ -708,8 +908,17 @@ export function startCloudRealtime(options: {
       "postgres_changes",
       { event: "*", schema: "public", table: "dad_profiles" },
       async () => {
+        const localProfiles = options.getLocalProfiles();
+        if (shouldHonorFactoryResetDirectory(localProfiles)) {
+          options.onProfilesChanged(localProfiles);
+          void replaceCloudProfilesDirectory(localProfiles).catch((err) =>
+            console.warn("[cloudSync] Realtime post-reset prune failed:", err),
+          );
+          return;
+        }
+
         const remote = await fetchCloudProfiles();
-        const merged = mergeProfiles(options.getLocalProfiles(), remote);
+        const merged = mergeProfiles(localProfiles, remote);
         options.onProfilesChanged(merged);
 
         const needsPublish = profilesNeedingApprovalPublish(merged, remote);

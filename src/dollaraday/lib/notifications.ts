@@ -23,7 +23,15 @@ export type DdaNotificationKind =
   | "profile_pending"
   | "profile_approved"
   | "profile_denied"
-  | "donation";
+  | "donation"
+  | "wallet_deposit"
+  | "recurring_donation";
+
+export type DdaContributionNotifyType =
+  | "wallet-deposit"
+  | "recurring"
+  | "one-time"
+  | "other";
 
 export interface DdaNotification {
   id: string;
@@ -37,6 +45,8 @@ export interface DdaNotification {
   messageBody?: string;
   memberName?: string;
   donationAmount?: number;
+  contributionType?: DdaContributionNotifyType;
+  frequency?: string;
 }
 
 interface ContributionDonation {
@@ -45,6 +55,31 @@ interface ContributionDonation {
   amount: number;
   contributedAt: string;
   profileId?: string;
+  contributionType: DdaContributionNotifyType;
+  frequency?: string;
+}
+
+function normalizeContributionType(rawType: string, source: string): DdaContributionNotifyType {
+  if (rawType === "wallet-deposit" || source === "wallet-deposit") return "wallet-deposit";
+  if (
+    rawType === "recurring" ||
+    source === "recurring-home-contribution" ||
+    source === "recurring-automation"
+  ) {
+    return "recurring";
+  }
+  if (rawType === "one-time" || source === "contribute-onboarding") return "one-time";
+  return "other";
+}
+
+function notificationKindForContribution(
+  contributionType: DdaContributionNotifyType,
+  forMemberSelf: boolean,
+): DdaNotificationKind {
+  if (!forMemberSelf) return "donation";
+  if (contributionType === "wallet-deposit") return "wallet_deposit";
+  if (contributionType === "recurring") return "recurring_donation";
+  return "donation";
 }
 
 function getRecentDonations(limit = 50): ContributionDonation[] {
@@ -56,15 +91,24 @@ function getRecentDonations(limit = 50): ContributionDonation[] {
         typeof payload.memberName === "string" ? payload.memberName.trim() : "";
       const contributedAt =
         typeof payload.contributedAt === "string" ? payload.contributedAt : record.createdAt;
+      const rawType = typeof payload.type === "string" ? payload.type : "";
+      const frequency = typeof payload.frequency === "string" ? payload.frequency : undefined;
 
       return {
         id: record.id,
         memberName,
         amount,
         contributedAt,
-        profileId: typeof payload.profileId === "string" ? payload.profileId : undefined,
-        type: typeof payload.type === "string" ? payload.type : "",
+        profileId:
+          typeof payload.profileId === "string"
+            ? payload.profileId
+            : typeof payload.memberId === "string"
+              ? payload.memberId
+              : undefined,
+        type: rawType,
         status: typeof payload.status === "string" ? payload.status : "completed",
+        contributionType: normalizeContributionType(rawType, record.source),
+        frequency,
       };
     })
     .filter((entry) => {
@@ -74,13 +118,25 @@ function getRecentDonations(limit = 50): ContributionDonation[] {
     })
     .sort((a, b) => b.contributedAt.localeCompare(a.contributedAt))
     .slice(0, limit)
-    .map(({ id, memberName, amount, contributedAt, profileId }) => ({
-      id,
-      memberName,
-      amount,
-      contributedAt,
-      profileId,
-    }));
+    .map(
+      ({
+        id,
+        memberName,
+        amount,
+        contributedAt,
+        profileId,
+        contributionType,
+        frequency,
+      }) => ({
+        id,
+        memberName,
+        amount,
+        contributedAt,
+        profileId,
+        contributionType,
+        frequency,
+      }),
+    );
 }
 
 const READ_KEY = "dollar-a-day-notification-read";
@@ -234,18 +290,28 @@ function buildNotifications(profileId: string | undefined, isAdmin: boolean): Dd
       });
   }
 
-  getRecentDonations().forEach((donation) => {
-    const id = `donation-${donation.id}`;
-    items.push({
-      id,
-      kind: "donation",
-      memberName: donation.memberName,
-      donationAmount: donation.amount,
-      occurredAt: donation.contributedAt,
-      unread: !readIds.has(id),
-      targetPage: "allocations",
+  // Money alerts: admin sees platform-wide donations; members only see their own.
+  getRecentDonations()
+    .filter((donation) => {
+      if (isAdmin) return true;
+      if (!profileId) return false;
+      return donation.profileId === profileId;
+    })
+    .forEach((donation) => {
+      const id = `donation-${donation.id}`;
+      const forMemberSelf = !isAdmin;
+      items.push({
+        id,
+        kind: notificationKindForContribution(donation.contributionType, forMemberSelf),
+        memberName: donation.memberName,
+        donationAmount: donation.amount,
+        contributionType: donation.contributionType,
+        frequency: donation.frequency,
+        occurredAt: donation.contributedAt,
+        unread: !readIds.has(id),
+        targetPage: isAdmin ? "allocations" : "accounts",
+      });
     });
-  });
 
   if (isAdmin) {
     getDadProfiles()

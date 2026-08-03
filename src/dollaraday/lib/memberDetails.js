@@ -71,9 +71,9 @@ export function buildMemberDetail(member) {
   const poolShare = Math.round(member.equity * 0.12);
 
   const accounts = [
-    { name: "Contributions", value: member.contributed, color: "#10b981" },
+    { name: "Contributions", value: member.contributed, color: "var(--color-dda-green)" },
     { name: "Equity growth", value: equityGrowth, color: "#2563eb" },
-    { name: "Pool allocation", value: poolShare, color: "#eab308" },
+    { name: "Pool allocation", value: poolShare, color: "var(--color-dda-gold-light)" },
   ];
 
   const contributionTrend = weekLabels.map((label, index) => ({

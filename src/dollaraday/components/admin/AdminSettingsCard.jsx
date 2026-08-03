@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import {
+  AlertTriangle,
   Bell,
   Cloud,
   Download,
@@ -7,6 +9,7 @@ import {
   RotateCcw,
   Upload,
   UserCog,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import DashboardCard from "../layout/DashboardCard";
@@ -65,6 +68,115 @@ function SettingsSection({ icon: Icon, title, description, children }) {
   );
 }
 
+function MasterResetWarningModal({ open, step, resetting, onClose, onContinue, onConfirm, t }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape" && !resetting) onClose();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, resetting, onClose]);
+
+  if (!open) return null;
+
+  const isFinal = step === "final";
+
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <button
+        type="button"
+        aria-label={t("common.close")}
+        className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+        onClick={resetting ? undefined : onClose}
+        disabled={resetting}
+      />
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="master-reset-warning-title"
+        aria-describedby="master-reset-warning-body"
+        className="relative w-full max-w-md overflow-hidden rounded-t-3xl border border-red-500/30 bg-dda-bg shadow-2xl sm:rounded-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="h-1 w-full bg-red-500/80" />
+        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-500/15 text-red-300 ring-1 ring-red-500/30">
+              <AlertTriangle className="h-5 w-5" strokeWidth={2.25} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-red-300">
+                {t("pages.admin.settings.masterResetWarningBadge")}
+              </p>
+              <h2 id="master-reset-warning-title" className="mt-1 text-lg font-semibold text-white">
+                {isFinal
+                  ? t("pages.admin.settings.masterResetFinalTitle")
+                  : t("pages.admin.settings.masterResetTitle")}
+              </h2>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={resetting}
+            aria-label={t("common.close")}
+            className="rounded-lg p-2 text-gray-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-4 px-5 py-5">
+          <p id="master-reset-warning-body" className="text-sm leading-relaxed text-gray-300">
+            {isFinal
+              ? t("pages.admin.settings.masterResetConfirmFinal")
+              : t("pages.admin.settings.masterResetConfirm")}
+          </p>
+          <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-xs leading-relaxed text-red-200">
+            {t("pages.admin.settings.masterResetWarningNote")}
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={resetting}
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-gray-300 transition hover:bg-white/10 disabled:opacity-50"
+            >
+              {t("common.cancel")}
+            </button>
+            {isFinal ? (
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={resetting}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/20 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/30 disabled:opacity-60"
+              >
+                <RotateCcw className={cn("h-3.5 w-3.5", resetting && "animate-spin")} />
+                {resetting
+                  ? t("pages.admin.settings.masterResetWorking")
+                  : t("pages.admin.settings.masterResetAction")}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onContinue}
+                className="rounded-lg border border-red-500/40 bg-red-500/20 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/30"
+              >
+                {t("pages.admin.settings.masterResetContinue")}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function AdminSettingsCard() {
   const { t } = useLocale();
   const { profile, isAdmin } = useDadAuth();
@@ -75,6 +187,7 @@ export default function AdminSettingsCard() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [resetting, setResetting] = useState(false);
+  const [resetPromptStep, setResetPromptStep] = useState(null);
   const [importing, setImporting] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
   const [syncingCloud, setSyncingCloud] = useState(false);
@@ -128,21 +241,22 @@ export default function AdminSettingsCard() {
     }
   };
 
-  const handleMasterReset = async () => {
-    const confirmed = window.confirm(t("pages.admin.settings.masterResetConfirm"));
-    if (!confirmed) return;
+  const closeMasterResetPrompt = () => {
+    if (resetting) return;
+    setResetPromptStep(null);
+  };
 
-    const finalConfirm = window.confirm(t("pages.admin.settings.masterResetConfirmFinal"));
-    if (!finalConfirm) return;
-
+  const handleMasterResetConfirm = async () => {
     setResetting(true);
     setError("");
     try {
       await masterResetDashboard();
       window.location.reload();
-    } catch {
-      setError(t("pages.admin.settings.masterResetFailed"));
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? ` ${err.message}` : "";
+      setError(`${t("pages.admin.settings.masterResetFailed")}${detail}`);
       setResetting(false);
+      setResetPromptStep(null);
     }
   };
 
@@ -331,7 +445,10 @@ export default function AdminSettingsCard() {
         >
           <button
             type="button"
-            onClick={handleMasterReset}
+            onClick={() => {
+              setError("");
+              setResetPromptStep("warn");
+            }}
             disabled={resetting}
             className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/15 disabled:opacity-60"
           >
@@ -456,6 +573,16 @@ export default function AdminSettingsCard() {
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
         {status ? <p className="text-sm text-gray-400">{status}</p> : null}
       </div>
+
+      <MasterResetWarningModal
+        open={Boolean(resetPromptStep)}
+        step={resetPromptStep}
+        resetting={resetting}
+        onClose={closeMasterResetPrompt}
+        onContinue={() => setResetPromptStep("final")}
+        onConfirm={handleMasterResetConfirm}
+        t={t}
+      />
     </DashboardCard>
   );
 }

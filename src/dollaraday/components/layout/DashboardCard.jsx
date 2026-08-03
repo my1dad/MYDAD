@@ -2,22 +2,22 @@ import { ChevronDown, CircleDollarSign, Lock, Percent } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useLocale } from "../../i18n/LocaleContext";
-import { DDA_THEME } from "../../lib/theme";
+import { DDA_THEME_VARS } from "../../lib/theme";
 
 const secondaryStatConfig = {
   escrow: {
     icon: Lock,
-    accent: DDA_THEME.greenLight,
+    accent: DDA_THEME_VARS.greenLight,
     hintKey: "stats.segregatedReserve",
   },
   daily: {
     icon: CircleDollarSign,
-    accent: DDA_THEME.green,
+    accent: DDA_THEME_VARS.green,
     hintKey: "stats.memberInflowToday",
   },
   apy: {
     icon: Percent,
-    accent: DDA_THEME.goldLight,
+    accent: DDA_THEME_VARS.goldLight,
     hintKey: "stats.annualPoolYield",
   },
 };
@@ -25,7 +25,7 @@ const secondaryStatConfig = {
 function SecondaryStatCard({ statKey, label, value, hint }) {
   const config = secondaryStatConfig[statKey];
   const Icon = config?.icon ?? CircleDollarSign;
-  const accent = config?.accent ?? DDA_THEME.greenLight;
+  const accent = config?.accent ?? DDA_THEME_VARS.greenLight;
   const title = hint ? `${label}: ${value} — ${hint}` : `${label}: ${value}`;
 
   return (

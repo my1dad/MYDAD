@@ -29,8 +29,8 @@ function formatAxisValue(value) {
 const EVENT_MARKER_COLORS = {
   escrow_in: "#38bdf8",
   escrow_out: "#f87171",
-  allocation: "#eab308",
-  contribution: "#34d399",
+  allocation: "var(--color-dda-gold-light)",
+  contribution: "var(--color-dda-green-light)",
   yield: "#a78bfa",
 };
 
@@ -315,7 +315,7 @@ export default function PoolBalanceChart() {
             />
             <Tooltip
               content={<BalanceTooltip t={t} plotRef={plotRef} />}
-              cursor={{ stroke: "rgba(52, 211, 153, 0.35)", strokeWidth: 1 }}
+              cursor={{ stroke: "color-mix(in srgb, var(--color-dda-green-light) 35%, transparent)", strokeWidth: 1 }}
               allowEscapeViewBox={{ x: true, y: true }}
               wrapperStyle={{ visibility: "hidden", pointerEvents: "none" }}
             />

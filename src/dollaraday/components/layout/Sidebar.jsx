@@ -36,6 +36,7 @@ export const navItems = [
   navItemById.pool,
   navItemById.investments,
   navItemById.accounts,
+  navItemById.loans,
   navItemById.community,
   navItemById.admin,
 ];
@@ -55,12 +56,12 @@ export const mobileMoreItems = [
   navItemById.admin,
 ];
 
-const ADMIN_NAV_IDS = ["dashboard", "allocations", "members", "pool", "investments", "accounts", "community", "admin"];
-const MEMBER_NAV_IDS = ["dashboard", "allocations", "members", "pool", "accounts", "community", "admin"];
+const ADMIN_NAV_IDS = ["dashboard", "allocations", "members", "pool", "investments", "accounts", "loans", "community", "admin"];
+const MEMBER_NAV_IDS = ["dashboard", "pool", "accounts", "loans", "community"];
 const ADMIN_MOBILE_NAV_IDS = ["dashboard", "pool", "investments", "accounts"];
-const MEMBER_MOBILE_NAV_IDS = ["dashboard", "pool", "accounts", "community"];
+const MEMBER_MOBILE_NAV_IDS = ["dashboard", "pool", "accounts", "community", "loans"];
 const ADMIN_MOBILE_MORE_IDS = ["allocations", "members", "loans", "community", "admin"];
-const MEMBER_MOBILE_MORE_IDS = ["allocations", "members", "loans", "admin"];
+const MEMBER_MOBILE_MORE_IDS = [];
 
 const mobileNavLabels = {
   dashboard: "home",
@@ -122,14 +123,16 @@ export default function Sidebar({ activePage, onNavigate, onPrefetch }) {
             </button>
           );
         })}
-        <button
-          type="button"
-          onClick={() => logoutDollarADay()}
-          className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-red-400 transition-colors hover:bg-red-400/10 hover:text-red-300"
-        >
-          <LogOut className="h-4 w-4 shrink-0" strokeWidth={2} />
-          {t("nav.logout")}
-        </button>
+        {isAdmin ? (
+          <button
+            type="button"
+            onClick={() => logoutDollarADay()}
+            className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-red-400 transition-colors hover:bg-red-400/10 hover:text-red-300"
+          >
+            <LogOut className="h-4 w-4 shrink-0" strokeWidth={2} />
+            {t("nav.logout")}
+          </button>
+        ) : null}
       </nav>
     </aside>
   );

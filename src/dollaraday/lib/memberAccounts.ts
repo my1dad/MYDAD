@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
-import { getActiveDadProfile } from "./dadProfileStorage";
+import { ADMIN_USERNAME } from "../../config/admin";
+import { findDadProfileByUsername, getActiveDadProfile } from "./dadProfileStorage";
 import { readDataBin, subscribeInternalDatabase, upsertDataRecord } from "./internalDatabase";
 import { easternNow, formatEasternTimeWithZone, type DdaLocale } from "./dateTime";
 import { getPoolState, syncMemberEscrowToLiquidityPool } from "./poolState";
@@ -349,6 +350,98 @@ export function spendFromMemberAccount(
       },
       options?.occurredAt,
     );
+  });
+}
+
+/** Master admin profile id — Chase Escrow sink for member donations. */
+export function getAdminProfileId(): string | undefined {
+  return findDadProfileByUsername(ADMIN_USERNAME)?.id;
+}
+
+/** Resolve the platform Chase Escrow owner (master admin), with safe fallback. */
+export function resolvePlatformEscrowProfileId(fallbackProfileId?: string): string {
+  return getAdminProfileId() || fallbackProfileId || resolveMemberProfileId();
+}
+
+/**
+ * Credit master admin Chase Escrow for a member donation (instant / weekly / monthly).
+ * Donor attribution stays on the contribution record; cash settles on admin escrow.
+ */
+export function depositDonationToPlatformEscrow(
+  amount: number,
+  memo: string,
+  options?: { occurredAt?: string; donorProfileId?: string },
+): MemberAccountLedger | null {
+  const platformId = resolvePlatformEscrowProfileId(options?.donorProfileId);
+  return depositToMemberAccount(platformId, "escrow", amount, memo, options);
+}
+
+/** Member-facing wallet = checking + escrow (escrow holds pool contributions). */
+export function getMemberWalletBalance(ledger: MemberAccountLedger): number {
+  return (Number(ledger.checkingBalance) || 0) + (Number(ledger.escrowBalance) || 0);
+}
+
+export function isInternalWalletTransfer(transaction: MemberAccountTransaction): boolean {
+  if (transaction.type !== "transfer") return false;
+  const counterparty = transaction.counterpartyAccountId;
+  return (
+    (transaction.accountId === "checking" && counterparty === "escrow") ||
+    (transaction.accountId === "escrow" && counterparty === "checking")
+  );
+}
+
+/** Credits member wallet — funds land in escrow (liquidity pool cash). */
+export function depositToMemberWallet(
+  profileId: string,
+  amount: number,
+  memo?: string,
+  options?: { occurredAt?: string },
+): MemberAccountLedger | null {
+  return depositToMemberAccount(profileId, "escrow", amount, memo, options);
+}
+
+/** Debits member wallet — prefers escrow, then checking. */
+export function spendFromMemberWallet(
+  profileId: string,
+  amount: number,
+  memo?: string,
+  options?: { occurredAt?: string },
+): MemberAccountLedger | null {
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  return applyLedgerMutation(profileId, (ledger) => {
+    if (amount > getMemberWalletBalance(ledger)) return ledger;
+
+    const note = memo?.trim() || undefined;
+    const occurredAt = options?.occurredAt;
+    let remaining = amount;
+    let next = ledger;
+
+    const takeFrom = (accountId: MemberAccountId) => {
+      if (remaining <= 0) return;
+      const available = getBalance(next, accountId);
+      if (available <= 0) return;
+      const take = Math.min(remaining, available);
+      const balance = available - take;
+      next = setBalance(next, accountId, balance);
+      next = appendTransaction(
+        next,
+        {
+          accountId,
+          type: "spend",
+          direction: "debit",
+          amount: take,
+          balanceAfter: balance,
+          memo: note,
+        },
+        occurredAt,
+      );
+      remaining -= take;
+    };
+
+    takeFrom("escrow");
+    takeFrom("checking");
+    return remaining > 0 ? ledger : next;
   });
 }
 

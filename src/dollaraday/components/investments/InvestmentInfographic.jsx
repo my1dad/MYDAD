@@ -14,13 +14,20 @@ import { useLocale } from "../../i18n/LocaleContext";
 import {
   formatPositionMaturity,
   getPositionsForSleeve,
+  getTotalDeployedCapital,
+  mergeLocalizedSleeveInvestments,
+  summarizeSleeveAllocations,
   ALLOCATION_SLEEVE_META,
 } from "../../lib/allocationSleeves";
+import { useAllocationPositions } from "../../lib/allocationPositions";
 import { getSleeveRoi } from "../../lib/allocationRoi";
 import AllocationStatsGrid from "./AllocationStatsGrid";
 import { isStockPosition } from "../../lib/stockAllocations";
 import { computeStockPositionMetrics, formatQuotePrice } from "../../lib/massiveMarket";
-import { resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
+import {
+  resolvePlatformEscrowProfileId,
+  useMemberAccounts,
+} from "../../lib/memberAccounts";
 import AllocationSleeveModal from "./AllocationSleeveModal";
 import AllocationPositionModal from "./AllocationPositionModal";
 import AllocationEntityModal from "./AllocationEntityModal";
@@ -39,6 +46,25 @@ function AllocationTooltip({ active, payload, t }) {
   );
 }
 
+/** Always partition the funnel into 3 sleeve slots; empty sleeves keep a visible share. */
+function getSleeveFunnelWidths(investments) {
+  const count = investments.length || 3;
+  const equal = Array.from({ length: count }, () => 100 / count);
+  if (!investments.length) return equal;
+
+  const total = investments.reduce((sum, item) => sum + (Number(item.allocated) || 0), 0);
+  if (total <= 0) return equal;
+
+  const MIN_PCT = 10;
+  const raw = investments.map((item) => ((Number(item.allocated) || 0) / total) * 100);
+  const emptyCount = raw.filter((pct) => pct <= 0).length;
+  if (emptyCount === 0) return raw;
+
+  const reserved = emptyCount * MIN_PCT;
+  const activeSum = raw.reduce((sum, pct) => sum + (pct > 0 ? pct : 0), 0) || 1;
+  return raw.map((pct) => (pct <= 0 ? MIN_PCT : (pct / activeSum) * (100 - reserved)));
+}
+
 const riskStyles = {
   Low: "bg-dda-green/15 text-dda-green-light ring-dda-green/25",
   Medium: "bg-dda-gold/15 text-dda-gold-light ring-dda-gold/25",
@@ -46,17 +72,35 @@ const riskStyles = {
 };
 
 export default function InvestmentInfographic({
-  investments,
-  positions,
-  totalAllocated,
+  investments: investmentsProp,
+  positions: positionsProp,
+  totalAllocated: totalAllocatedProp,
   poolApy,
   selectedId,
   onSelect,
 }) {
   const { t } = useLocale();
-  const profileId = resolveMemberProfileId();
+  const profileId = resolvePlatformEscrowProfileId();
   const ledger = useMemberAccounts(profileId);
   const availableBalance = ledger.escrowBalance;
+  // Prefer the page's platform snapshot; fall back to a live subscription.
+  const livePositions = useAllocationPositions();
+  const positions = (positionsProp?.length ? positionsProp : livePositions) ?? [];
+  const investments = useMemo(() => {
+    if (
+      Array.isArray(investmentsProp) &&
+      investmentsProp.length >= 3 &&
+      investmentsProp.every((item) => item?.key)
+    ) {
+      return investmentsProp;
+    }
+    const summaries = summarizeSleeveAllocations(positions);
+    return mergeLocalizedSleeveInvestments(investmentsProp ?? [], summaries);
+  }, [investmentsProp, positions]);
+  const totalAllocated = useMemo(() => {
+    if (Number(totalAllocatedProp) > 0) return Number(totalAllocatedProp);
+    return getTotalDeployedCapital(positions);
+  }, [positions, totalAllocatedProp]);
 
   const [sleeveModalItem, setSleeveModalItem] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
@@ -97,13 +141,15 @@ export default function InvestmentInfographic({
     : [];
   const selectedSleeveRoi = getSleeveRoi(selectedPositions);
   const hasDeployedCapital = totalAllocated > 0;
+  const funnelWidths = useMemo(() => getSleeveFunnelWidths(investments), [investments]);
   const chartData = useMemo(
     () =>
       investments.map((item) => ({
         ...item,
-        value: item.allocated,
+        // Keep all 3 sleeves in the donut even at $0 so the mix always partitions.
+        value: item.allocated > 0 ? item.allocated : hasDeployedCapital ? 0.0001 : 1,
       })),
-    [investments]
+    [investments, hasDeployedCapital]
   );
 
   return (
@@ -141,37 +187,35 @@ export default function InvestmentInfographic({
               </div>
 
               <div className="flex h-10 overflow-hidden rounded-full bg-white/5 ring-1 ring-white/10">
-                {hasDeployedCapital ? (
-                  investments.map((item) => {
-                    const active = item.id === selectedId;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => openSleeveModal(item)}
-                        title={item.name}
-                        className={cn(
-                          "relative transition-all duration-300 hover:brightness-110",
-                          active && "z-10 ring-2 ring-white/80 ring-offset-2 ring-offset-[#071013]",
-                        )}
-                        style={{
-                          width: `${item.percent}%`,
-                          backgroundColor: item.color,
-                        }}
-                      >
-                        {item.percent >= 12 ? (
-                          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-dda-ink/80">
-                            {item.percent}%
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center px-3 text-[11px] text-gray-500">
-                    {t("investmentChart.noDeployment")}
-                  </div>
-                )}
+                {investments.map((item, index) => {
+                  const active = item.id === selectedId;
+                  const widthPct = funnelWidths[index] ?? 100 / Math.max(investments.length, 1);
+                  const filled = hasDeployedCapital && item.allocated > 0;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => openSleeveModal(item)}
+                      title={`${item.name} · ${item.percent}%`}
+                      aria-label={`${item.name} ${item.percent}%`}
+                      className={cn(
+                        "relative min-w-0 border-r border-black/25 transition-all duration-300 last:border-r-0 hover:brightness-110",
+                        active && "z-10 ring-2 ring-white/80 ring-offset-2 ring-offset-[#071013]",
+                      )}
+                      style={{
+                        width: `${widthPct}%`,
+                        backgroundColor: item.color,
+                        opacity: filled ? 1 : hasDeployedCapital ? 0.28 : 0.45,
+                      }}
+                    >
+                      {widthPct >= 12 ? (
+                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-dda-ink/80">
+                          {item.percent}%
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="mt-4 space-y-3">

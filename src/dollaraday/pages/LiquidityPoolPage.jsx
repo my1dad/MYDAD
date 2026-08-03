@@ -81,30 +81,40 @@ export default function LiquidityPoolPage() {
         </p>
       </DashboardCard>
 
-      <DashboardCard title={t("pages.poolPage.escrowLedger")} subtitle={t("pages.poolPage.escrowLedgerSub")}>
-        {escrowLedger.length ? (
-          <ul className="space-y-2">
-            {escrowLedger.map((entry) => (
-              <li
-                key={entry.id}
-                className="dda-panel flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm"
-              >
-                <span className="min-w-0 truncate text-gray-400">{entry.label}</span>
-                <span
-                  className={`shrink-0 font-semibold tabular-nums ${
-                    entry.type === "inflow" ? "text-dda-green-light" : "text-gray-400"
-                  }`}
+      {isAdmin ? (
+        <DashboardCard
+          title={t("pages.poolPage.escrowLedger")}
+          subtitle={t("pages.poolPage.escrowLedgerSub")}
+          compact
+          collapsible
+          defaultCollapsed
+          collapseAriaLabel={t("pages.poolPage.collapseEscrowLedger")}
+          expandAriaLabel={t("pages.poolPage.expandEscrowLedger")}
+        >
+          {escrowLedger.length ? (
+            <ul className="space-y-2">
+              {escrowLedger.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="dda-panel flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm"
                 >
-                  {entry.type === "inflow" ? "+" : entry.type === "outflow" ? "−" : ""}
-                  {formatPoolCurrency(Math.abs(entry.amount))}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-gray-500">{t("pages.poolPage.escrowLedgerEmpty")}</p>
-        )}
-      </DashboardCard>
+                  <span className="min-w-0 truncate text-gray-400">{entry.label}</span>
+                  <span
+                    className={`shrink-0 font-semibold tabular-nums ${
+                      entry.type === "inflow" ? "text-dda-green-light" : "text-gray-400"
+                    }`}
+                  >
+                    {entry.type === "inflow" ? "+" : entry.type === "outflow" ? "−" : ""}
+                    {formatPoolCurrency(Math.abs(entry.amount))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-gray-500">{t("pages.poolPage.escrowLedgerEmpty")}</p>
+          )}
+        </DashboardCard>
+      ) : null}
 
       {isAdmin ? (
         <DashboardCard title={t("pages.poolPage.contributionVelocity")}>

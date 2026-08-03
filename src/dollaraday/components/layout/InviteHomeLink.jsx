@@ -24,21 +24,68 @@ function AirdropIcon({ className }) {
   );
 }
 
+function canUseWebShare(data) {
+  if (typeof navigator === "undefined" || typeof navigator.share !== "function") {
+    return false;
+  }
+  if (typeof navigator.canShare === "function") {
+    try {
+      return navigator.canShare(data);
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
 export default function InviteHomeLink() {
   const { t } = useLocale();
   const { profile } = useDadAuth();
   const inviteUrl = buildInviteHomeUrl(profile?.proId);
 
+  const openInviteFallback = () => {
+    window.open(inviteUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleInvite = (event) => {
+    event.preventDefault();
+
+    const shareData = {
+      title: t("notifications.inviteShareTitle"),
+      text: t("notifications.inviteShareText"),
+      url: inviteUrl,
+    };
+
+    // Web Share opens the iOS sheet (AirDrop, Messages, Mail, etc.).
+    // Call share as the first async step so the user-gesture token is kept.
+    if (canUseWebShare(shareData)) {
+      void navigator.share(shareData).catch((error) => {
+        if (error?.name === "AbortError") return;
+        openInviteFallback();
+      });
+      return;
+    }
+
+    if (canUseWebShare({ url: inviteUrl })) {
+      void navigator.share({ url: inviteUrl }).catch((error) => {
+        if (error?.name === "AbortError") return;
+        openInviteFallback();
+      });
+      return;
+    }
+
+    openInviteFallback();
+  };
+
   return (
-    <a
-      href={inviteUrl}
-      target="_blank"
-      rel="noopener noreferrer"
+    <button
+      type="button"
+      onClick={handleInvite}
       className="dda-invite-home-link"
       aria-label={t("notifications.inviteHomeAria")}
       title={t("notifications.inviteHomeTitle")}
     >
       <AirdropIcon className="h-4 w-4" />
-    </a>
+    </button>
   );
 }

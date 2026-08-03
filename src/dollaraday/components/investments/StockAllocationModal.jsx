@@ -26,7 +26,6 @@ import {
   roundShares,
 } from "../../lib/massiveMarket";
 import { useAllocationPositions } from "../../lib/allocationPositions";
-import { resolveMemberProfileId } from "../../lib/memberAccounts";
 
 function parseShares(value) {
   const cleaned = String(value).replace(/[^\d.]/g, "");
@@ -57,8 +56,7 @@ export default function StockAllocationModal({
   initialSellPositionId = "",
 }) {
   const { t } = useLocale();
-  const profileId = resolveMemberProfileId();
-  const positions = useAllocationPositions(profileId);
+  const positions = useAllocationPositions();
   const openStockPositions = useMemo(
     () => positions.filter((position) => isStockPosition(position) && !position.matured),
     [positions],

@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useMemo } from "react";
-import { DDA_THEME } from "./theme";
+import { DDA_THEME_VARS } from "./theme";
 import {
   computeDailyYieldAmount,
   roundYieldCurrency,
@@ -243,7 +243,7 @@ export const ALLOCATION_SLEEVE_META: Record<
   AllocationSleeveKey,
   { color: string; risk: "Low" | "Medium"; liquidity: "High" | "Medium" }
 > = {
-  treasury: { color: DDA_THEME.green, risk: "Low", liquidity: "High" },
+  treasury: { color: DDA_THEME_VARS.green, risk: "Low", liquidity: "High" },
   bonds: { color: "#8b5cf6", risk: "Medium", liquidity: "Medium" },
   stocks: { color: "#38bdf8", risk: "Medium", liquidity: "Medium" },
 };
@@ -355,13 +355,27 @@ export function mergeLocalizedSleeveInvestments(
   localizedInvestments: Array<Record<string, unknown>>,
   summaries: SleeveAllocationSummary[],
 ) {
-  return localizedInvestments.map((item, index) => {
-    const sleeveKey = (item.key as AllocationSleeveKey | undefined) ?? ALLOCATION_SLEEVE_KEYS[index];
+  // Always emit Treasury → Bonds → Stocks so every Investments surface stays aligned.
+  return ALLOCATION_SLEEVE_KEYS.map((sleeveKey, index) => {
+    const item =
+      localizedInvestments.find((entry) => entry.key === sleeveKey) ??
+      localizedInvestments[index] ??
+      {
+        id: `inv-${sleeveKey}`,
+        key: sleeveKey,
+        name: sleeveKey,
+        color: ALLOCATION_SLEEVE_META[sleeveKey].color,
+        risk: ALLOCATION_SLEEVE_META[sleeveKey].risk,
+        liquidity: ALLOCATION_SLEEVE_META[sleeveKey].liquidity,
+        status: "active",
+      };
     const summary = summaries.find((entry) => entry.sleeveKey === sleeveKey);
 
     return {
       ...item,
+      id: item.id ?? `inv-${sleeveKey}`,
       key: sleeveKey,
+      color: item.color ?? ALLOCATION_SLEEVE_META[sleeveKey].color,
       allocated: Math.round(summary?.principal ?? 0),
       percent: summary?.percent ?? 0,
       returnPct: summary?.blendedApy ?? 0,
@@ -635,13 +649,44 @@ export function useLiveInvestmentFunnel(localizedFunnel: Array<Record<string, un
   }, [localizedFunnel, positions]);
 }
 
-export function useLiveSleeveInvestments(localizedInvestments: Array<Record<string, unknown>>) {
-  const positions = useAllocationPositions();
+export function useLiveSleeveInvestments(
+  localizedInvestments: Array<Record<string, unknown>>,
+  profileId?: string,
+) {
+  const positions = useAllocationPositions(profileId);
 
   return useMemo(() => {
     const summaries = summarizeSleeveAllocations(positions);
     return mergeLocalizedSleeveInvestments(localizedInvestments, summaries);
   }, [localizedInvestments, positions]);
+}
+
+/** Single platform snapshot for the Investments page (sheet + funnel + charts + comparison). */
+export function usePlatformInvestmentView(
+  localizedInvestments: Array<Record<string, unknown>>,
+) {
+  const positions = useAllocationPositions();
+  const summaries = useMemo(() => summarizeSleeveAllocations(positions), [positions]);
+  const investments = useMemo(
+    () => mergeLocalizedSleeveInvestments(localizedInvestments, summaries),
+    [localizedInvestments, summaries],
+  );
+  const totalAllocated = useMemo(() => getTotalDeployedCapital(positions), [positions]);
+  const blendedApy = useMemo(() => {
+    void positions;
+    return getBlendedContractApy();
+  }, [positions]);
+  const activeSleeveCount = summaries.filter((item) => item.positionCount > 0).length;
+
+  return {
+    positions,
+    summaries,
+    investments,
+    totalAllocated,
+    blendedApy,
+    activeSleeveCount,
+    sleeveCount: ALLOCATION_SLEEVE_KEYS.length,
+  };
 }
 
 export function subscribeAllocationSleeves(listener: () => void): () => void {

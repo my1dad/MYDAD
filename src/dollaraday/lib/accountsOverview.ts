@@ -1,7 +1,9 @@
 import type { MemberAccountTransaction } from "./memberAccounts";
 import { hydrateMemberAccounts } from "./memberAccounts";
+import { readDataBin } from "./internalDatabase";
+import { getPlatformMemberDonationTotals } from "./memberContributionStats";
 import type { RecurringCashflow, RecurringFrequency } from "./recurringCashflow";
-import { getRecurringCashflows } from "./recurringCashflow";
+import { getRecurringCashflows, isHomeContributionSchedule } from "./recurringCashflow";
 
 export interface AccountsOverviewSegment {
   id: string;
@@ -13,6 +15,8 @@ export interface AccountsOverviewStats {
   checkingBalance: number;
   escrowBalance: number;
   totalBalance: number;
+  depositsTotal: number;
+  depositsCount: number;
   redemptionsSent: number;
   redemptionsReceived: number;
   redemptionCount: number;
@@ -29,11 +33,12 @@ export interface AccountsOverviewStats {
 }
 
 const SEGMENT_COLORS = {
-  checking: "#10b981",
+  checking: "var(--color-dda-green)",
   escrow: "#38bdf8",
-  redemptionsSent: "#eab308",
-  redemptionsReceived: "#f59e0b",
-  recurringIncome: "#34d399",
+  deposits: "var(--color-dda-gold-light)",
+  redemptionsSent: "var(--color-dda-gold)",
+  redemptionsReceived: "var(--color-dda-gold-deep)",
+  recurringIncome: "#fb7185",
   recurringExpense: "#f87171",
   recurringTransfer: "#a78bfa",
 } as const;
@@ -41,6 +46,7 @@ const SEGMENT_COLORS = {
 export const ACCOUNTS_OVERVIEW_SEGMENT_IDS = [
   "checking",
   "escrow",
+  "deposits",
   "redemptionsSent",
   "redemptionsReceived",
   "recurringIncome",
@@ -71,6 +77,53 @@ function toMonthlyAmount(amount: number, frequency: RecurringFrequency): number 
     default:
       return amount;
   }
+}
+
+function normalizeDonationFrequency(raw: unknown): RecurringFrequency {
+  if (
+    raw === "daily" ||
+    raw === "weekly" ||
+    raw === "biweekly" ||
+    raw === "monthly" ||
+    raw === "yearly"
+  ) {
+    return raw;
+  }
+  return "monthly";
+}
+
+/**
+ * Sum every user-started recurring donation as a monthly equivalent.
+ * Weekly ($7) → ~$30.33/mo, monthly stays as-is, etc.
+ */
+function sumRecurringDonationsFromContributions(profileId: string) {
+  let monthly = 0;
+  let count = 0;
+
+  readDataBin("contributions").records.forEach((record) => {
+    if (record.source === "recurring-home-contribution" || record.source === "recurring-automation") {
+      return;
+    }
+    const payload = record.payload ?? {};
+    if (payload.automated) return;
+    if (!payload.recurringEnabled) return;
+
+    const owner = String(payload.profileId ?? payload.memberId ?? "").trim();
+    if (owner !== profileId) return;
+
+    const type = String(payload.type ?? "");
+    if (type === "wallet-deposit" || type === "signup" || type === "one-time") return;
+    if (record.source !== "contribute-onboarding" && type !== "recurring") return;
+
+    const amount = Number(payload.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    if (String(payload.status ?? "completed") !== "completed") return;
+
+    monthly += toMonthlyAmount(amount, normalizeDonationFrequency(payload.frequency));
+    count += 1;
+  });
+
+  return { monthly: roundMoney(monthly), count };
 }
 
 function sumRedemptions(transactions: MemberAccountTransaction[]) {
@@ -106,7 +159,31 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function sumRecurringMonthly(schedules: RecurringCashflow[]) {
+function sumDeposits(profileId: string) {
+  let total = 0;
+  let count = 0;
+
+  readDataBin("contributions").records.forEach((record) => {
+    const payload = record.payload ?? {};
+    const owner = String(payload.profileId ?? payload.memberId ?? "").trim();
+    if (owner !== profileId) return;
+
+    const amount = Number(payload.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    if (String(payload.type ?? "") === "signup") return;
+    if (String(payload.status ?? "completed") !== "completed") return;
+
+    total += amount;
+    count += 1;
+  });
+
+  return { total: roundMoney(total), count };
+}
+
+function sumRecurringMonthly(
+  schedules: RecurringCashflow[],
+  donationSeeds: { monthly: number; count: number },
+) {
   let incomeMonthly = 0;
   let expenseMonthly = 0;
   let transferMonthly = 0;
@@ -115,10 +192,21 @@ function sumRecurringMonthly(schedules: RecurringCashflow[]) {
   let transferCount = 0;
   const paymentLabels: string[] = [];
 
+  // Prefer contribution seeds for donations so every recurring gift is counted
+  // (weekly normalized to monthly), even before schedule rebuild catches up.
+  let donationScheduleMonthly = 0;
+  let donationScheduleCount = 0;
+
   for (const schedule of schedules) {
     if (!schedule.enabled || schedule.amount <= 0) continue;
 
     const monthly = toMonthlyAmount(schedule.amount, schedule.frequency);
+
+    if (isHomeContributionSchedule(schedule)) {
+      donationScheduleMonthly += monthly;
+      donationScheduleCount += 1;
+      continue;
+    }
 
     if (schedule.type === "income") {
       incomeMonthly += monthly;
@@ -134,11 +222,20 @@ function sumRecurringMonthly(schedules: RecurringCashflow[]) {
     }
   }
 
+  const donationMonthly =
+    donationSeeds.count > 0 ? donationSeeds.monthly : roundMoney(donationScheduleMonthly);
+  const donationCount =
+    donationSeeds.count > 0 ? donationSeeds.count : donationScheduleCount;
+
+  const incomeRounded = roundMoney(incomeMonthly + donationMonthly);
+  const expenseRounded = roundMoney(expenseMonthly);
+  incomeCount += donationCount;
+
   return {
-    incomeMonthly: roundMoney(incomeMonthly),
-    expenseMonthly: roundMoney(expenseMonthly),
+    incomeMonthly: incomeRounded,
+    expenseMonthly: expenseRounded,
     transferMonthly: roundMoney(transferMonthly),
-    netMonthly: roundMoney(incomeMonthly - expenseMonthly),
+    netMonthly: roundMoney(incomeRounded - expenseRounded),
     incomeCount,
     expenseCount,
     transferCount,
@@ -146,11 +243,23 @@ function sumRecurringMonthly(schedules: RecurringCashflow[]) {
   };
 }
 
-export function buildAccountsOverviewStats(profileId: string): AccountsOverviewStats {
+export function buildAccountsOverviewStats(
+  profileId: string,
+  options: { platformScope?: boolean } = {},
+): AccountsOverviewStats {
   const ledger = hydrateMemberAccounts(profileId);
   const schedules = getRecurringCashflows(profileId);
+  const personalDeposits = sumDeposits(profileId);
+  const platformDonations = options.platformScope
+    ? getPlatformMemberDonationTotals()
+    : null;
+  // Admin Accounts overview mirrors home equity card Donations total.
+  const deposits = platformDonations
+    ? { total: platformDonations.donated, count: platformDonations.count }
+    : personalDeposits;
   const redemptions = sumRedemptions(ledger.transactions);
-  const recurring = sumRecurringMonthly(schedules);
+  const donationSeeds = sumRecurringDonationsFromContributions(profileId);
+  const recurring = sumRecurringMonthly(schedules, donationSeeds);
 
   const checkingBalance = ledger.checkingBalance;
   const escrowBalance = ledger.escrowBalance;
@@ -159,6 +268,7 @@ export function buildAccountsOverviewStats(profileId: string): AccountsOverviewS
   const rawSegments: AccountsOverviewSegment[] = [
     { id: "checking", value: checkingBalance, color: SEGMENT_COLORS.checking },
     { id: "escrow", value: escrowBalance, color: SEGMENT_COLORS.escrow },
+    { id: "deposits", value: deposits.total, color: SEGMENT_COLORS.deposits },
     {
       id: "redemptionsSent",
       value: redemptions.sent,
@@ -193,6 +303,8 @@ export function buildAccountsOverviewStats(profileId: string): AccountsOverviewS
     checkingBalance,
     escrowBalance,
     totalBalance,
+    depositsTotal: deposits.total,
+    depositsCount: deposits.count,
     redemptionsSent: redemptions.sent,
     redemptionsReceived: redemptions.received,
     redemptionCount: redemptions.count,

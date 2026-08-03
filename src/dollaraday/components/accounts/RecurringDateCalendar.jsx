@@ -6,6 +6,7 @@ import { useLocale } from "../../i18n/LocaleContext";
 import {
   buildRecurringOccurrenceMap,
   getRecurringOccurrencesForDate,
+  isHomeContributionSchedule,
 } from "../../lib/recurringCashflow";
 import { formatPoolCurrency } from "../../data/mockData";
 import {
@@ -19,6 +20,14 @@ import {
 import RecurringCalendarDayModal from "./RecurringCalendarDayModal";
 
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+const FREQUENCY_LABEL_KEYS = {
+  daily: "freqDaily",
+  weekly: "freqWeekly",
+  biweekly: "freqBiweekly",
+  monthly: "freqMonthly",
+  yearly: "freqYearly",
+};
 
 function ymdFromParts(year, month, day) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -103,6 +112,12 @@ function buildMonthGrid(year, month) {
   return cells;
 }
 
+function formatDayTotal(amount) {
+  const value = Number(amount) || 0;
+  if (value <= 0) return "";
+  return formatPoolCurrency(value);
+}
+
 function buildDayAriaLabel(cell, summary, locale, t) {
   const dateLabel = formatEasternShortDate(cell.ymd, locale);
   if (!summary) return dateLabel;
@@ -110,6 +125,13 @@ function buildDayAriaLabel(cell, summary, locale, t) {
   const parts = [];
   if (summary.income > 0) {
     parts.push(t("pages.accounts.recurringCalendarDayIncome", { count: summary.income }));
+    if (summary.incomeAmount > 0) {
+      parts.push(
+        t("pages.accounts.recurringCalendarDayIncomeTotal", {
+          amount: formatDayTotal(summary.incomeAmount),
+        }),
+      );
+    }
   }
   if (summary.expense > 0) {
     parts.push(t("pages.accounts.recurringCalendarDayExpense", { count: summary.expense }));
@@ -237,7 +259,15 @@ function RecurringDayHoverPopover({ anchor, occurrences, locale, t, onMouseEnter
                 </span>
               </div>
               <p className="dda-recurring-calendar__hover-label">
-                {schedule.label || t("pages.accounts.recurringUntitled")}
+                {isHomeContributionSchedule(schedule)
+                  ? t("pages.accounts.recurringDonationLabel")
+                  : schedule.label || t("pages.accounts.recurringUntitled")}
+                <span className="dda-recurring-calendar__hover-freq">
+                  {" · "}
+                  {t(
+                    `pages.accounts.${FREQUENCY_LABEL_KEYS[schedule.frequency] ?? "freqMonthly"}`,
+                  )}
+                </span>
               </p>
               {settled ? (
                 <span className="dda-recurring-calendar__hover-paid">
@@ -248,6 +278,19 @@ function RecurringDayHoverPopover({ anchor, occurrences, locale, t, onMouseEnter
           );
         })}
       </ul>
+      {occurrences.some((item) => item.schedule.type === "income") ? (
+        <p className="dda-recurring-calendar__hover-total">
+          <span>{t("pages.accounts.recurringCalendarDayDonationTotalLabel")}</span>
+          <span className="tabular-nums text-dda-green-light">
+            +
+            {formatPoolCurrency(
+              occurrences
+                .filter((item) => item.schedule.type === "income")
+                .reduce((sum, item) => sum + (Number(item.schedule.amount) || 0), 0),
+            )}
+          </span>
+        </p>
+      ) : null}
       <p className="dda-recurring-calendar__hover-foot">
         {t("pages.accounts.recurringCalendarHoverFoot")}
       </p>
@@ -299,11 +342,6 @@ export default function RecurringDateCalendar({
     const toYmd = cells[cells.length - 1].ymd;
     return buildRecurringOccurrenceMap(schedules, fromYmd, toYmd);
   }, [schedules, cells]);
-
-  const modalOccurrences = useMemo(
-    () => (modalYmd ? getRecurringOccurrencesForDate(schedules, modalYmd) : []),
-    [modalYmd, schedules],
-  );
 
   const hoverOccurrences = useMemo(
     () => (hoverAnchor?.ymd ? getRecurringOccurrencesForDate(schedules, hoverAnchor.ymd) : []),
@@ -377,11 +415,11 @@ export default function RecurringDateCalendar({
   const handleDelete = useCallback(
     (scheduleId) => {
       onDeleteSchedule?.(scheduleId);
-      if (modalOccurrences.length <= 1) {
+      if (schedules.length <= 1) {
         handleCloseModal();
       }
     },
-    [onDeleteSchedule, modalOccurrences.length],
+    [onDeleteSchedule, schedules.length],
   );
 
   const handlePayNow = useCallback(
@@ -472,11 +510,14 @@ export default function RecurringDateCalendar({
                 aria-pressed={isSelected}
               >
                 <span className="dda-recurring-calendar__day-num">{cell.day}</span>
-                {hasOccurrences ? (
+                {hasOccurrences && summary.incomeAmount > 0 ? (
+                  <span className="dda-recurring-calendar__day-total tabular-nums" aria-hidden="true">
+                    {summary.incomeAmount >= 1000
+                      ? `$${(summary.incomeAmount / 1000).toFixed(summary.incomeAmount >= 10000 ? 0 : 1)}k`
+                      : `$${Math.round(summary.incomeAmount)}`}
+                  </span>
+                ) : hasOccurrences ? (
                   <span className="dda-recurring-calendar__dots" aria-hidden="true">
-                    {summary.income > 0 ? (
-                      <span className="dda-recurring-calendar__dot dda-recurring-calendar__dot--income" />
-                    ) : null}
                     {summary.expense > 0 ? (
                       <span className="dda-recurring-calendar__dot dda-recurring-calendar__dot--expense" />
                     ) : null}
@@ -524,7 +565,7 @@ export default function RecurringDateCalendar({
       <RecurringCalendarDayModal
         open={Boolean(modalYmd)}
         dayYmd={modalYmd}
-        occurrences={modalOccurrences}
+        schedules={schedules}
         onClose={handleCloseModal}
         onEdit={handleEdit}
         onDelete={handleDelete}

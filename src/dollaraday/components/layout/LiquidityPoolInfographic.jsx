@@ -9,6 +9,7 @@ import {
 import { ArrowDownToLine, Lock, TrendingUp, Users, Wallet } from "lucide-react";
 import DashboardCard from "./DashboardCard";
 import PoolBalanceChart from "./PoolBalanceChart";
+import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { formatPoolCurrency } from "../../data/mockData";
 import { useLocale } from "../../i18n/LocaleContext";
 import { usePoolState } from "../../lib/poolState";
@@ -61,7 +62,7 @@ function PoolMetricButton({ label, value, icon: Icon, accent }) {
 function PoolTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
-  const color = item.color ?? POOL_CAPITAL_COLORS[item.key] ?? "#34d399";
+  const color = item.color ?? POOL_CAPITAL_COLORS[item.key] ?? "var(--color-dda-green-light)";
   return (
     <div className="dda-chart-tooltip">
       <p className="font-semibold text-white">{item.name}</p>
@@ -74,6 +75,7 @@ function PoolTooltip({ active, payload }) {
 
 export default function LiquidityPoolInfographic() {
   const { t } = useLocale();
+  const { isAdmin } = useDadAuth();
   const { poolSummary } = usePoolState();
   const reservePct =
     poolSummary.totalBalance > 0 ? Math.round(poolSummary.reserveRatio * 100) : 0;
@@ -152,7 +154,13 @@ export default function LiquidityPoolInfographic() {
 
   return (
     <DashboardCard noPadding>
-      <div className="grid gap-5 p-5 lg:grid-cols-[1.1fr_0.9fr]">
+      <div
+        className={
+          isAdmin
+            ? "grid gap-5 p-5 lg:grid-cols-[1.1fr_0.9fr]"
+            : "grid gap-5 p-5"
+        }
+      >
         <div className="space-y-5">
           <div>
             <p className="text-sm text-gray-400">{t("pool.totalBalance")}</p>
@@ -173,89 +181,101 @@ export default function LiquidityPoolInfographic() {
 
           <PoolBalanceChart />
 
-          <div className="dda-pool-metrics">
-            {poolMetrics.map((metric) => (
-              <PoolMetricButton
-                key={metric.key}
-                label={metric.label}
-                value={metric.value}
-                icon={metric.icon}
-                accent={metric.accent}
-              />
-            ))}
-          </div>
+          {isAdmin ? (
+            <div className="dda-pool-metrics">
+              {poolMetrics.map((metric) => (
+                <PoolMetricButton
+                  key={metric.key}
+                  label={metric.label}
+                  value={metric.value}
+                  icon={metric.icon}
+                  accent={metric.accent}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
 
-        <div className="flex flex-col gap-4">
-          <div className="dda-panel relative flex flex-1 flex-col items-center rounded-xl p-4">
-            <p className="mb-2 self-start text-sm font-medium text-white">{t("pool.capitalAllocation")}</p>
-            <div className="dda-donut-chart relative h-44 w-full">
-              <ResponsiveContainer width="100%" height="100%" className="dda-donut-chart__plot">
-                <PieChart>
-                  <Pie
-                    data={chartSegments}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={52}
-                    outerRadius={72}
-                    paddingAngle={2}
-                    dataKey="value"
-                    stroke="#071013"
-                    strokeWidth={2}
-                  >
-                    {chartSegments.map((entry) => (
-                      <Cell key={entry.key} fill={entry.color} fillOpacity={1} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    content={<PoolTooltip />}
-                    wrapperStyle={{ zIndex: 50, outline: "none" }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="dda-donut-chart__center pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-bold tabular-nums text-white">
-                  {reservePct}%
-                </span>
-                <span className="text-[10px] text-gray-500">{t("pool.reserve")}</span>
+        {isAdmin ? (
+          <div className="flex flex-col gap-4">
+            <div className="dda-panel relative flex flex-1 flex-col items-center rounded-xl p-4">
+              <p className="mb-2 self-start text-sm font-medium text-white">
+                {t("pool.capitalAllocation")}
+              </p>
+              <div className="dda-donut-chart relative h-44 w-full">
+                <ResponsiveContainer width="100%" height="100%" className="dda-donut-chart__plot">
+                  <PieChart>
+                    <Pie
+                      data={chartSegments}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={52}
+                      outerRadius={72}
+                      paddingAngle={2}
+                      dataKey="value"
+                      stroke="#071013"
+                      strokeWidth={2}
+                    >
+                      {chartSegments.map((entry) => (
+                        <Cell key={entry.key} fill={entry.color} fillOpacity={1} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      content={<PoolTooltip />}
+                      wrapperStyle={{ zIndex: 50, outline: "none" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="dda-donut-chart__center pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-lg font-bold tabular-nums text-white">
+                    {reservePct}%
+                  </span>
+                  <span className="text-[10px] text-gray-500">{t("pool.reserve")}</span>
+                </div>
               </div>
+
+              <ul className="mt-3 w-full space-y-2.5">
+                {capitalSegments.map((segment) => {
+                  const pct =
+                    allocationTotal > 0 && segment.key !== "available"
+                      ? Math.round((segment.value / allocationTotal) * 100)
+                      : segment.key === "available" && poolSummary.totalBalance > 0
+                        ? Math.round((segment.value / poolSummary.totalBalance) * 100)
+                        : 0;
+                  return (
+                    <li
+                      key={segment.key}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <CapitalTag label={segment.name} color={segment.color} />
+                      <span className="shrink-0 text-right tabular-nums">
+                        <span className="font-semibold" style={{ color: segment.color }}>
+                          {pct}%
+                        </span>
+                        <span className="ml-1.5 text-gray-400">
+                          · {formatPoolCurrency(segment.value)}
+                        </span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
 
-            <ul className="mt-3 w-full space-y-2.5">
-              {capitalSegments.map((segment) => {
-                const pct =
-                  allocationTotal > 0 && segment.key !== "available"
-                    ? Math.round((segment.value / allocationTotal) * 100)
-                    : segment.key === "available" && poolSummary.totalBalance > 0
-                      ? Math.round((segment.value / poolSummary.totalBalance) * 100)
-                      : 0;
-                return (
-                  <li key={segment.key} className="flex items-center justify-between gap-3 text-sm">
-                    <CapitalTag label={segment.name} color={segment.color} />
-                    <span className="shrink-0 text-right tabular-nums">
-                      <span className="font-semibold" style={{ color: segment.color }}>
-                        {pct}%
-                      </span>
-                      <span className="ml-1.5 text-gray-400">
-                        · {formatPoolCurrency(segment.value)}
-                      </span>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs leading-relaxed text-gray-400">
+              <p className="font-semibold text-gray-300">{t("pool.poolDetails")}</p>
+              <p className="mt-2">
+                {t("pool.lastAudit")}:{" "}
+                <span className="text-gray-300">{poolSummary.lastAudit}</span>
+              </p>
+              <p className="mt-1">
+                {t("pool.dailyInflowAvg", {
+                  amount: formatPoolCurrency(poolSummary.dailyInflow),
+                })}
+              </p>
+            </div>
           </div>
-
-          <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-xs leading-relaxed text-gray-400">
-            <p className="font-semibold text-gray-300">{t("pool.poolDetails")}</p>
-            <p className="mt-2">
-              {t("pool.lastAudit")}: <span className="text-gray-300">{poolSummary.lastAudit}</span>
-            </p>
-            <p className="mt-1">
-              {t("pool.dailyInflowAvg", { amount: formatPoolCurrency(poolSummary.dailyInflow) })}
-            </p>
-          </div>
-        </div>
+        ) : null}
       </div>
     </DashboardCard>
   );

@@ -122,6 +122,8 @@ async function persistToDisk(binId: string, payload: DataBinDocument): Promise<v
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    // 423 = FACTORY_ZERO.lock is blocking non-zero restores — treat as intentional no-op.
+    if (res.status === 423) return;
     if (!res.ok) throw new Error(`Failed to save ${binId}`);
   }
 }
@@ -136,12 +138,10 @@ function schedulePersist(binId: string): void {
     });
   }
 
+  // Always keep localStorage in sync so a later disk/cloud hydrate can merge.
+  mirrorCacheToLocalStorage(binId);
+
   if (mode === "local") {
-    try {
-      localStorage.setItem(localStorageKey(binId), JSON.stringify(cache[binId]));
-    } catch (err) {
-      console.warn(`[internalDatabase] Could not save ${binId} to localStorage:`, err);
-    }
     scheduleNotifyListeners();
     return;
   }
@@ -175,6 +175,99 @@ function normalizeBinDocument(key: DataBinKey, raw: unknown): DataBinDocument {
     updatedAt: doc.updatedAt ?? nowIso(),
     records: Array.isArray(doc.records) ? doc.records : [],
   };
+}
+
+/**
+ * Record-level merge so disk/cloud bootstrap cannot wipe newer local-only records
+ * (e.g. allocation-positions created before disk hydrate finishes).
+ */
+export function mergeDataBinDocuments(
+  local: DataBinDocument | null | undefined,
+  remote: DataBinDocument | null | undefined,
+  key: DataBinKey,
+): { merged: DataBinDocument; localWonRecords: boolean } {
+  if (!remote?.updatedAt && !local?.updatedAt) {
+    return { merged: local ?? remote ?? createEmptyBin(key), localWonRecords: false };
+  }
+  if (!remote?.updatedAt) {
+    return { merged: local!, localWonRecords: true };
+  }
+  if (!local?.updatedAt) {
+    return { merged: normalizeBinDocument(key, remote), localWonRecords: false };
+  }
+
+  let epoch: string | null = null;
+  try {
+    epoch = localStorage.getItem("dollar-a-day-workspace-epoch");
+  } catch {
+    epoch = null;
+  }
+
+  if (epoch && local.updatedAt >= epoch && remote.updatedAt < epoch) {
+    return { merged: { ...local, binKey: key }, localWonRecords: true };
+  }
+
+  // Intentional factory wipe: a newer empty document must replace history, not merge it back.
+  const localEmpty = Array.isArray(local.records) && local.records.length === 0;
+  const remoteEmpty = Array.isArray(remote.records) && remote.records.length === 0;
+  if (localEmpty && local.updatedAt >= remote.updatedAt) {
+    return { merged: { ...local, binKey: key }, localWonRecords: true };
+  }
+  if (remoteEmpty && remote.updatedAt >= local.updatedAt) {
+    return {
+      merged: normalizeBinDocument(key, remote),
+      localWonRecords: false,
+    };
+  }
+
+  const byId = new Map<string, StoredRecord>();
+  for (const record of remote.records ?? []) {
+    if (epoch && (record.updatedAt ?? remote.updatedAt) < epoch) continue;
+    byId.set(record.id, record);
+  }
+
+  let localWonRecords = false;
+  for (const record of local.records ?? []) {
+    const existing = byId.get(record.id);
+    if (!existing) {
+      byId.set(record.id, record);
+      localWonRecords = true;
+      continue;
+    }
+    if ((record.updatedAt ?? "") >= (existing.updatedAt ?? "")) {
+      if ((record.updatedAt ?? "") > (existing.updatedAt ?? "")) {
+        localWonRecords = true;
+      }
+      byId.set(record.id, record);
+    }
+  }
+
+  const records = Array.from(byId.values()).sort((a, b) =>
+    String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")),
+  );
+  const latestRecordAt = records[0]?.updatedAt ?? "";
+  const updatedAt =
+    [local.updatedAt, remote.updatedAt, latestRecordAt].sort().at(-1) ?? remote.updatedAt;
+
+  return {
+    merged: {
+      version: Math.max(local.version ?? 1, remote.version ?? 1),
+      binKey: key,
+      updatedAt,
+      records,
+    },
+    localWonRecords,
+  };
+}
+
+function mirrorCacheToLocalStorage(binId: string): void {
+  try {
+    const payload = cache[binId];
+    if (!payload) return;
+    localStorage.setItem(localStorageKey(binId), JSON.stringify(payload));
+  } catch (err) {
+    console.warn(`[internalDatabase] Could not mirror ${binId} to localStorage:`, err);
+  }
 }
 
 function scheduleNotifyListeners(): void {
@@ -422,12 +515,60 @@ export function getDatabaseSnapshot(): DatabaseSnapshot {
 }
 
 export async function flushInternalDatabase(): Promise<void> {
+  // Cancel debounced writers so a stale payload cannot overwrite this flush.
+  for (const binId of Object.keys(pendingWrites)) {
+    clearTimeout(pendingWrites[binId]);
+    delete pendingWrites[binId];
+  }
+
   const jobs = DAD_BIN_IDS.map((binId) => {
     const payload = cache[binId];
-    return payload ? persistToDisk(binId, payload) : Promise.resolve();
+    if (!payload) return Promise.resolve();
+    mirrorCacheToLocalStorage(binId);
+    return persistToDisk(binId, payload);
   });
   await Promise.all(jobs);
   notifyListeners();
+}
+
+/** Synchronously replace a bin in memory + localStorage (disk via flush). */
+export function replaceDataBinNow(key: DataBinKey, document: DataBinDocument): void {
+  const binId = getBinIdForKey(key);
+  cache[binId] = {
+    ...document,
+    binKey: key,
+    version: DATABASE_VERSION,
+    updatedAt: document.updatedAt || nowIso(),
+  };
+  clearTimeout(pendingWrites[binId]);
+  delete pendingWrites[binId];
+  mirrorCacheToLocalStorage(binId);
+}
+
+function clearLocalDadBinKeys(): void {
+  try {
+    for (const binId of DAD_BIN_IDS) {
+      localStorage.removeItem(localStorageKey(binId));
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Dev: ask the Vite bins plugin to wipe on-disk workspace + set FACTORY_ZERO.lock
+ * so the browser cannot PUT old balances back.
+ */
+export async function requestFactoryZeroDisk(): Promise<boolean> {
+  if (!canUseDiskApi()) return false;
+  try {
+    const res = await fetchWithTimeout(`/api/bins/factory-zero${binsQueryString()}`, {
+      method: "POST",
+    }, 5000);
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
@@ -444,6 +585,57 @@ export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
     }
   };
 
+  const applyFactoryZeroFromBootstrap = (bootstrap: Record<string, unknown>) => {
+    mode = "disk";
+    binsRoot = typeof bootstrap.binsRoot === "string" ? bootstrap.binsRoot : "./bins";
+    clearLocalDadBinKeys();
+    try {
+      localStorage.setItem("dollar-a-day-factory-zero", "1");
+      // Drop non-bin app state that can resurrect deposits / recurring / equity.
+      for (const key of Object.keys(localStorage)) {
+        if (!key.startsWith("dollar-a-day")) continue;
+        if (key === "dollar-a-day-factory-zero") continue;
+        if (key === "dollar-a-day-workspace-epoch") continue;
+        if (key === "dollar-a-day-profiles") continue;
+        if (key === "dollar-a-day-session") continue;
+        if (key === "dollar-a-day-persistent-session") continue;
+        localStorage.removeItem(key);
+      }
+    } catch {
+      /* ignore */
+    }
+    void import("./supabase/cloudSync").then(({ pauseCloudPushes, bumpWorkspaceEpoch }) => {
+      bumpWorkspaceEpoch();
+      pauseCloudPushes(24 * 60 * 60_000);
+    });
+    void import("./dadProfileStorage").then(
+      ({ findMasterAdminProfile, replaceDadProfilesLocal, setDadSessionId }) => {
+        const admin = findMasterAdminProfile();
+        if (admin) {
+          replaceDadProfilesLocal([admin]);
+          setDadSessionId(admin.id);
+        }
+      },
+    );
+    for (const definition of DATA_BIN_DEFINITIONS) {
+      const diskRaw = bootstrap[definition.binId];
+      const diskDoc = diskRaw
+        ? normalizeBinDocument(definition.key, diskRaw)
+        : createEmptyBin(definition.key);
+      cache[definition.binId] = diskDoc;
+      mirrorCacheToLocalStorage(definition.binId);
+    }
+    queueMicrotask(() => {
+      void Promise.all([
+        import("./memberAccounts"),
+        import("./poolState"),
+      ]).then(([{ invalidateMemberAccountsCache }, { hydratePoolStateFromStorage }]) => {
+        invalidateMemberAccountsCache();
+        hydratePoolStateFromStorage();
+      });
+    });
+  };
+
   if (hasElectronBins()) {
     mode = "electron";
     binsRoot = (await window.overDriveBins?.getRoot?.()) ?? null;
@@ -455,28 +647,104 @@ export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
       );
     }
   } else {
-    loadFromLocal();
+    let forcedZero = false;
 
-    // Dev disk bins hydrate in the background — never block first paint.
+    // Client-delivery lock: await disk bootstrap first so fat localStorage cannot paint $41k.
     if (import.meta.env.DEV && canUseDiskApi()) {
-      void (async () => {
-        try {
-          const res = await fetchWithTimeout(`/api/bins/bootstrap${binsQueryString()}`, {}, 1500);
-          if (!res.ok) return;
+      try {
+        const res = await fetchWithTimeout(`/api/bins/bootstrap${binsQueryString()}`, {}, 2000);
+        if (res.ok) {
           const bootstrap = (await res.json()) as Record<string, unknown>;
-          mode = "disk";
-          binsRoot = typeof bootstrap.binsRoot === "string" ? bootstrap.binsRoot : "./bins";
-          for (const definition of DATA_BIN_DEFINITIONS) {
-            cache[definition.binId] = normalizeBinDocument(
-              definition.key,
-              bootstrap[definition.binId] ?? readLocalBin(definition.binId) ?? createEmptyBin(definition.key),
-            );
+          if (bootstrap.forceFactoryZero === true) {
+            applyFactoryZeroFromBootstrap(bootstrap);
+            forcedZero = true;
+          } else {
+            // Normal path continues below; keep bootstrap for background hydrate.
+            loadFromLocal();
+            mode = "disk";
+            binsRoot = typeof bootstrap.binsRoot === "string" ? bootstrap.binsRoot : "./bins";
+            const binsNeedingDiskWrite: string[] = [];
+            for (const definition of DATA_BIN_DEFINITIONS) {
+              const localDoc =
+                cache[definition.binId] ??
+                readLocalBin(definition.binId) ??
+                createEmptyBin(definition.key);
+              const diskRaw = bootstrap[definition.binId];
+              const diskDoc = diskRaw
+                ? normalizeBinDocument(definition.key, diskRaw)
+                : null;
+              const { merged, localWonRecords } = mergeDataBinDocuments(
+                localDoc,
+                diskDoc,
+                definition.key,
+              );
+              cache[definition.binId] = merged;
+              mirrorCacheToLocalStorage(definition.binId);
+              if (localWonRecords || !diskDoc) {
+                binsNeedingDiskWrite.push(definition.binId);
+              }
+            }
+            for (const binId of binsNeedingDiskWrite) {
+              schedulePersist(binId);
+            }
+            forcedZero = true; // skip second hydrate
           }
-          notifyListeners();
-        } catch {
-          // Keep localStorage mode — silent fallback.
         }
-      })();
+      } catch {
+        // Fall through to localStorage.
+      }
+    }
+
+    if (!forcedZero) {
+      loadFromLocal();
+
+      // Dev disk bins hydrate in the background — never block first paint.
+      if (import.meta.env.DEV && canUseDiskApi()) {
+        void (async () => {
+          try {
+            const res = await fetchWithTimeout(`/api/bins/bootstrap${binsQueryString()}`, {}, 1500);
+            if (!res.ok) return;
+            const bootstrap = (await res.json()) as Record<string, unknown>;
+            mode = "disk";
+            binsRoot = typeof bootstrap.binsRoot === "string" ? bootstrap.binsRoot : "./bins";
+
+            if (bootstrap.forceFactoryZero === true) {
+              applyFactoryZeroFromBootstrap(bootstrap);
+              notifyListeners();
+              return;
+            }
+
+            const binsNeedingDiskWrite: string[] = [];
+            for (const definition of DATA_BIN_DEFINITIONS) {
+              const localDoc =
+                cache[definition.binId] ??
+                readLocalBin(definition.binId) ??
+                createEmptyBin(definition.key);
+              const diskRaw = bootstrap[definition.binId];
+              const diskDoc = diskRaw
+                ? normalizeBinDocument(definition.key, diskRaw)
+                : null;
+              const { merged, localWonRecords } = mergeDataBinDocuments(
+                localDoc,
+                diskDoc,
+                definition.key,
+              );
+              cache[definition.binId] = merged;
+              mirrorCacheToLocalStorage(definition.binId);
+              if (localWonRecords || !diskDoc) {
+                binsNeedingDiskWrite.push(definition.binId);
+              }
+            }
+
+            notifyListeners();
+            for (const binId of binsNeedingDiskWrite) {
+              schedulePersist(binId);
+            }
+          } catch {
+            // Keep localStorage mode — silent fallback.
+          }
+        })();
+      }
     }
   }
 

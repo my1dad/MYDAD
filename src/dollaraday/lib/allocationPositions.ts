@@ -91,10 +91,18 @@ function notifyListeners(): void {
 }
 
 function normalizeStoredPosition(position: AllocationPosition): AllocationPosition {
-  if ((position.sleeveKey as string) === "etfs") {
-    return { ...position, sleeveKey: "stocks" };
+  let next = position;
+  if ((next.sleeveKey as string) === "etfs") {
+    next = { ...next, sleeveKey: "stocks" };
   }
-  return position;
+  // Contract catalog is the source of truth for treasury/bond sleeve attribution.
+  if (next.sleeveKey !== "stocks") {
+    const term = findAllocationContractTerm(next.contractId);
+    if (term && term.sleeveKey !== next.sleeveKey) {
+      next = { ...next, sleeveKey: term.sleeveKey, annualYieldPct: term.annualYieldPct };
+    }
+  }
+  return next;
 }
 
 function readPayload(): AllocationPositionsPayload {
@@ -132,10 +140,12 @@ export function registerAllocationPosition(input: {
   if (!term || !Number.isFinite(input.principal) || input.principal <= 0) return null;
 
   const purchasedDate = input.purchasedDate ?? formatEasternIsoDate();
+  // Always attribute the position to the contract's sleeve (treasury vs bonds).
+  const sleeveKey = term.sleeveKey;
   const position: AllocationPosition = {
     id: `alloc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     profileId: input.profileId,
-    sleeveKey: input.sleeveKey,
+    sleeveKey,
     contractId: input.contractId,
     contractLabel: input.contractLabel,
     principal: input.principal,

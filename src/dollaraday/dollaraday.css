@@ -17,6 +17,42 @@
   --color-dda-gold-deep: #b45309;
 }
 
+:root {
+  /* Channel tokens for rgba(var(--dda-*-rgb), a) glows/shadows */
+  --dda-accent-rgb: 16, 185, 129;
+  --dda-accent-light-rgb: 52, 211, 153;
+  --dda-accent-soft-rgb: 110, 231, 183;
+  --dda-gold-rgb: 212, 160, 18;
+  --dda-gold-light-rgb: 251, 191, 36;
+  --dda-gold-soft-rgb: 252, 211, 77;
+  --dda-gold-deep-rgb: 180, 83, 9;
+}
+
+/* Master admin — cool blues only (greens + golds remapped) */
+html.dda-theme-admin,
+.dda-app--admin {
+  --color-dda-bg: #060c18;
+  --color-dda-bg-elevated: #0b1528;
+  --color-dda-ink: #060c18;
+  --color-dda-green: #2563eb;
+  --color-dda-green-light: #60a5fa;
+  --color-dda-green-soft: #93c5fd;
+  --color-dda-lime: #0ea5e9;
+  --color-dda-lime-light: #38bdf8;
+  --color-dda-lime-bright: #7dd3fc;
+  --color-dda-gold: #0284c7;
+  --color-dda-gold-light: #7dd3fc;
+  --color-dda-gold-soft: #bae6fd;
+  --color-dda-gold-deep: #0369a1;
+  --dda-accent-rgb: 37, 99, 235;
+  --dda-accent-light-rgb: 96, 165, 250;
+  --dda-accent-soft-rgb: 147, 197, 253;
+  --dda-gold-rgb: 2, 132, 199;
+  --dda-gold-light-rgb: 125, 211, 252;
+  --dda-gold-soft-rgb: 186, 230, 253;
+  --dda-gold-deep-rgb: 3, 105, 161;
+}
+
 html {
   color-scheme: dark;
   height: 100%;
@@ -118,8 +154,8 @@ body {
 /* Fast login: solid backdrop — no 2MB photo, no blur re-paints while typing */
 .dda-login-fast {
   background:
-    radial-gradient(circle at 50% 20%, rgba(16, 185, 129, 0.12), transparent 45%),
-    radial-gradient(circle at 80% 80%, rgba(251, 191, 36, 0.06), transparent 40%),
+    radial-gradient(circle at 50% 20%, rgba(var(--dda-accent-rgb), 0.12), transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(var(--dda-gold-light-rgb), 0.06), transparent 40%),
     #071013;
 }
 
@@ -171,6 +207,44 @@ body {
   z-index: 50;
   flex-shrink: 0;
   overflow: visible;
+}
+
+.dda-bottom-nav__item {
+  color: #d1d5db;
+  transition: color 0.15s ease;
+}
+
+.dda-bottom-nav__item:hover,
+.dda-bottom-nav__item--active {
+  color: var(--color-dda-green-light);
+}
+
+/* Keep member wallet sheet above page content but under BottomNav. */
+:root {
+  --dda-bottom-nav-clearance: calc(4.35rem + env(safe-area-inset-bottom, 0px));
+}
+
+.dda-wallet-account-overlay {
+  position: fixed;
+  inset: 0 0 var(--dda-bottom-nav-clearance) 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --dda-bottom-nav-clearance: 0px;
+  }
+
+  .dda-wallet-account-overlay {
+    inset: 0;
+    z-index: 100;
+    align-items: center;
+    padding: 1rem;
+  }
 }
 
 .dda-page-stack {
@@ -332,7 +406,7 @@ body {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(251, 191, 36, 0.45),
+    rgba(var(--dda-gold-light-rgb), 0.45),
     transparent
   );
   opacity: 0.9;
@@ -367,7 +441,7 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.28));
+  filter: drop-shadow(0 0 10px rgba(var(--dda-gold-light-rgb), 0.28));
 }
 
 .dda-login-slogan__sep {
@@ -378,8 +452,8 @@ body {
   font-size: 0.875rem;
   font-weight: 700;
   line-height: 1;
-  color: rgba(251, 191, 36, 0.55);
-  text-shadow: 0 0 12px rgba(212, 160, 18, 0.2);
+  color: rgba(var(--dda-gold-light-rgb), 0.55);
+  text-shadow: 0 0 12px rgba(var(--dda-gold-rgb), 0.2);
 }
 
 .dda-login-slogan--compact {
@@ -475,11 +549,11 @@ body {
     165deg,
     rgba(255, 255, 255, 0.06) 0%,
     rgba(255, 255, 255, 0.03) 55%,
-    rgba(212, 160, 18, 0.02) 100%
+    rgba(var(--dda-gold-rgb), 0.02) 100%
   );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 -1px 0 rgba(212, 160, 18, 0.04);
+    inset 0 -1px 0 rgba(var(--dda-gold-rgb), 0.04);
 }
 
 /* Brand accents — green primary, gold secondary */
@@ -516,7 +590,7 @@ body {
   width: 0.375rem;
   border-radius: 9999px;
   background: var(--color-dda-gold-light);
-  box-shadow: 0 0 8px rgba(251, 191, 36, 0.45);
+  box-shadow: 0 0 8px rgba(var(--dda-gold-light-rgb), 0.45);
 }
 
 .dda-text-kicker {
@@ -553,8 +627,8 @@ body {
   font-weight: 600;
   color: var(--color-dda-ink);
   box-shadow:
-    0 10px 24px -8px rgba(16, 185, 129, 0.35),
-    inset 0 1px 0 rgba(252, 211, 77, 0.15);
+    0 10px 24px -8px rgba(var(--dda-accent-rgb), 0.35),
+    inset 0 1px 0 rgba(var(--dda-gold-soft-rgb), 0.15);
   transition:
     background 0.2s ease,
     box-shadow 0.2s ease,
@@ -570,7 +644,7 @@ body {
   );
   box-shadow:
     0 12px 28px -8px rgba(163, 230, 53, 0.28),
-    0 0 0 1px rgba(251, 191, 36, 0.12);
+    0 0 0 1px rgba(var(--dda-gold-light-rgb), 0.12);
 }
 
 .dda-btn-tab-active {
@@ -578,7 +652,7 @@ body {
   color: var(--color-dda-green-light);
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--color-dda-green-light) 22%, transparent),
-    inset 0 -1px 0 rgba(251, 191, 36, 0.08);
+    inset 0 -1px 0 rgba(var(--dda-gold-light-rgb), 0.08);
 }
 
 .dda-input {
@@ -603,7 +677,7 @@ body {
   border-color: var(--color-dda-green);
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--color-dda-green) 22%, transparent),
-    0 0 0 1px rgba(251, 191, 36, 0.08);
+    0 0 0 1px rgba(var(--dda-gold-light-rgb), 0.08);
 }
 
 select.dda-input,
@@ -799,8 +873,14 @@ select.dda-bank-transfer-route__select:focus {
   );
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--color-dda-green-light) 32%, transparent),
-    inset 0 1px 0 rgba(252, 211, 77, 0.08);
+    inset 0 1px 0 rgba(var(--dda-gold-soft-rgb), 0.08);
   color: var(--color-dda-green-light);
+}
+
+.dda-nav-icon--sm {
+  height: 1.75rem;
+  width: 1.75rem;
+  border-radius: 0.55rem;
 }
 
 .dda-brand-card {
@@ -815,8 +895,8 @@ select.dda-bank-transfer-route__select:focus {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow:
-    0 20px 40px -16px rgba(16, 185, 129, 0.12),
-    0 8px 24px -12px rgba(212, 160, 18, 0.08),
+    0 20px 40px -16px rgba(var(--dda-accent-rgb), 0.12),
+    0 8px 24px -12px rgba(var(--dda-gold-rgb), 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
@@ -872,7 +952,7 @@ select.dda-bank-transfer-route__select:focus {
   color: var(--color-dda-green-light);
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--color-dda-green-light) 32%, transparent),
-    inset 0 1px 0 rgba(252, 211, 77, 0.1);
+    inset 0 1px 0 rgba(var(--dda-gold-soft-rgb), 0.1);
 }
 
 .dda-home-contribute-btn {
@@ -891,7 +971,7 @@ select.dda-bank-transfer-route__select:focus {
     165deg,
     rgba(255, 255, 255, 0.1) 0%,
     rgba(255, 255, 255, 0.04) 48%,
-    rgba(212, 160, 18, 0.03) 100%
+    rgba(var(--dda-gold-rgb), 0.03) 100%
   );
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -920,17 +1000,737 @@ select.dda-bank-transfer-route__select:focus {
     165deg,
     rgba(255, 255, 255, 0.14) 0%,
     rgba(255, 255, 255, 0.07) 48%,
-    rgba(212, 160, 18, 0.05) 100%
+    rgba(var(--dda-gold-rgb), 0.05) 100%
   );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     0 8px 20px rgba(0, 0, 0, 0.22),
-    0 0 0 1px rgba(251, 191, 36, 0.08);
+    0 0 0 1px rgba(var(--dda-gold-light-rgb), 0.08);
   transform: translateY(-1px);
 }
 
 .dda-home-contribute-btn:active {
   transform: translateY(0);
+}
+
+.dda-contribute-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.03) 52%,
+    rgba(var(--dda-accent-rgb), 0.04) 100%
+  );
+  box-shadow:
+    0 14px 32px -18px rgba(var(--dda-accent-rgb), 0.14),
+    0 8px 18px -14px rgba(0, 0, 0, 0.35);
+}
+
+.dda-member-bank {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(var(--dda-accent-rgb), 0.16), transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, rgba(var(--dda-gold-rgb), 0.12), transparent 50%),
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.09) 0%,
+      rgba(12, 22, 26, 0.92) 42%,
+      rgba(8, 14, 18, 0.98) 100%
+    );
+  box-shadow:
+    0 22px 44px -22px rgba(var(--dda-accent-rgb), 0.28),
+    0 14px 28px -18px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Master admin equity card — cool blue to distinguish from member green */
+.dda-member-bank--admin {
+  border-color: rgba(96, 165, 250, 0.22);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(59, 130, 246, 0.22), transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, rgba(14, 165, 233, 0.14), transparent 50%),
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(10, 18, 32, 0.94) 42%,
+      rgba(6, 12, 24, 0.98) 100%
+    );
+  box-shadow:
+    0 22px 44px -22px rgba(59, 130, 246, 0.34),
+    0 14px 28px -18px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(147, 197, 253, 0.12);
+}
+
+.dda-member-bank--admin .dda-accent-bar {
+  background: linear-gradient(
+    90deg,
+    #2563eb 0%,
+    #3b82f6 38%,
+    #38bdf8 72%,
+    #93c5fd 100%
+  );
+}
+
+.dda-member-bank--admin .dda-member-bank__logo {
+  filter: drop-shadow(0 6px 14px rgba(59, 130, 246, 0.35));
+}
+
+.dda-member-bank--admin .dda-member-bank__brand-sub {
+  color: #93c5fd;
+}
+
+.dda-member-bank--admin .dda-member-bank__ledger:is(button):not(:disabled):hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 14px 28px -16px rgba(59, 130, 246, 0.4);
+}
+
+.dda-member-bank--admin .dda-member-bank__ledger:focus-visible {
+  outline-color: color-mix(in srgb, #60a5fa 70%, white);
+}
+
+.dda-member-bank--admin .dda-member-bank__roi--up {
+  background: rgba(59, 130, 246, 0.16);
+  color: #93c5fd;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.32);
+}
+
+.dda-member-bank--admin .dda-member-bank__balance {
+  text-shadow: 0 10px 30px rgba(59, 130, 246, 0.22);
+}
+
+.dda-member-bank--admin .dda-member-bank__balance--donated {
+  color: #7dd3fc;
+  text-shadow: 0 10px 30px rgba(14, 165, 233, 0.3);
+}
+
+.dda-member-bank--admin .dda-member-bank__chip {
+  border-color: rgba(147, 197, 253, 0.12);
+  background: rgba(8, 20, 40, 0.35);
+}
+
+.dda-member-bank--admin .dda-member-bank__chip-value--gain-admin {
+  color: #93c5fd;
+}
+
+.dda-member-bank--admin .dda-member-bank__cta {
+  color: #93c5fd;
+}
+
+.dda-member-bank__sheen {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    125deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    transparent 28%,
+    transparent 62%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  opacity: 0.55;
+}
+
+.dda-member-bank__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.9rem 0.95rem 0.95rem;
+}
+
+@media (min-width: 640px) {
+  .dda-member-bank__inner {
+    gap: 1rem;
+    padding: 1.05rem 1.15rem 1.1rem;
+  }
+}
+
+.dda-member-bank__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dda-member-bank__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dda-member-bank__logo {
+  height: 2.75rem;
+  width: auto;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 14px rgba(var(--dda-accent-rgb), 0.25));
+}
+
+@media (min-width: 640px) {
+  .dda-member-bank__logo {
+    height: 3.15rem;
+  }
+}
+
+.dda-member-bank__brand-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: #fff;
+}
+
+.dda-member-bank__brand-sub {
+  margin-top: 0.2rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-dda-green-light);
+}
+
+.dda-member-bank__ledger {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.55rem;
+  border: 0;
+  border-radius: 0.95rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025));
+  padding: 0.85rem 0.85rem 0.8rem;
+  text-align: left;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 24px -18px rgba(0, 0, 0, 0.55);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.dda-member-bank__ledger:is(button):not(:disabled):hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 14px 28px -16px rgba(var(--dda-accent-rgb), 0.35);
+  transform: translateY(-1px);
+}
+
+.dda-member-bank__ledger--static {
+  cursor: default;
+  pointer-events: none;
+  transition: none;
+}
+
+.dda-member-bank__ledger:is(button):not(:disabled):active {
+  transform: translateY(0);
+}
+
+.dda-member-bank__ledger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-dda-green-light) 70%, white);
+  outline-offset: 2px;
+}
+
+.dda-member-bank__ledger-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dda-member-bank__account-type {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(209, 213, 219, 0.9);
+}
+
+.dda-member-bank__account-mask {
+  margin-top: 0.2rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.dda-member-bank__roi {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dda-member-bank__roi--up {
+  background: rgba(var(--dda-accent-rgb), 0.14);
+  color: var(--color-dda-green-light);
+  box-shadow: inset 0 0 0 1px rgba(var(--dda-accent-rgb), 0.28);
+}
+
+.dda-member-bank__roi--down {
+  background: rgba(239, 68, 68, 0.14);
+  color: #fca5a5;
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.28);
+}
+
+.dda-member-bank__balance-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.15rem;
+}
+
+.dda-member-bank__balance-col {
+  min-width: 0;
+}
+
+.dda-member-bank__balance-col--donated {
+  text-align: right;
+}
+
+.dda-member-bank__balance-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(156, 163, 175, 0.95);
+}
+
+.dda-member-bank__balance {
+  font-size: clamp(1.85rem, 6vw, 2.35rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 10px 30px rgba(var(--dda-accent-rgb), 0.18);
+}
+
+.dda-member-bank__balance--donated {
+  color: #6ee7b7;
+  text-shadow: 0 10px 30px rgba(var(--dda-accent-rgb), 0.28);
+}
+
+.dda-member-bank__chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+@media (min-width: 420px) {
+  .dda-member-bank__chips {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.dda-member-bank__chip {
+  border-radius: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.45rem 0.4rem;
+  text-align: center;
+}
+
+.dda-member-bank__chip-label {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(156, 163, 175, 0.95);
+}
+
+.dda-member-bank__chip-value {
+  margin-top: 0.18rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.dda-member-bank__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-dda-gold-light);
+}
+
+.dda-contribute-panel__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.85rem 0.9rem 0.8rem;
+}
+
+@media (min-width: 640px) {
+  .dda-contribute-panel__body {
+    gap: 0.8rem;
+    padding: 1rem 1.1rem 0.9rem;
+  }
+}
+
+.dda-contribute-panel__header {
+  text-align: center;
+}
+
+.dda-contribute-panel__title {
+  margin-top: 0.15rem;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+@media (min-width: 640px) {
+  .dda-contribute-panel__title {
+    font-size: 1.05rem;
+  }
+}
+
+.dda-contribute-panel__subtitle {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: rgba(209, 213, 219, 0.82);
+}
+
+.dda-contribute-panel__presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.4rem;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0.18) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 24px -18px rgba(0, 0, 0, 0.55);
+}
+
+.dda-contribute-preset {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 5rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  overflow: hidden;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.07) 42%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+  backdrop-filter: blur(14px) saturate(1.35);
+  -webkit-backdrop-filter: blur(14px) saturate(1.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 10px 20px -14px rgba(0, 0, 0, 0.55);
+  padding: 0.7rem 0.35rem 0.65rem;
+  text-align: center;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dda-contribute-preset__glass {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.28) 0%,
+      rgba(255, 255, 255, 0.04) 28%,
+      transparent 52%
+    );
+  opacity: 0.85;
+}
+
+.dda-contribute-preset__amount,
+.dda-contribute-preset__period,
+.dda-contribute-preset__hint {
+  position: relative;
+  z-index: 1;
+}
+
+.dda-contribute-preset--weekly {
+  border-color: rgba(var(--dda-accent-light-rgb), 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 0 1px rgba(var(--dda-accent-rgb), 0.08),
+    0 12px 24px -14px rgba(var(--dda-accent-rgb), 0.4);
+}
+
+.dda-contribute-preset--monthly {
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 0 1px rgba(14, 165, 233, 0.08),
+    0 12px 24px -14px rgba(14, 165, 233, 0.35);
+}
+
+.dda-contribute-preset--yearly {
+  border-color: rgba(var(--dda-gold-light-rgb), 0.38);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 0 1px rgba(var(--dda-gold-rgb), 0.1),
+    0 12px 24px -14px rgba(var(--dda-gold-rgb), 0.38);
+}
+
+.dda-contribute-preset:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.42);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.3) 0%,
+      rgba(255, 255, 255, 0.1) 45%,
+      rgba(255, 255, 255, 0.04) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 16px 28px -14px rgba(var(--dda-accent-rgb), 0.45);
+}
+
+.dda-contribute-preset--monthly:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 16px 28px -14px rgba(56, 189, 248, 0.42);
+}
+
+.dda-contribute-preset--yearly:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 16px 28px -14px rgba(var(--dda-gold-light-rgb), 0.42);
+}
+
+.dda-contribute-preset:active {
+  transform: translateY(0);
+}
+
+.dda-contribute-preset:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-dda-green-light) 70%, white);
+  outline-offset: 2px;
+}
+
+.dda-contribute-preset__amount {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
+}
+
+.dda-contribute-preset--weekly .dda-contribute-preset__period {
+  color: var(--color-dda-green-light);
+}
+
+.dda-contribute-preset--monthly .dda-contribute-preset__period {
+  color: #7dd3fc;
+}
+
+.dda-contribute-preset--yearly .dda-contribute-preset__period {
+  color: var(--color-dda-gold-light);
+}
+
+.dda-contribute-preset__period {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dda-contribute-preset__hint {
+  font-size: 0.58rem;
+  font-weight: 500;
+  color: rgba(209, 213, 219, 0.88);
+}
+
+.dda-contribute-custom {
+  position: relative;
+  isolation: isolate;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  min-height: 2.75rem;
+  overflow: hidden;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0.04) 48%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+  backdrop-filter: blur(12px) saturate(1.25);
+  -webkit-backdrop-filter: blur(12px) saturate(1.25);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 8px 18px -16px rgba(0, 0, 0, 0.5);
+  padding: 0.55rem 0.7rem 0.55rem 0.6rem;
+  text-align: left;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dda-contribute-custom::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.03) 30%,
+      transparent 55%
+    );
+}
+
+.dda-contribute-custom:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.28);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.06) 48%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 12px 22px -14px rgba(0, 0, 0, 0.55);
+}
+
+.dda-contribute-custom:active {
+  transform: translateY(0);
+}
+
+.dda-contribute-custom:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-dda-green-light) 70%, white);
+  outline-offset: 2px;
+}
+
+.dda-contribute-custom__mark,
+.dda-contribute-custom__copy,
+.dda-contribute-custom__chevron {
+  position: relative;
+  z-index: 1;
+}
+
+.dda-contribute-custom__mark {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(var(--dda-gold-rgb), 0.35);
+  background: rgba(var(--dda-gold-rgb), 0.12);
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-dda-gold-light);
+}
+
+.dda-contribute-custom__copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.dda-contribute-custom__label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.dda-contribute-custom__action {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: rgba(209, 213, 219, 0.78);
+}
+
+.dda-contribute-custom__chevron {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: rgba(209, 213, 219, 0.55);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.dda-contribute-custom:hover .dda-contribute-custom__chevron {
+  color: var(--color-dda-gold-light);
+  transform: translateX(2px);
+}
+
+.dda-contribute-panel__payments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 0.55rem;
+}
+
+.dda-contribute-panel__pay-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(156, 163, 175, 0.9);
+}
+
+.dda-contribute-panel .dda-text-kicker {
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+}
+
+.dda-contribute-panel .dda-home-payment-logo {
+  height: 1.15rem;
 }
 
 .dda-home-payment-logos {
@@ -940,6 +1740,12 @@ select.dda-bank-transfer-route__select:focus {
   gap: 1.25rem;
   width: 100%;
   padding-top: 1.25rem;
+}
+
+.dda-home-payment-logos--inline {
+  width: auto;
+  padding-top: 0;
+  gap: 1rem;
 }
 
 .dda-home-payment-logo-link {
@@ -971,20 +1777,373 @@ select.dda-bank-transfer-route__select:focus {
   cursor: pointer;
 }
 
+.dda-contribute-frequency-select {
+  appearance: none;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--color-dda-green) 25%, transparent);
+  background:
+    rgba(var(--dda-accent-rgb), 0.15)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234ade80' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")
+    no-repeat right 0.65rem center / 0.7rem;
+  padding: 0.35rem 1.75rem 0.35rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-dda-green-light);
+  outline: none;
+  cursor: pointer;
+}
+
+.dda-contribute-frequency-select:focus {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-dda-green) 25%, transparent);
+}
+
+.dda-contribute-frequency-select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dda-contribute-frequency-select option {
+  background: #0b1216;
+  color: #fff;
+}
+
+.dda-donate-sheet__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-top: 0.25rem;
+}
+
+.dda-donate-sheet__amount-card {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(
+      165deg,
+      rgba(var(--dda-accent-rgb), 0.12) 0%,
+      rgba(255, 255, 255, 0.03) 42%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+  padding: 1.1rem 1.15rem 1.15rem;
+}
+
+.dda-donate-sheet__amount {
+  margin-top: 0.35rem;
+  font-size: 2.35rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.dda-donate-sheet__presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-top: 1rem;
+  padding: 0.3rem;
+  border-radius: 0.85rem;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.dda-donate-sheet__preset {
+  border-radius: 0.65rem;
+  padding: 0.55rem 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: #9ca3af;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dda-donate-sheet__preset:hover {
+  color: #fff;
+}
+
+.dda-donate-sheet__preset--active {
+  background: rgba(var(--dda-accent-light-rgb), 0.16);
+  color: var(--color-dda-green-light);
+  box-shadow: inset 0 0 0 1px rgba(var(--dda-accent-light-rgb), 0.28);
+}
+
+.dda-donate-sheet__custom-input {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 0.75rem 0.95rem;
+  font-size: 1rem;
+  font-weight: 650;
+  color: #fff;
+}
+
+.dda-donate-sheet__custom-input span {
+  color: #9ca3af;
+}
+
+.dda-donate-sheet__custom-input input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.dda-donate-sheet__custom-input input::placeholder {
+  color: #4b5563;
+}
+
+.dda-donate-sheet__options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.35rem;
+}
+
+.dda-donate-sheet__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  border-radius: 0.85rem;
+  padding: 0.75rem 0.8rem;
+}
+
+.dda-donate-sheet__row--check {
+  cursor: pointer;
+}
+
+.dda-donate-sheet__row--check:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dda-donate-sheet__switch {
+  position: relative;
+  width: 2.6rem;
+  height: 1.45rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.dda-donate-sheet__switch--on {
+  border-color: rgba(var(--dda-accent-light-rgb), 0.4);
+  background: rgba(var(--dda-accent-rgb), 0.45);
+}
+
+.dda-donate-sheet__switch-thumb {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease;
+}
+
+.dda-donate-sheet__switch--on .dda-donate-sheet__switch-thumb {
+  transform: translateX(1.15rem);
+}
+
+.dda-donate-sheet__summary {
+  border-radius: 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 1rem 1.1rem;
+}
+
+.dda-wallet-quick-fund {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+  padding: 1rem;
+}
+
+.dda-wallet-quick-fund .dda-bank-actions {
+  margin-top: 0.25rem;
+}
+
+.dda-donate-receipt {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.45);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(var(--dda-accent-light-rgb), 0.28), transparent 55%),
+    linear-gradient(165deg, rgba(var(--dda-accent-rgb), 0.18) 0%, rgba(7, 16, 19, 0.92) 70%);
+  box-shadow:
+    0 0 0 1px rgba(var(--dda-accent-light-rgb), 0.18),
+    0 0 28px rgba(var(--dda-accent-rgb), 0.22),
+    inset 0 1px 0 rgba(167, 243, 208, 0.18);
+  padding: 1.15rem 1.2rem 1.25rem;
+}
+
+.dda-donate-receipt__close {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.65rem;
+  color: #a7f3d0;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-donate-receipt__close:hover {
+  background: rgba(var(--dda-accent-light-rgb), 0.14);
+  color: #fff;
+}
+
+.dda-donate-receipt__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.35);
+  background: rgba(var(--dda-accent-rgb), 0.16);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+}
+
+.dda-donate-receipt__amount {
+  margin-top: 0.85rem;
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #4ade80;
+  text-shadow:
+    0 0 12px rgba(74, 222, 128, 0.65),
+    0 0 28px rgba(var(--dda-accent-rgb), 0.45);
+}
+
+.dda-donate-receipt__recurring {
+  margin-top: 0.55rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: #d1fae5;
+}
+
+.dda-donate-receipt__note {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: rgba(167, 243, 208, 0.8);
+}
+
+.dda-wallet-balance-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.dda-wallet-balance-line__value {
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #4ade80;
+  text-shadow:
+    0 0 10px rgba(74, 222, 128, 0.75),
+    0 0 22px rgba(var(--dda-accent-rgb), 0.5),
+    0 0 36px rgba(var(--dda-accent-light-rgb), 0.28);
+}
+
+.dda-wallet-balance-line--flash .dda-wallet-balance-line__value {
+  animation: dda-wallet-neon-pulse 1.2s ease-in-out 2;
+}
+
+.dda-wallet-balance-line__delta {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(74, 222, 128, 0.45);
+  background: rgba(var(--dda-accent-rgb), 0.18);
+  padding: 0.12rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #86efac;
+  box-shadow:
+    0 0 12px rgba(74, 222, 128, 0.35),
+    inset 0 0 0 1px rgba(167, 243, 208, 0.12);
+  animation: dda-wallet-delta-pop 0.45s ease-out;
+}
+
+@keyframes dda-wallet-neon-pulse {
+  0%,
+  100% {
+    text-shadow:
+      0 0 10px rgba(74, 222, 128, 0.7),
+      0 0 22px rgba(var(--dda-accent-rgb), 0.45);
+  }
+  50% {
+    text-shadow:
+      0 0 16px rgba(74, 222, 128, 0.95),
+      0 0 34px rgba(var(--dda-accent-rgb), 0.7),
+      0 0 48px rgba(var(--dda-accent-light-rgb), 0.35);
+  }
+}
+
+@keyframes dda-wallet-delta-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .dda-pool-widget__card {
   position: relative;
   overflow: hidden;
-  border-radius: 1rem;
+  border-radius: 0.875rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(
     165deg,
     rgba(255, 255, 255, 0.07) 0%,
     rgba(255, 255, 255, 0.03) 52%,
-    rgba(212, 160, 18, 0.04) 100%
+    rgba(var(--dda-gold-rgb), 0.04) 100%
   );
   box-shadow:
-    0 18px 40px -18px rgba(16, 185, 129, 0.18),
-    0 10px 24px -16px rgba(212, 160, 18, 0.12),
+    0 14px 32px -18px rgba(var(--dda-accent-rgb), 0.16),
+    0 8px 18px -14px rgba(var(--dda-gold-rgb), 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition:
     border-color 0.2s ease,
@@ -995,8 +2154,8 @@ select.dda-bank-transfer-route__select:focus {
 .dda-pool-widget:hover .dda-pool-widget__card {
   border-color: color-mix(in srgb, var(--color-dda-gold-light) 22%, rgba(255, 255, 255, 0.12));
   box-shadow:
-    0 22px 44px -18px rgba(16, 185, 129, 0.22),
-    0 12px 28px -14px rgba(212, 160, 18, 0.16),
+    0 18px 36px -18px rgba(var(--dda-accent-rgb), 0.2),
+    0 10px 22px -14px rgba(var(--dda-gold-rgb), 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform: translateY(-1px);
 }
@@ -1010,10 +2169,10 @@ select.dda-bank-transfer-route__select:focus {
   position: absolute;
   right: -2rem;
   top: -3rem;
-  height: 10rem;
-  width: 10rem;
+  height: 8rem;
+  width: 8rem;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.12), transparent 68%);
+  background: radial-gradient(circle, rgba(var(--dda-gold-light-rgb), 0.12), transparent 68%);
   opacity: 0.8;
   transition: opacity 0.2s ease;
 }
@@ -1022,20 +2181,54 @@ select.dda-bank-transfer-route__select:focus {
   opacity: 1;
 }
 
+.dda-pool-widget__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.7rem 0.85rem 0.65rem;
+}
+
+.dda-pool-widget__head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.dda-pool-widget__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
 .dda-pool-widget__live {
   border-radius: 9999px;
-  background: rgba(16, 185, 129, 0.12);
-  padding: 0.2rem 0.55rem;
-  font-size: 0.5625rem;
+  background: rgba(var(--dda-accent-rgb), 0.12);
+  padding: 0.15rem 0.45rem;
+  font-size: 0.5rem;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-dda-green-light);
-  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(var(--dda-accent-light-rgb), 0.22);
+}
+
+.dda-pool-widget__balance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem 0.65rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
 }
 
 .dda-pool-widget__amount {
-  font-size: clamp(1.75rem, 7vw, 2.5rem);
+  font-size: clamp(1.35rem, 5.5vw, 1.85rem);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
@@ -1051,29 +2244,199 @@ select.dda-bank-transfer-route__select:focus {
   color: transparent;
 }
 
+.dda-pool-widget__growth {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border-radius: 9999px;
+  background: rgba(var(--dda-accent-rgb), 0.1);
+  padding: 0.15rem 0.45rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--color-dda-green-light);
+  box-shadow: inset 0 0 0 1px rgba(var(--dda-accent-rgb), 0.2);
+}
+
+.dda-pool-widget__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
 .dda-pool-widget__stat {
   display: flex;
-  align-items: flex-start;
-  gap: 0.55rem;
-  border-radius: 0.875rem;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.65rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.22);
-  padding: 0.65rem 0.75rem;
+  padding: 0.4rem 0.55rem;
+}
+
+.dda-pool-widget__stat-label {
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(107, 114, 128);
+}
+
+.dda-pool-widget__stat-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.dda-pool-widget__stat-value--inflow {
+  color: var(--color-dda-green-light);
+}
+
+.dda-pool-widget__tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.2rem;
+}
+
+.dda-pool-widget__tab {
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  padding: 0.3rem 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(156, 163, 175, 0.95);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-pool-widget__tab:hover {
+  color: #fff;
+}
+
+.dda-pool-widget__tab--active {
+  background: rgba(var(--dda-accent-rgb), 0.16);
+  color: var(--color-dda-green-light);
+  box-shadow: inset 0 0 0 1px rgba(var(--dda-accent-light-rgb), 0.22);
+}
+
+.dda-pool-widget__panel {
+  min-height: 4.25rem;
+}
+
+.dda-pool-widget__interest,
+.dda-pool-widget__compound {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.dda-pool-widget__interest-hero {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.4rem 0.55rem;
+}
+
+.dda-pool-widget__interest-apy {
+  font-size: 1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: #fff;
+}
+
+.dda-pool-widget__meter {
+  overflow: hidden;
+  height: 0.35rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dda-pool-widget__meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.dda-pool-widget__meter-fill--interest {
+  background: linear-gradient(
+    90deg,
+    var(--color-dda-green-light),
+    var(--color-dda-gold-light)
+  );
+}
+
+.dda-pool-widget__compound-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dda-pool-widget__compound-copy {
+  margin: 0;
+  font-size: 0.625rem;
+  line-height: 1.3;
+  color: rgba(209, 213, 219, 0.85);
+}
+
+.dda-pool-widget__stack {
+  display: flex;
+  overflow: hidden;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dda-pool-widget__stack-principal {
+  display: block;
+  height: 100%;
+  background: rgba(148, 163, 184, 0.55);
+}
+
+.dda-pool-widget__stack-gain {
+  display: block;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-dda-green-light),
+    var(--color-dda-gold-light)
+  );
 }
 
 .dda-pool-widget__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  border: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 0.85rem;
-  font-size: 0.75rem;
+  background: transparent;
+  padding: 0.45rem 0 0;
+  font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: rgba(156, 163, 175, 0.9);
+  cursor: pointer;
+  transition: color 0.15s ease;
 }
 
+.dda-pool-widget__footer:hover,
 .dda-pool-widget:hover .dda-pool-widget__footer {
   color: var(--color-dda-gold-light);
 }
@@ -1133,10 +2496,10 @@ select.dda-bank-transfer-route__select:focus {
     165deg,
     rgba(255, 255, 255, 0.06) 0%,
     rgba(255, 255, 255, 0.03) 55%,
-    rgba(212, 160, 18, 0.02) 100%
+    rgba(var(--dda-gold-rgb), 0.02) 100%
   );
   box-shadow:
-    0 12px 28px -14px rgba(16, 185, 129, 0.14),
+    0 12px 28px -14px rgba(var(--dda-accent-rgb), 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
@@ -1242,12 +2605,12 @@ select.dda-bank-transfer-route__select:focus {
     165deg,
     rgba(255, 255, 255, 0.14) 0%,
     rgba(255, 255, 255, 0.07) 48%,
-    rgba(212, 160, 18, 0.04) 100%
+    rgba(var(--dda-gold-rgb), 0.04) 100%
   );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     0 8px 24px rgba(0, 0, 0, 0.22),
-    0 0 0 1px rgba(251, 191, 36, 0.06);
+    0 0 0 1px rgba(var(--dda-gold-light-rgb), 0.06);
   transform: translateY(-1px);
 }
 
@@ -1454,7 +2817,7 @@ select.dda-bank-transfer-route__select:focus {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: rgba(52, 211, 153, 0.35) transparent;
+  scrollbar-color: rgba(var(--dda-accent-light-rgb), 0.35) transparent;
   border-radius: 0.75rem;
 }
 
@@ -1465,7 +2828,7 @@ select.dda-bank-transfer-route__select:focus {
 
 .dda-card-scroll::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(52, 211, 153, 0.35);
+  background: rgba(var(--dda-accent-light-rgb), 0.35);
 }
 
 @media (min-width: 640px) {
@@ -1504,8 +2867,8 @@ select.dda-bank-transfer-route__select:focus {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(52, 211, 153, 0.45),
-    rgba(251, 191, 36, 0.22),
+    rgba(var(--dda-accent-light-rgb), 0.45),
+    rgba(var(--dda-gold-light-rgb), 0.22),
     transparent
   );
   opacity: 0;
@@ -1536,8 +2899,8 @@ select.dda-bank-transfer-route__select:focus {
   inset: 0;
   background: linear-gradient(
     90deg,
-    rgba(52, 211, 153, 0.07),
-    rgba(251, 191, 36, 0.04),
+    rgba(var(--dda-accent-light-rgb), 0.07),
+    rgba(var(--dda-gold-light-rgb), 0.04),
     transparent 55%
   );
   opacity: 0;
@@ -1552,7 +2915,7 @@ select.dda-bank-transfer-route__select:focus {
 .dda-members-list {
   overflow: hidden;
   border-radius: 0.75rem;
-  border: 1px solid rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.12);
 }
 
 .dda-card-scroll .dda-members-list {
@@ -1577,30 +2940,30 @@ select.dda-bank-transfer-route__select:focus {
 }
 
 .dda-members-list__row:nth-child(even) {
-  background: rgba(16, 185, 129, 0.06);
+  background: rgba(var(--dda-accent-rgb), 0.06);
 }
 
 .dda-members-list__row:hover {
-  background: rgba(52, 211, 153, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.14);
+  background: rgba(var(--dda-accent-light-rgb), 0.12);
+  box-shadow: inset 0 0 0 1px rgba(var(--dda-accent-light-rgb), 0.14);
 }
 
 .dda-members-list__row:focus-visible {
-  outline: 2px solid rgba(52, 211, 153, 0.45);
+  outline: 2px solid rgba(var(--dda-accent-light-rgb), 0.45);
   outline-offset: -2px;
   z-index: 1;
 }
 
 .dda-members-list__status--active {
   color: var(--color-dda-green-soft);
-  background: rgba(16, 185, 129, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.22);
+  background: rgba(var(--dda-accent-rgb), 0.14);
+  box-shadow: inset 0 0 0 1px rgba(var(--dda-accent-light-rgb), 0.22);
 }
 
 .dda-members-list__status--inactive {
-  color: #fcd34d;
-  background: rgba(251, 191, 36, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.22);
+  color: var(--color-dda-gold-soft);
+  background: rgba(var(--dda-gold-light-rgb), 0.12);
+  box-shadow: inset 0 0 0 1px rgba(var(--dda-gold-light-rgb), 0.22);
 }
 
 .dda-accounts-tabs {
@@ -1618,7 +2981,7 @@ select.dda-bank-transfer-route__select:focus {
   padding: 0.85rem 1rem;
   text-align: left;
   border-radius: 0.85rem;
-  border: 1px solid rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.12);
   background: rgba(255, 255, 255, 0.025);
   color: #d1d5db;
   transition:
@@ -1629,12 +2992,12 @@ select.dda-bank-transfer-route__select:focus {
 
 .dda-accounts-tab:hover {
   background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(52, 211, 153, 0.2);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.2);
 }
 
 .dda-accounts-tab--active {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(var(--dda-accent-rgb), 0.1);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.35);
   box-shadow:
     inset 3px 0 0 var(--color-dda-gold-light),
     0 8px 20px rgba(0, 0, 0, 0.18);
@@ -1671,7 +3034,7 @@ select.dda-bank-transfer-route__select:focus {
   padding: 1rem;
   text-align: left;
   border-radius: 1rem;
-  border: 1px solid rgba(52, 211, 153, 0.14);
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.14);
   background: linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(7, 16, 19, 0.72));
   transition:
     border-color 0.15s ease,
@@ -1680,7 +3043,7 @@ select.dda-bank-transfer-route__select:focus {
 }
 
 .dda-accounts-hub__card:hover {
-  border-color: rgba(52, 211, 153, 0.28);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.28);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
   transform: translateY(-1px);
 }
@@ -2078,13 +3441,18 @@ select.dda-bank-transfer-route__select:focus {
 }
 
 .dda-accounts-overview__net--positive {
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(var(--dda-accent-rgb), 0.12);
   color: #6ee7b7;
 }
 
 .dda-accounts-overview__net--negative {
   background: rgba(248, 113, 113, 0.12);
   color: #fca5a5;
+}
+
+.dda-accounts-overview__net--outcome {
+  background: rgba(251, 113, 133, 0.14);
+  color: #fda4af;
 }
 
 .dda-accounts-overview__footnote {
@@ -2098,8 +3466,8 @@ select.dda-bank-transfer-route__select:focus {
   position: relative;
   overflow: hidden;
   border-radius: 1.1rem;
-  border: 1px solid rgba(52, 211, 153, 0.18);
-  background: linear-gradient(165deg, rgba(16, 185, 129, 0.12), rgba(7, 16, 19, 0.92));
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.18);
+  background: linear-gradient(165deg, rgba(var(--dda-accent-rgb), 0.12), rgba(7, 16, 19, 0.92));
   padding: 1.25rem 1.35rem 1.4rem;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
 }
@@ -2128,6 +3496,15 @@ select.dda-bank-transfer-route__select:focus {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
+  width: 100%;
+}
+
+.dda-bank-actions--pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  width: 100%;
+  max-width: 22rem;
+  margin-inline: auto;
 }
 
 .dda-bank-actions__btn {
@@ -2135,30 +3512,150 @@ select.dda-bank-transfer-route__select:focus {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  min-height: 4.25rem;
-  border-radius: 0.95rem;
+  gap: 0.45rem;
+  min-height: 4.35rem;
+  border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
   color: #d1d5db;
   font-size: 0.75rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dda-bank-actions__icon {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
 }
 
 .dda-bank-actions__btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   color: #fff;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.dda-bank-actions__btn:hover .dda-bank-actions__icon {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .dda-bank-actions__btn--active {
-  border-color: rgba(52, 211, 153, 0.35);
-  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.4);
+  background:
+    linear-gradient(165deg, rgba(var(--dda-accent-rgb), 0.2) 0%, rgba(var(--dda-accent-rgb), 0.08) 100%);
   color: var(--color-dda-green-soft);
-  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.18);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--dda-accent-light-rgb), 0.16),
+    0 8px 20px rgba(var(--dda-accent-rgb), 0.08);
+}
+
+.dda-bank-actions__btn--active .dda-bank-actions__icon {
+  border-color: rgba(var(--dda-accent-light-rgb), 0.35);
+  background: rgba(var(--dda-accent-rgb), 0.18);
+  color: var(--color-dda-green-light);
+}
+
+.dda-bank-actions--overlay.dda-bank-actions--pair {
+  max-width: 18.5rem;
+  gap: 0.75rem;
+}
+
+.dda-bank-actions--overlay .dda-bank-actions__btn {
+  min-height: 4.6rem;
+  border-radius: 1.15rem;
+  padding: 0.7rem 0.5rem;
+}
+
+.dda-bank-actions__label-swap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 1.15rem;
+  width: 100%;
+}
+
+.dda-bank-actions__label-swap__default,
+.dda-bank-actions__label-swap__hover {
+  grid-area: 1 / 1;
+}
+
+.dda-bank-actions__label-swap__hover {
+  display: none;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-dda-gold-light);
+  white-space: nowrap;
+}
+
+.dda-bank-actions__btn--donate {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(37, 99, 235, 0.28);
+  color: #dbeafe;
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.22);
+}
+
+.dda-bank-actions__btn--donate .dda-bank-actions__icon {
+  border-color: rgba(96, 165, 250, 0.45);
+  background: rgba(59, 130, 246, 0.28);
+  color: #93c5fd;
+}
+
+.dda-bank-actions__btn--donate:hover,
+.dda-bank-actions__btn--donate:focus-visible {
+  border-color: rgba(var(--dda-gold-light-rgb), 0.28);
+  background:
+    linear-gradient(
+      165deg,
+      rgba(var(--dda-gold-light-rgb), 0.16) 0%,
+      rgba(var(--dda-gold-rgb), 0.08) 48%,
+      rgba(var(--dda-gold-light-rgb), 0.05) 100%
+    );
+  color: var(--color-dda-gold-soft);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--dda-gold-light-rgb), 0.1),
+    0 8px 22px rgba(var(--dda-gold-rgb), 0.08);
+  backdrop-filter: blur(10px) saturate(1.15);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+}
+
+.dda-bank-actions__btn--donate:hover .dda-bank-actions__label-swap__default,
+.dda-bank-actions__btn--donate:focus-visible .dda-bank-actions__label-swap__default {
+  display: none;
+}
+
+.dda-bank-actions__btn--donate:hover .dda-bank-actions__label-swap__hover,
+.dda-bank-actions__btn--donate:focus-visible .dda-bank-actions__label-swap__hover {
+  display: block;
+}
+
+.dda-bank-actions__btn--donate:hover .dda-bank-actions__icon,
+.dda-bank-actions__btn--donate:focus-visible .dda-bank-actions__icon {
+  border-color: rgba(var(--dda-gold-light-rgb), 0.35);
+  background: rgba(var(--dda-gold-light-rgb), 0.12);
+  color: var(--color-dda-gold-light);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+@media (hover: none) {
+  .dda-bank-actions__btn--donate .dda-bank-actions__label-swap__hover {
+    display: none;
+  }
 }
 
 .dda-bank-amount-input {
@@ -2166,7 +3663,7 @@ select.dda-bank-transfer-route__select:focus {
   align-items: center;
   gap: 0.5rem;
   border-radius: 0.95rem;
-  border: 1px solid rgba(52, 211, 153, 0.18);
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.18);
   background: rgba(0, 0, 0, 0.22);
   padding: 0.85rem 1rem;
 }
@@ -2184,7 +3681,7 @@ select.dda-bank-transfer-route__select:focus {
 }
 
 .dda-bank-field:focus {
-  border-color: rgba(52, 211, 153, 0.4);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.4);
 }
 
 .dda-bank-transfer-route {
@@ -2226,8 +3723,8 @@ select.dda-bank-transfer-route__select {
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  border: 1px solid rgba(52, 211, 153, 0.28);
-  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.28);
+  background: rgba(var(--dda-accent-rgb), 0.12);
   color: var(--color-dda-green-light);
   transition:
     background-color 0.15s ease,
@@ -2236,8 +3733,8 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-bank-transfer-route__swap:hover {
-  background: rgba(16, 185, 129, 0.2);
-  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(var(--dda-accent-rgb), 0.2);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.45);
   transform: rotate(180deg);
 }
 
@@ -2261,39 +3758,42 @@ select.dda-bank-transfer-route__select {
 .dda-bank-ledger {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.3rem;
 }
 
 .dda-bank-ledger__row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  border-radius: 0.85rem;
+  gap: 0.55rem;
+  border-radius: 0.65rem;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(255, 255, 255, 0.02);
-  padding: 0.75rem 0.85rem;
+  padding: 0.4rem 0.6rem;
+  min-height: 2.5rem;
 }
 
 .dda-bank-ledger__row--editing {
   align-items: flex-start;
-  border-color: rgba(52, 211, 153, 0.22);
-  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.22);
+  background: rgba(var(--dda-accent-rgb), 0.06);
+  padding: 0.55rem 0.65rem;
 }
 
 .dda-bank-ledger__actions {
   display: flex;
   shrink: 0;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .dda-bank-ledger__icon-btn {
   display: flex;
-  height: 1.75rem;
-  width: 1.75rem;
+  height: 1.4rem;
+  width: 1.4rem;
   align-items: center;
   justify-content: center;
-  border-radius: 0.55rem;
+  border-radius: 0.4rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
   color: #9ca3af;
@@ -2305,8 +3805,8 @@ select.dda-bank-transfer-route__select {
 
 .dda-bank-ledger__icon-btn:hover {
   color: #fff;
-  border-color: rgba(52, 211, 153, 0.25);
-  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.25);
+  background: rgba(var(--dda-accent-light-rgb), 0.1);
 }
 
 .dda-bank-ledger__icon-btn--danger:hover {
@@ -2329,24 +3829,29 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-bank-ledger__action-btn--save {
-  border-color: rgba(52, 211, 153, 0.28);
-  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.28);
+  background: rgba(var(--dda-accent-rgb), 0.12);
   color: var(--color-dda-green-soft);
 }
 
 .dda-bank-ledger__action-btn--save:hover {
-  background: rgba(16, 185, 129, 0.2);
+  background: rgba(var(--dda-accent-rgb), 0.2);
 }
 
 .dda-bank-ledger__icon {
   display: flex;
-  height: 2.25rem;
-  width: 2.25rem;
+  height: 1.65rem;
+  width: 1.65rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: 0.75rem;
+  border-radius: 0.45rem;
   background: rgba(255, 255, 255, 0.04);
+}
+
+.dda-bank-ledger__icon svg {
+  width: 0.85rem;
+  height: 0.85rem;
 }
 
 .dda-bank-ledger-pager {
@@ -2375,8 +3880,8 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-bank-ledger-pager__btn:hover:not(:disabled) {
-  background: rgba(52, 211, 153, 0.1);
-  border-color: rgba(52, 211, 153, 0.25);
+  background: rgba(var(--dda-accent-light-rgb), 0.1);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.25);
   color: var(--color-dda-green-soft);
 }
 
@@ -2419,8 +3924,8 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-recurring-type__btn--income {
-  border-color: rgba(52, 211, 153, 0.35);
-  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.35);
+  background: rgba(var(--dda-accent-light-rgb), 0.1);
   color: var(--color-dda-green-soft);
 }
 
@@ -2440,6 +3945,31 @@ select.dda-bank-transfer-route__select {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.dda-recurring-list__load-more {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.65rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.65rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(209, 213, 219, 0.95);
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.dda-recurring-list__load-more:hover {
+  border-color: rgba(var(--dda-accent-light-rgb), 0.35);
+  background: rgba(var(--dda-accent-rgb), 0.1);
+  color: var(--color-dda-green-light);
 }
 
 .dda-recurring-list__item {
@@ -2472,7 +4002,7 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-recurring-list__icon--income {
-  background: rgba(52, 211, 153, 0.12);
+  background: rgba(var(--dda-accent-light-rgb), 0.12);
   color: var(--color-dda-green-light);
 }
 
@@ -2529,8 +4059,8 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-recurring-calendar__nav:hover {
-  border-color: rgba(52, 211, 153, 0.35);
-  background: rgba(52, 211, 153, 0.08);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.35);
+  background: rgba(var(--dda-accent-light-rgb), 0.08);
   color: var(--color-dda-green-soft);
 }
 
@@ -2577,6 +4107,34 @@ select.dda-bank-transfer-route__select {
   line-height: 1;
 }
 
+.dda-recurring-calendar__day-total {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--color-dda-green-light);
+}
+
+.dda-recurring-calendar__hover-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.55rem 0 0.35rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.28);
+  background: rgba(var(--dda-accent-rgb), 0.1);
+  padding: 0.45rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: rgba(209, 213, 219, 0.95);
+}
+
 .dda-recurring-calendar__dots {
   display: inline-flex;
   align-items: center;
@@ -2610,7 +4168,7 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-recurring-calendar__day--income:not(.dda-recurring-calendar__day--selected) {
-  box-shadow: inset 0 -2px 0 rgba(52, 211, 153, 0.55);
+  box-shadow: inset 0 -2px 0 rgba(var(--dda-accent-light-rgb), 0.55);
 }
 
 .dda-recurring-calendar__day--expense:not(.dda-recurring-calendar__day--selected) {
@@ -2649,13 +4207,13 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-recurring-calendar__day--today {
-  border-color: rgba(251, 191, 36, 0.35);
-  color: #fcd34d;
+  border-color: rgba(var(--dda-gold-light-rgb), 0.35);
+  color: var(--color-dda-gold-soft);
 }
 
 .dda-recurring-calendar__day--selected {
-  border-color: rgba(52, 211, 153, 0.45);
-  background: rgba(52, 211, 153, 0.16);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.45);
+  background: rgba(var(--dda-accent-light-rgb), 0.16);
   color: var(--color-dda-green-soft);
 }
 
@@ -2673,13 +4231,13 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-recurring-calendar__today:hover {
-  border-color: rgba(52, 211, 153, 0.3);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.3);
   color: var(--color-dda-green-soft);
 }
 
 .dda-recurring-calendar__day--open {
-  border-color: rgba(52, 211, 153, 0.55);
-  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.55);
+  background: rgba(var(--dda-accent-light-rgb), 0.12);
 }
 
 .dda-recurring-calendar__hover {
@@ -2763,7 +4321,7 @@ select.dda-bank-transfer-route__select {
   display: inline-flex;
   margin-top: 0.35rem;
   border-radius: 9999px;
-  background: rgba(52, 211, 153, 0.12);
+  background: rgba(var(--dda-accent-light-rgb), 0.12);
   padding: 0.125rem 0.45rem;
   font-size: 0.625rem;
   font-weight: 600;
@@ -2779,6 +4337,21 @@ select.dda-bank-transfer-route__select {
   color: #6b7280;
 }
 
+.dda-recurring-day-modal__section + .dda-recurring-day-modal__section {
+  margin-top: 1.15rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dda-recurring-day-modal__section-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(156, 163, 175, 0.95);
+}
+
 .dda-recurring-day-modal__summary {
   display: flex;
   flex-wrap: wrap;
@@ -2786,6 +4359,67 @@ select.dda-bank-transfer-route__select {
   margin: 0 0 0.85rem;
   padding: 0;
   list-style: none;
+}
+
+.dda-recurring-day-modal__header-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.65rem;
+  margin-top: 0.65rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.3);
+  background: rgba(var(--dda-accent-rgb), 0.12);
+  padding: 0.45rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(209, 213, 219, 0.92);
+}
+
+.dda-recurring-day-modal__header-total strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--color-dda-green-light);
+}
+
+.dda-recurring-day-modal__total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.28);
+  background:
+    linear-gradient(155deg, rgba(var(--dda-accent-rgb), 0.16) 0%, rgba(var(--dda-accent-rgb), 0.05) 100%);
+  padding: 0.75rem 0.9rem;
+}
+
+.dda-recurring-day-modal__total-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(209, 213, 219, 0.9);
+}
+
+.dda-recurring-day-modal__total-count {
+  margin: 0.15rem 0 0;
+  font-size: 0.72rem;
+  color: rgba(156, 163, 175, 0.95);
+}
+
+.dda-recurring-day-modal__total-amount {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-dda-green-light);
 }
 
 .dda-recurring-day-modal__summary-chip {
@@ -2796,7 +4430,7 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-recurring-day-modal__summary-chip--income {
-  background: rgba(52, 211, 153, 0.12);
+  background: rgba(var(--dda-accent-light-rgb), 0.12);
   color: #34d399;
 }
 
@@ -2820,10 +4454,49 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-recurring-day-modal__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
   border-radius: 0.85rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   padding: 0.85rem;
+}
+
+.dda-recurring-day-modal__card--on-date {
+  border-color: rgba(var(--dda-accent-light-rgb), 0.28);
+  background: rgba(var(--dda-accent-rgb), 0.06);
+}
+
+.dda-recurring-day-modal__card--paused {
+  opacity: 0.72;
+}
+
+.dda-recurring-day-modal__badge {
+  display: inline-flex;
+  margin-top: 0.2rem;
+  border-radius: 9999px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dda-recurring-day-modal__badge--on-date {
+  background: rgba(var(--dda-accent-light-rgb), 0.15);
+  color: #34d399;
+}
+
+.dda-recurring-day-modal__badge--paused {
+  background: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+}
+
+.dda-recurring-day-modal__next {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #9ca3af;
 }
 
 .dda-recurring-day-modal__card-head {
@@ -2852,7 +4525,7 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-recurring-day-modal__icon--income {
-  background: rgba(52, 211, 153, 0.12);
+  background: rgba(var(--dda-accent-light-rgb), 0.12);
 }
 
 .dda-recurring-day-modal__icon--expense {
@@ -2872,7 +4545,7 @@ select.dda-bank-transfer-route__select {
   display: inline-flex;
   margin-top: 0.2rem;
   border-radius: 9999px;
-  background: rgba(52, 211, 153, 0.12);
+  background: rgba(var(--dda-accent-light-rgb), 0.12);
   padding: 0.125rem 0.45rem;
   font-size: 0.625rem;
   font-weight: 600;
@@ -2938,8 +4611,8 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-recurring-day-modal__action--pay:hover:not(:disabled) {
-  border-color: rgba(52, 211, 153, 0.35);
-  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.35);
+  background: rgba(var(--dda-accent-light-rgb), 0.1);
   color: var(--color-dda-green-soft);
 }
 
@@ -2977,7 +4650,7 @@ select.dda-bank-transfer-route__select {
     rgba(7, 16, 19, 0.55);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    inset 0 -1px 0 rgba(212, 160, 18, 0.05),
+    inset 0 -1px 0 rgba(var(--dda-gold-rgb), 0.05),
     0 8px 28px rgba(0, 0, 0, 0.22);
 }
 
@@ -3066,12 +4739,12 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-sheet-table__grid tbody tr:hover .dda-sheet-table__label {
-  background: rgba(52, 211, 153, 0.1);
+  background: rgba(var(--dda-accent-light-rgb), 0.1);
   color: #e5e7eb;
 }
 
 .dda-sheet-table__grid tbody tr:hover .dda-sheet-table__value {
-  background: rgba(52, 211, 153, 0.14);
+  background: rgba(var(--dda-accent-light-rgb), 0.14);
 }
 
 .dda-sheet-table__label {
@@ -3150,7 +4823,7 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-admin-member-table tbody tr:hover {
-  background: rgba(52, 211, 153, 0.08);
+  background: rgba(var(--dda-accent-light-rgb), 0.08);
 }
 
 .dda-admin-member-detail__actions {
@@ -3187,7 +4860,7 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-admin-member-detail__action--warn:hover {
-  color: #fde68a;
+  color: var(--color-dda-gold-soft);
 }
 
 .dda-admin-member-detail__action--approve {
@@ -3302,7 +4975,7 @@ select.dda-bank-transfer-route__select {
   min-width: 4.5rem;
   padding: 0.25rem 0.5rem;
   border-radius: 9999px;
-  background: rgba(52, 211, 153, 0.12);
+  background: rgba(var(--dda-accent-light-rgb), 0.12);
   color: var(--color-dda-green-light);
   font-size: 0.625rem;
   font-weight: 700;
@@ -3345,13 +5018,13 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-profile-photo-picker__button:hover {
-  border-color: rgba(52, 211, 153, 0.45);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.45);
   transform: scale(1.02);
 }
 
 .dda-profile-photo-picker__button--has-photo {
   border-style: solid;
-  border-color: rgba(52, 211, 153, 0.35);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.35);
 }
 
 .dda-profile-photo-picker__image {
@@ -3379,14 +5052,14 @@ select.dda-bank-transfer-route__select {
   border-radius: 9999px;
   background: rgba(7, 16, 19, 0.96);
   color: var(--color-dda-green-light);
-  border: 1px solid rgba(52, 211, 153, 0.45);
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.45);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .dda-profile-photo-picker__badge:hover {
   transform: scale(1.05);
-  border-color: rgba(52, 211, 153, 0.7);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.7);
   color: #ffffff;
 }
 
@@ -3431,7 +5104,7 @@ select.dda-bank-transfer-route__select {
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   scrollbar-width: thin;
-  scrollbar-color: rgba(52, 211, 153, 0.35) transparent;
+  scrollbar-color: rgba(var(--dda-accent-light-rgb), 0.35) transparent;
 }
 
 .dda-mobile-shell--login.dda-mobile-shell--terms .dda-mobile-shell__main::-webkit-scrollbar {
@@ -3442,7 +5115,7 @@ select.dda-bank-transfer-route__select {
 
 .dda-mobile-shell--login.dda-mobile-shell--terms .dda-mobile-shell__main::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(52, 211, 153, 0.35);
+  background: rgba(var(--dda-accent-light-rgb), 0.35);
 }
 
 .dda-mobile-shell__main--terms {
@@ -3527,8 +5200,8 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-terms-back-btn:hover {
-  border-color: rgba(52, 211, 153, 0.35);
-  background: rgba(52, 211, 153, 0.08);
+  border-color: rgba(var(--dda-accent-light-rgb), 0.35);
+  background: rgba(var(--dda-accent-light-rgb), 0.08);
   color: #ffffff;
 }
 
@@ -3540,10 +5213,10 @@ select.dda-bank-transfer-route__select {
     165deg,
     rgba(255, 255, 255, 0.07) 0%,
     rgba(255, 255, 255, 0.03) 52%,
-    rgba(212, 160, 18, 0.04) 100%
+    rgba(var(--dda-gold-rgb), 0.04) 100%
   );
   box-shadow:
-    0 20px 40px -16px rgba(16, 185, 129, 0.12),
+    0 20px 40px -16px rgba(var(--dda-accent-rgb), 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
@@ -3589,14 +5262,14 @@ select.dda-bank-transfer-route__select {
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  background: rgba(251, 191, 36, 0.12);
+  background: rgba(var(--dda-gold-light-rgb), 0.12);
   padding: 0.15rem 0.55rem;
   font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-dda-gold-light);
-  border: 1px solid rgba(251, 191, 36, 0.25);
+  border: 1px solid rgba(var(--dda-gold-light-rgb), 0.25);
 }
 
 .dda-terms-hero__meta {
@@ -3764,8 +5437,8 @@ select.dda-bank-transfer-route__select {
   height: 2rem;
   flex-shrink: 0;
   border-radius: 9999px;
-  background: rgba(52, 211, 153, 0.12);
-  border: 1px solid rgba(52, 211, 153, 0.25);
+  background: rgba(var(--dda-accent-light-rgb), 0.12);
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.25);
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--color-dda-green-light);
@@ -3787,8 +5460,8 @@ select.dda-bank-transfer-route__select {
 .dda-terms-notice {
   margin-top: 1.25rem;
   border-radius: 0.875rem;
-  border: 1px solid rgba(251, 191, 36, 0.22);
-  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(var(--dda-gold-light-rgb), 0.22);
+  background: rgba(var(--dda-gold-light-rgb), 0.08);
   padding: 1rem 1.125rem;
 }
 
@@ -3854,6 +5527,32 @@ select.dda-bank-transfer-route__select {
 .dda-header-actions {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
+  gap: 0.375rem;
+  overflow: visible;
+}
+
+.dda-mobile-topbar {
+  min-height: 3.25rem;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+}
+
+.dda-header-actions--bar {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.dda-header-actions__start {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  overflow: visible;
+}
+
+.dda-header-actions__end {
+  display: inline-flex;
+  align-items: center;
   gap: 0.375rem;
   overflow: visible;
 }
@@ -3864,17 +5563,91 @@ select.dda-bank-transfer-route__select {
   justify-content: center;
   width: 2rem;
   height: 2rem;
+  padding: 0;
   border-radius: 0.5rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.2);
   color: #e5e7eb;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 .dda-invite-home-link:hover {
-  border-color: rgba(251, 191, 36, 0.35);
-  background: rgba(251, 191, 36, 0.08);
-  color: #fbbf24;
+  border-color: rgba(var(--dda-gold-light-rgb), 0.35);
+  background: rgba(var(--dda-gold-light-rgb), 0.08);
+  color: var(--color-dda-gold-light);
+}
+
+.dda-profile-header-menu {
+  position: relative;
+}
+
+.dda-profile-header-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  color: #e5e7eb;
+  padding: 0;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.dda-profile-header-btn:hover {
+  border-color: color-mix(in srgb, var(--color-dda-green-light) 40%, rgba(255, 255, 255, 0.2));
+  background: rgba(var(--dda-accent-rgb), 0.1);
+  color: var(--color-dda-green-light);
+}
+
+.dda-profile-header-menu__panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 60;
+  width: 11.5rem;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--color-dda-bg);
+  padding: 0.25rem 0;
+  box-shadow: 0 18px 36px -18px rgba(0, 0, 0, 0.65);
+}
+
+.dda-profile-header-menu__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.875rem;
+  color: #d1d5db;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dda-profile-header-menu__item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.dda-profile-header-menu__item--danger {
+  color: #f87171;
+}
+
+.dda-profile-header-menu__item--danger:hover {
+  background: rgba(248, 113, 113, 0.1);
+  color: #fca5a5;
+}
+
+.dda-profile-header-menu__divider {
+  margin: 0.2rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .dda-notification-bell {
@@ -3924,7 +5697,7 @@ select.dda-bank-transfer-route__select {
   font-weight: 800;
   line-height: 1;
   text-align: center;
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35);
+  box-shadow: 0 0 0 1px rgba(var(--dda-gold-light-rgb), 0.35);
 }
 
 .dda-notification-panel {
@@ -4052,7 +5825,7 @@ select.dda-bank-transfer-route__select {
 
 .dda-notification-item__icon--profile_pending {
   color: var(--color-dda-gold-light);
-  background: rgba(251, 191, 36, 0.12);
+  background: rgba(var(--dda-gold-light-rgb), 0.12);
 }
 
 .dda-notification-item__icon--profile_approved {
@@ -4065,9 +5838,11 @@ select.dda-bank-transfer-route__select {
   background: rgba(248, 113, 113, 0.12);
 }
 
-.dda-notification-item__icon--donation {
+.dda-notification-item__icon--donation,
+.dda-notification-item__icon--wallet_deposit,
+.dda-notification-item__icon--recurring_donation {
   color: var(--color-dda-gold-light);
-  background: rgba(251, 191, 36, 0.14);
+  background: rgba(var(--dda-gold-light-rgb), 0.14);
 }
 
 .dda-notification-item__title {
@@ -4143,7 +5918,7 @@ select.dda-bank-transfer-route__select {
   padding: 0 0.3rem;
   border-radius: 999px;
   background: var(--color-dda-gold);
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 10px rgba(var(--dda-gold-light-rgb), 0.55);
   font-size: 0.625rem;
   font-weight: 800;
   line-height: 1;
@@ -4159,11 +5934,11 @@ select.dda-bank-transfer-route__select {
   border-radius: 999px;
   border: 2px solid rgba(10, 12, 16, 0.95);
   background: var(--color-dda-gold);
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.7);
+  box-shadow: 0 0 10px rgba(var(--dda-gold-light-rgb), 0.7);
 }
 
 .dda-chat-members-list__row--alert {
-  background: rgba(251, 191, 36, 0.06);
+  background: rgba(var(--dda-gold-light-rgb), 0.06);
 }
 
 .dda-chat-members-list__reply-badge {

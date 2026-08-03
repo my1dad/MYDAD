@@ -3,22 +3,36 @@ import { addEasternDays, easternDateAt, formatEasternIsoDate } from "./dateTime"
 import { appendDataRecord } from "./internalDatabase";
 import { logProfileActivity } from "./profileActivity";
 import {
-  depositToMemberAccount,
+  depositDonationToPlatformEscrow,
+  depositToMemberWallet,
   resolveMemberProfileId,
 } from "./memberAccounts";
 import { updateMemberAfterContribution } from "./memberRegistry";
 import {
   addRecurringCashflow,
-  deleteRecurringCashflow,
-  getRecurringCashflows,
-  updateRecurringCashflow,
+  donationScheduleIdForContribution,
+  ensureHomeContributionSchedulesFromContributions,
+  HOME_CONTRIBUTION_LABEL,
 } from "./recurringCashflow";
 import { disableRecurringSubscription } from "./recurringContributions";
+import { playCashSound } from "./playCashSound";
 import { getPoolState, registerContribution, syncMemberEscrowToLiquidityPool } from "./poolState";
 
-export type HomeContributionFrequency = "weekly" | "monthly" | "yearly";
+function pushContributionBinsNow() {
+  queueMicrotask(() => {
+    void import("./supabase/cloudSync").then(async ({ pushCloudBinsNow }) => {
+      const { readDataBin } = await import("./internalDatabase");
+      const { DATA_BIN_BY_KEY } = await import("./dataBins");
+      await pushCloudBinsNow([
+        { binId: DATA_BIN_BY_KEY.contributions.binId, document: readDataBin("contributions") },
+        { binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") },
+        { binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") },
+      ]);
+    });
+  });
+}
 
-const HOME_CONTRIBUTION_LABEL = "Home contribution";
+export type HomeContributionFrequency = "weekly" | "monthly" | "yearly";
 
 function addEasternMonths(ymd: string, months: number): string {
   const [year, month, day] = ymd.split("-").map(Number);
@@ -100,61 +114,45 @@ export function saveCommunityPost({
   return record;
 }
 
-function findHomeContributionSchedule(profileId: string) {
-  return getRecurringCashflows(profileId).find(
-    (schedule) =>
-      schedule.label === HOME_CONTRIBUTION_LABEL &&
-      schedule.type === "transfer" &&
-      schedule.accountId === "checking" &&
-      schedule.transferToAccountId === "escrow",
+function depositContributionToEscrow(
+  donorProfileId: string,
+  amount: number,
+  memo: string,
+): boolean {
+  // All member donations settle into master admin Chase Escrow (liquidity pool cash).
+  return (
+    depositDonationToPlatformEscrow(amount, memo, { donorProfileId }) !== null
   );
 }
 
-function depositContributionToEscrow(profileId: string, amount: number, memo: string): boolean {
-  // Donations are external capital into the shared Chase Escrow pool — credit escrow
-  // directly so pool totals do not depend on a funded checking balance.
-  return depositToMemberAccount(profileId, "escrow", amount, memo) !== null;
-}
-
+/** Each recurring donation gets its own schedule so same-day multiples all appear. */
 function syncHomeContributionSchedule(
   profileId: string,
   amount: number,
   enabled: boolean,
   frequency: HomeContributionFrequency,
+  contributionRecordId: string,
 ): void {
-  const existing = findHomeContributionSchedule(profileId);
-
   if (!enabled) {
-    if (existing) deleteRecurringCashflow(existing.id);
     disableRecurringSubscription(profileId);
     return;
   }
 
+  const contributedYmd = formatEasternIsoDate();
   const nextStart = nextRecurringStart(frequency);
 
-  if (existing) {
-    updateRecurringCashflow(existing.id, {
-      amount,
-      enabled: true,
-      frequency,
-      startDate: nextStart,
-      accountId: "checking",
-      transferToAccountId: "escrow",
-      type: "transfer",
-      label: HOME_CONTRIBUTION_LABEL,
-    });
-  } else {
-    addRecurringCashflow({
-      profileId,
-      accountId: "checking",
-      transferToAccountId: "escrow",
-      type: "transfer",
-      amount,
-      frequency,
-      label: HOME_CONTRIBUTION_LABEL,
-      startDate: nextStart,
-    });
-  }
+  addRecurringCashflow({
+    id: donationScheduleIdForContribution(contributionRecordId),
+    profileId,
+    accountId: "escrow",
+    type: "income",
+    amount,
+    frequency,
+    label: HOME_CONTRIBUTION_LABEL,
+    startDate: nextStart,
+    lastProcessedDate: contributedYmd,
+    settledDates: [contributedYmd],
+  });
 
   disableRecurringSubscription(profileId);
 }
@@ -174,7 +172,7 @@ export function saveContribution({
   const profile = getActiveDadProfile();
   const profileId = profile?.id ?? resolveMemberProfileId();
 
-  appendDataRecord("contributions", "contribute-onboarding", {
+  const contributionRecord = appendDataRecord("contributions", "contribute-onboarding", {
     type: recurringEnabled ? "recurring" : "one-time",
     amount,
     reminderEnabled,
@@ -203,10 +201,25 @@ export function saveContribution({
 
   if (profile?.id) {
     updateMemberAfterContribution(profile.id, amount);
-    syncHomeContributionSchedule(profile.id, amount, recurringEnabled, frequency);
+    syncHomeContributionSchedule(
+      profile.id,
+      amount,
+      recurringEnabled,
+      frequency,
+      contributionRecord.id,
+    );
   } else {
-    syncHomeContributionSchedule(profileId, amount, recurringEnabled, frequency);
+    syncHomeContributionSchedule(
+      profileId,
+      amount,
+      recurringEnabled,
+      frequency,
+      contributionRecord.id,
+    );
   }
+
+  // Reconcile from contribution records so overview / calendar / list stay aligned.
+  ensureHomeContributionSchedulesFromContributions(profileId);
 
   registerContribution({
     amount,
@@ -222,18 +235,66 @@ export function saveContribution({
     syncMemberEscrowToLiquidityPool();
   }
 
-  // Push contribution-related bins immediately so the shared pool updates worldwide.
-  queueMicrotask(() => {
-    void import("./supabase/cloudSync").then(async ({ pushCloudBinsNow }) => {
-      const { readDataBin } = await import("./internalDatabase");
-      const { DATA_BIN_BY_KEY } = await import("./dataBins");
-      await pushCloudBinsNow([
-        { binId: DATA_BIN_BY_KEY.contributions.binId, document: readDataBin("contributions") },
-        { binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") },
-        { binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") },
-      ]);
-    });
+  playCashSound();
+  pushContributionBinsNow();
+}
+
+/**
+ * Member wallet deposit — credits escrow and mirrors into the contributions bin
+ * so Deposited / equity chips and pool inflow stay in sync with contribute flow.
+ */
+export function saveWalletDeposit({
+  amount,
+  memo,
+}: {
+  amount: number;
+  memo?: string;
+}) {
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const { currentMember } = getPoolState();
+  const profile = getActiveDadProfile();
+  const profileId = profile?.id ?? resolveMemberProfileId();
+  const note = memo?.trim() || "Wallet deposit";
+
+  const ledger = depositToMemberWallet(profileId, amount, note);
+  if (!ledger) return null;
+
+  appendDataRecord("contributions", "wallet-deposit", {
+    type: "wallet-deposit",
+    amount,
+    reminderEnabled: false,
+    recurringEnabled: false,
+    profileId,
+    memberId: profileId,
+    memberName: profile?.displayName || currentMember.name,
+    handle: currentMember.handle,
+    contributedAt: new Date().toISOString(),
+    status: "completed",
+    memo: note,
   });
+
+  if (profile) {
+    logProfileActivity({
+      profileId: profile.id,
+      proId: profile.proId,
+      type: "donation",
+      summary: `Wallet deposit of $${amount.toFixed(2)}`,
+      payload: { amount, source: "wallet-deposit" },
+    });
+  }
+
+  updateMemberAfterContribution(profile?.id ?? profileId, amount);
+  registerContribution({
+    amount,
+    memberId: currentMember.id,
+    memberName: currentMember.name,
+    handle: currentMember.handle,
+  });
+  syncMemberEscrowToLiquidityPool();
+  pushContributionBinsNow();
+
+  return ledger;
 }
 
 export function saveAdminCapture(source: string, payload: Record<string, unknown>) {

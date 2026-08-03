@@ -8,7 +8,11 @@ import {
   type AllocationPosition,
 } from "./allocationPositions";
 import { increaseDeployedCapital, decreaseDeployedCapital } from "./poolState";
-import { depositToMemberAccount, resolveMemberProfileId, spendFromMemberAccount } from "./memberAccounts";
+import {
+  depositToMemberAccount,
+  resolvePlatformEscrowProfileId,
+  spendFromMemberAccount,
+} from "./memberAccounts";
 import { appendAllocationYieldLogEntry } from "./allocationYieldLog";
 import { processAllocationYieldAccrual } from "./allocationYieldAccrual";
 import { getPositionRoi } from "./allocationRoi";
@@ -35,18 +39,16 @@ export function buyStockAllocation(input: {
   const total = roundMoney(shares * price);
   if (total <= 0) return "invalid";
 
-  const profileId = resolveMemberProfileId();
+  const escrowProfileId = resolvePlatformEscrowProfileId();
   const label = input.label?.trim() || symbol;
   const memo = `${symbol} · ${shares} sh @ $${price.toFixed(2)} (stocks)`;
-  const ledger = spendFromMemberAccount(profileId, "escrow", total, memo);
+  const ledger = spendFromMemberAccount(escrowProfileId, "escrow", total, memo);
   if (!ledger) return "insufficient";
-
-  increaseDeployedCapital(total);
 
   const purchasedDate = formatEasternIsoDate();
   const position = appendAllocationPosition({
     id: `stock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    profileId,
+    profileId: escrowProfileId,
     sleeveKey: "stocks",
     contractId: symbol,
     contractLabel: label,
@@ -65,7 +67,7 @@ export function buyStockAllocation(input: {
 
   appendAllocationYieldLogEntry({
     positionId: position.id,
-    profileId,
+    profileId: escrowProfileId,
     sleeveKey: "stocks",
     contractLabel: label,
     dayYmd: purchasedDate,
@@ -75,6 +77,8 @@ export function buyStockAllocation(input: {
     principalAfter: total,
   });
 
+  // Sync Total Deployed after the position exists.
+  increaseDeployedCapital(total);
   processAllocationYieldAccrual();
 
   return "ok";
@@ -87,8 +91,8 @@ export function sellStockAllocation(input: {
 }): StockTradeResult {
   if (!Number.isFinite(input.exitPrice) || input.exitPrice <= 0) return "invalid";
 
-  const profileId = resolveMemberProfileId();
-  const position = getActiveStockPositions(profileId).find((item) => item.id === input.positionId);
+  const escrowProfileId = resolvePlatformEscrowProfileId();
+  const position = getActiveStockPositions().find((item) => item.id === input.positionId);
   if (!position) return "not_found";
 
   const heldShares = position.contracts;
@@ -110,14 +114,12 @@ export function sellStockAllocation(input: {
   const sellingAll = sharesToSell >= heldShares - 0.00001;
 
   const credited = depositToMemberAccount(
-    profileId,
+    escrowProfileId,
     "escrow",
     proceeds,
     `${symbol} sell · ${sharesToSell} sh @ $${exitPrice.toFixed(2)} · P/L ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)}`,
   );
   if (!credited) return "invalid";
-
-  decreaseDeployedCapital(costBasis);
 
   const today = formatEasternIsoDate();
 
@@ -125,7 +127,7 @@ export function sellStockAllocation(input: {
     const roi = getPositionRoi(position);
     appendAllocationYieldLogEntry({
       positionId: position.id,
-      profileId,
+      profileId: escrowProfileId,
       sleeveKey: "stocks",
       contractLabel: position.contractLabel,
       dayYmd: today,
@@ -147,7 +149,7 @@ export function sellStockAllocation(input: {
       const roi = getPositionRoi(updated);
       appendAllocationYieldLogEntry({
         positionId: updated.id,
-        profileId,
+        profileId: escrowProfileId,
         sleeveKey: "stocks",
         contractLabel: updated.contractLabel,
         dayYmd: today,
@@ -159,6 +161,8 @@ export function sellStockAllocation(input: {
     }
   }
 
+  // Recalculate Total Deployed after the position book is updated.
+  decreaseDeployedCapital(costBasis);
   processAllocationYieldAccrual();
 
   return "ok";

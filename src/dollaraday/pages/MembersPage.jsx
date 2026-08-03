@@ -121,9 +121,9 @@ export default function MembersPage({ onNavigate }) {
       title: t("pages.members.activeMembers"),
       icon: Users,
       accent: "var(--color-dda-green-light)",
-      bg: "rgba(16, 185, 129, 0.24)",
-      bgDeep: "rgba(4, 47, 46, 0.72)",
-      border: "rgba(52, 211, 153, 0.38)",
+      bg: "color-mix(in srgb, var(--color-dda-green) 24%, transparent)",
+      bgDeep: "color-mix(in srgb, var(--color-dda-bg-elevated) 72%, #020617)",
+      border: "color-mix(in srgb, var(--color-dda-green-light) 38%, transparent)",
       value: () => members.filter((m) => m.status === "active").length.toLocaleString(),
     },
     {
@@ -141,9 +141,9 @@ export default function MembersPage({ onNavigate }) {
       title: t("pages.members.avgScore"),
       icon: Star,
       accent: "var(--color-dda-gold-light)",
-      bg: "rgba(251, 191, 36, 0.2)",
-      bgDeep: "rgba(69, 45, 8, 0.72)",
-      border: "rgba(251, 191, 36, 0.38)",
+      bg: "color-mix(in srgb, var(--color-dda-gold-light) 20%, transparent)",
+      bgDeep: "color-mix(in srgb, var(--color-dda-bg-elevated) 72%, #020617)",
+      border: "color-mix(in srgb, var(--color-dda-gold-light) 38%, transparent)",
       value: () => {
         const active = members.filter((member) => member.status === "active");
         if (!active.length) return "—";

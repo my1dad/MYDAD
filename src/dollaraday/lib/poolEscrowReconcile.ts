@@ -1,11 +1,14 @@
 import { readDataBin } from "./internalDatabase";
 import {
-  depositToMemberAccount,
+  depositDonationToPlatformEscrow,
+  getAdminProfileId,
   hydrateMemberAccounts,
   invalidateMemberAccountsCache,
+  resolvePlatformEscrowProfileId,
 } from "./memberAccounts";
 
 const SIGNUP_TYPE = "signup";
+const WALLET_DEPOSIT_TYPE = "wallet-deposit";
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
@@ -14,9 +17,31 @@ function roundMoney(value: number): number {
 function isCompletedDonation(payload: Record<string, unknown>): boolean {
   const amount = Number(payload.amount);
   if (!Number.isFinite(amount) || amount <= 0) return false;
-  if (String(payload.type ?? "") === SIGNUP_TYPE) return false;
+  const type = String(payload.type ?? "");
+  if (type === SIGNUP_TYPE || type === WALLET_DEPOSIT_TYPE) return false;
   const status = String(payload.status ?? "completed");
   return status === "completed";
+}
+
+function isPlatformDonationRecord(record: {
+  source: string;
+  payload?: Record<string, unknown>;
+}): boolean {
+  const payload = record.payload ?? {};
+  if (!isCompletedDonation(payload)) return false;
+  if (record.source === "wallet-deposit") return false;
+  return true;
+}
+
+function isDonationEscrowCredit(memo: string | undefined): boolean {
+  if (!memo) return false;
+  const lower = memo.toLowerCase();
+  return (
+    lower.includes("contribution") ||
+    lower.includes("donation") ||
+    lower.includes("home contribution") ||
+    lower.includes("recurring")
+  );
 }
 
 /** Sum completed contribution amounts grouped by profileId (fallback: memberId). */
@@ -37,68 +62,76 @@ export function getContributionTotalsByProfile(): Map<string, number> {
   return totals;
 }
 
-function sumEscrowCredits(profileId: string): number {
-  const ledger = hydrateMemberAccounts(profileId);
-  return roundMoney(
-    ledger.transactions.reduce((sum, transaction) => {
-      if (transaction.accountId !== "escrow") return sum;
-      if (transaction.direction !== "credit") return sum;
-      const amount = Number(transaction.amount);
-      return Number.isFinite(amount) && amount > 0 ? sum + amount : sum;
-    }, 0),
-  );
+function sumPlatformDonationContributionTotal(): number {
+  let total = 0;
+  readDataBin("contributions").records.forEach((record) => {
+    if (!isPlatformDonationRecord(record)) return;
+    total += Number(record.payload?.amount) || 0;
+  });
+  return roundMoney(total);
+}
+
+function sumDonationEscrowCreditsAcrossLedgers(): number {
+  let total = 0;
+  readDataBin("settings")
+    .records.filter((record) => record.id.startsWith("member-accounts-"))
+    .forEach((record) => {
+      const rows = Array.isArray(record.payload?.transactions)
+        ? (record.payload.transactions as Array<{
+            accountId?: string;
+            direction?: string;
+            amount?: number;
+            memo?: string;
+          }>)
+        : [];
+
+      rows.forEach((transaction) => {
+        if (transaction.accountId !== "escrow") return;
+        if (transaction.direction !== "credit") return;
+        if (!isDonationEscrowCredit(transaction.memo)) return;
+        const amount = Number(transaction.amount);
+        if (Number.isFinite(amount) && amount > 0) total += amount;
+      });
+    });
+
+  return roundMoney(total);
 }
 
 /**
- * Backfill Chase Escrow ledgers from completed contributions when cloud/local
- * settings are missing member-accounts records (pool capital would otherwise stay $0).
- * Returns true when any ledger was updated.
+ * Backfill master admin Chase Escrow from completed member donations when
+ * ledgers are missing credits (pool capital would otherwise stay understated).
+ * Avoids double-counting donations already credited on any member/admin ledger.
  */
 export function reconcileMemberEscrowFromContributions(): boolean {
-  const totals = getContributionTotalsByProfile();
-  if (totals.size === 0) return false;
+  const donationTotal = sumPlatformDonationContributionTotal();
+  if (donationTotal <= 0) return false;
 
-  let changed = false;
-
-  totals.forEach((contributionTotal, profileId) => {
-    const credited = sumEscrowCredits(profileId);
-    const shortfall = roundMoney(contributionTotal - credited);
-    if (shortfall <= 0) return;
-
-    const next = depositToMemberAccount(
-      profileId,
-      "escrow",
-      shortfall,
-      "Contribution credited to Chase Escrow",
-    );
-    if (next) changed = true;
-  });
-
-  if (changed) {
-    invalidateMemberAccountsCache();
-  }
-
-  return changed;
-}
-
-/** Ensure one profile's Chase Escrow matches their completed contribution total. */
-export function ensureProfileEscrowFromContributions(profileId: string): boolean {
-  if (!profileId) return false;
-  const totals = getContributionTotalsByProfile();
-  const contributionTotal = totals.get(profileId) ?? 0;
-  if (contributionTotal <= 0) return false;
-
-  const credited = sumEscrowCredits(profileId);
-  const shortfall = roundMoney(contributionTotal - credited);
+  const alreadyCredited = sumDonationEscrowCreditsAcrossLedgers();
+  const shortfall = roundMoney(donationTotal - alreadyCredited);
   if (shortfall <= 0) return false;
 
-  const next = depositToMemberAccount(
-    profileId,
-    "escrow",
+  const platformId = resolvePlatformEscrowProfileId(getAdminProfileId());
+  const next = depositDonationToPlatformEscrow(
     shortfall,
     "Contribution credited to Chase Escrow",
+    { donorProfileId: platformId },
   );
   if (!next) return false;
-  invalidateMemberAccountsCache(profileId);
+
+  invalidateMemberAccountsCache();
   return true;
+}
+
+/** Ensure donations for a profile are reflected on master admin Chase Escrow. */
+export function ensureProfileEscrowFromContributions(profileId: string): boolean {
+  if (!profileId) return false;
+  // Platform model: all member donations settle on admin escrow.
+  return reconcileMemberEscrowFromContributions();
+}
+
+/** Debug/helper — current admin escrow ledger snapshot. */
+export function getPlatformEscrowBalance(): number {
+  const platformId = getAdminProfileId();
+  if (!platformId) return 0;
+  return Number(hydrateMemberAccounts(platformId).escrowBalance) || 0;
 }

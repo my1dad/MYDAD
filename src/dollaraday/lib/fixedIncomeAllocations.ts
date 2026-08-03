@@ -9,7 +9,7 @@ import { processAllocationYieldAccrual } from "./allocationYieldAccrual";
 import { getPositionRoi } from "./allocationRoi";
 import { formatEasternIsoDate } from "./dateTime";
 import { decreaseDeployedCapital } from "./poolState";
-import { depositToMemberAccount, resolveMemberProfileId } from "./memberAccounts";
+import { depositToMemberAccount, resolvePlatformEscrowProfileId } from "./memberAccounts";
 
 export type FixedIncomeTradeResult = "ok" | "invalid" | "not_found";
 
@@ -21,10 +21,8 @@ export function isFixedIncomePosition(position: AllocationPosition): boolean {
 }
 
 export function sellFixedIncomeAllocation(positionId: string): FixedIncomeTradeResult {
-  const profileId = resolveMemberProfileId();
-  const position = getActiveAllocationPositions().find(
-    (item) => item.id === positionId && item.profileId === profileId,
-  );
+  const escrowProfileId = resolvePlatformEscrowProfileId();
+  const position = getActiveAllocationPositions().find((item) => item.id === positionId);
 
   if (!position || !isFixedIncomePosition(position)) return "not_found";
 
@@ -32,8 +30,9 @@ export function sellFixedIncomeAllocation(positionId: string): FixedIncomeTradeR
   if (proceeds <= 0) return "invalid";
 
   const symbol = position.sleeveKey === "treasury" ? "Treasury" : "Bond";
+  // Proceeds always return to platform Chase Escrow (same sink buys debit).
   const credited = depositToMemberAccount(
-    profileId,
+    escrowProfileId,
     "escrow",
     proceeds,
     `${position.contractLabel} · ${symbol} early redemption · $${proceeds.toFixed(2)}`,
@@ -54,8 +53,9 @@ export function sellFixedIncomeAllocation(positionId: string): FixedIncomeTradeR
     principalAfter: position.principal,
   });
 
-  decreaseDeployedCapital(proceeds);
+  // Close first so Total Deployed recalculates without this principal.
   closeAllocationPosition(position.id);
+  decreaseDeployedCapital(proceeds);
   processAllocationYieldAccrual();
   return "ok";
 }

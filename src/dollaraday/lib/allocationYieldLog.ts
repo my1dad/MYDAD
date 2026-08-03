@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import type { AllocationSleeveKey } from "./allocationPurchases";
 import { formatEasternIsoDate } from "./dateTime";
 import { readDataBin, subscribeInternalDatabase, upsertDataRecord } from "./internalDatabase";
@@ -22,7 +23,8 @@ interface YieldLogPayload {
 }
 
 const YIELD_LOG_RECORD_ID = "allocation-yield-log";
-const MAX_ENTRIES = 400;
+/** Keep ~1 calendar year of multi-position daily accruals for accurate YTD compounding. */
+const MAX_ENTRIES = 2500;
 
 function readPayload(): YieldLogPayload {
   const settings = readDataBin("settings");
@@ -94,12 +96,17 @@ export function getTrailingAnnualizedApy(days = 30): number | null {
   return roundYieldCurrency(weightedDaily * 365);
 }
 
+/**
+ * Calendar-year portfolio return: starts at 0%, then compounds each Eastern day's
+ * principal-weighted return from the yield log (purchase-day 0% rows do not move it).
+ */
 export function getYtdCompoundReturnPct(): number {
   const yearPrefix = formatEasternIsoDate().slice(0, 4);
   const entries = readPayload().entries.filter((entry) => entry.dayYmd.startsWith(yearPrefix));
   if (!entries.length) return 0;
 
   let compound = 1;
+  let hadNonZeroDay = false;
   const byDay = new Map<string, AllocationYieldLogEntry[]>();
   entries.forEach((entry) => {
     const bucket = byDay.get(entry.dayYmd) ?? [];
@@ -114,12 +121,23 @@ export function getYtdCompoundReturnPct(): number {
     const weightedDaily =
       dayEntries.reduce((sum, entry) => sum + entry.returnPct * entry.principalBefore, 0) /
       totalPrincipal;
+    if (weightedDaily !== 0) hadNonZeroDay = true;
     compound *= 1 + weightedDaily / 100;
   });
 
+  if (!hadNonZeroDay) return 0;
   return roundYieldCurrency((compound - 1) * 100);
 }
 
 export function subscribeAllocationYieldLog(listener: () => void): () => void {
   return subscribeInternalDatabase(listener);
+}
+
+/** Live YTD % for Investments sheet / pool badges. */
+export function useYtdCompoundReturnPct(): number {
+  return useSyncExternalStore(
+    subscribeAllocationYieldLog,
+    getYtdCompoundReturnPct,
+    () => 0,
+  );
 }

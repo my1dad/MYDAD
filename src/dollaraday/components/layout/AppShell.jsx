@@ -4,6 +4,8 @@ import BottomNav from "./BottomNav";
 import MobileShell from "./MobileShell";
 import HeaderActions from "./HeaderActions";
 import { AppNavigateProvider } from "../../context/AppNavigateContext";
+import { useDadAuth } from "../../context/DadAuthContext.jsx";
+import { cn } from "@/lib/utils";
 
 const StockMarketSync = lazy(() => import("../investments/StockMarketSync"));
 
@@ -18,11 +20,17 @@ export default function AppShell({
   onPrefetch,
   children,
 }) {
+  const { isAdmin } = useDadAuth();
   const shellScrollKey = `${activePage}-${scrollKey}-${authEntryTick}`;
 
   return (
     <AppNavigateProvider value={onNavigate}>
-      <div className="dda-app flex h-full min-h-0 w-full overflow-hidden">
+      <div
+        className={cn(
+          "dda-app flex h-full min-h-0 w-full overflow-hidden",
+          isAdmin && "dda-app--admin",
+        )}
+      >
         {STOCK_SYNC_PAGES.has(activePage) ? (
           <Suspense fallback={null}>
             <StockMarketSync />
@@ -31,8 +39,8 @@ export default function AppShell({
         <Sidebar activePage={activePage} onNavigate={onNavigate} onPrefetch={onPrefetch} />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="flex shrink-0 items-center border-b border-white/10 px-3 py-1.5 lg:hidden">
-            <HeaderActions onNavigate={onNavigate} />
+          <div className="dda-mobile-topbar flex w-full shrink-0 items-center border-b border-white/10 px-3 lg:hidden">
+            <HeaderActions onNavigate={onNavigate} className="dda-header-actions--bar" />
           </div>
           <MobileShell
             variant="app"

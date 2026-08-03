@@ -40,16 +40,17 @@ function beginAuthenticatedSession(profile, activityType, remember = false) {
   window.location.hash = "";
   resetShellScroll();
 
+  // Bind pool "current member" to the signed-in profile immediately so contribute /
+  // loans / equity UI never keep a previous account's labels.
+  void import("../lib/memberRegistry")
+    .then(({ persistMemberFromProfile }) => {
+      persistMemberFromProfile(profile, { isNew: activityType === "register" });
+    })
+    .catch((err) => console.warn("[auth] Member session bind failed:", err));
+
   const runSideEffects = () => {
-    void Promise.all([
-      import("../lib/memberRegistry"),
-      import("../lib/profileActivity"),
-    ])
-      .then(([{ persistMemberFromProfile }, { logProfileActivity }]) => {
-        // Only write on register / explicit need — skip full registry sync on every login.
-        if (activityType === "register") {
-          persistMemberFromProfile(profile, { isNew: true });
-        }
+    void import("../lib/profileActivity")
+      .then(({ logProfileActivity }) => {
         logProfileActivity({
           profileId: profile.id,
           proId: profile.proId,
@@ -73,7 +74,7 @@ function beginAuthenticatedSession(profile, activityType, remember = false) {
           });
         }
       })
-      .catch((err) => console.warn("[auth] Post-login sync deferred work failed:", err));
+      .catch((err) => console.warn("[auth] Post-login activity log failed:", err));
   };
 
   if (typeof window !== "undefined" && "requestIdleCallback" in window) {

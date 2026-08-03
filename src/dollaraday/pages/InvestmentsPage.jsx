@@ -8,13 +8,12 @@ import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
 import {
   buildLiveInvestmentHighlights,
-  summarizeSleeveAllocations,
-  useLiveSleeveInvestments,
+  usePlatformInvestmentView,
 } from "../lib/allocationSleeves";
-import { useAllocationPositions } from "../lib/allocationPositions";
+import { useYtdCompoundReturnPct } from "../lib/allocationYieldLog";
 import { isStockPosition, syncStockMarketPrices } from "../lib/stockAllocations";
 import { useStockQuotes } from "../hooks/useStockMarketData";
-import { usePoolState } from "../lib/poolState";
+import { syncAllocationPoolMetrics } from "../lib/allocationApy";
 
 const BuyAllocationsCard = lazy(() => import("../components/investments/BuyAllocationsCard"));
 const InvestmentInfographic = lazy(() => import("../components/investments/InvestmentInfographic"));
@@ -61,8 +60,22 @@ function InvestmentSheetStats({ rows, metricLabel, valueLabel }) {
 export default function InvestmentsPage() {
   const { t } = useLocale();
   const { investments, investmentHighlights } = useLocalizedData();
-  const { poolSummary } = usePoolState();
-  const positions = useAllocationPositions();
+  const {
+    positions,
+    summaries: sleeveSummaries,
+    investments: sleeveInvestments,
+    totalAllocated,
+    blendedApy,
+    activeSleeveCount,
+    sleeveCount,
+  } = usePlatformInvestmentView(investments);
+  // Calendar YTD: 0% until daily accruals compound (not blended APY).
+  const ytdGrowthPct = useYtdCompoundReturnPct();
+
+  useEffect(() => {
+    // Keep pool badges / APY in lockstep with the platform sleeve book.
+    syncAllocationPoolMetrics();
+  }, [positions, totalAllocated, blendedApy]);
   const stockSymbols = useMemo(
     () =>
       positions
@@ -85,12 +98,6 @@ export default function InvestmentsPage() {
     syncStockMarketPrices(stockQuotes);
   }, [stockQuotesFingerprint, stockQuotes]);
 
-  const sleeveInvestments = useLiveSleeveInvestments(investments);
-  const sleeveSummaries = useMemo(
-    () => summarizeSleeveAllocations(positions),
-    [positions],
-  );
-
   const [selectedId, setSelectedId] = useState(sleeveInvestments[0]?.id);
 
   useEffect(() => {
@@ -102,14 +109,10 @@ export default function InvestmentsPage() {
     }
   }, [sleeveInvestments, selectedId]);
 
-  const totalAllocated = sleeveSummaries.reduce((sum, item) => sum + item.principal, 0);
-
   const liveHighlights = useMemo(
     () => buildLiveInvestmentHighlights(investmentHighlights, sleeveSummaries),
     [investmentHighlights, sleeveSummaries],
   );
-
-  const activeSleeveCount = sleeveSummaries.filter((item) => item.positionCount > 0).length;
 
   const heroStats = [
     {
@@ -120,19 +123,17 @@ export default function InvestmentsPage() {
     {
       key: "apy",
       title: t("pages.investments.blendedApy"),
-      value: `${poolSummary.poolApy}%`,
+      value: `${blendedApy}%`,
     },
     {
       key: "sleeves",
       title: t("pages.investments.allocationSleeves"),
-      value: String(activeSleeveCount || sleeveInvestments.length),
+      value: `${activeSleeveCount}/${sleeveCount}`,
     },
     {
       key: "growth",
       title: t("pages.investments.ytdGrowth"),
-      value: totalAllocated > 0
-        ? `${poolSummary.ytdGrowthPct >= 0 ? "+" : ""}${poolSummary.ytdGrowthPct}%`
-        : "+0%",
+      value: `${ytdGrowthPct >= 0 ? "+" : ""}${ytdGrowthPct}%`,
     },
   ];
 
@@ -160,7 +161,7 @@ export default function InvestmentsPage() {
           investments={sleeveInvestments}
           positions={positions}
           totalAllocated={totalAllocated}
-          poolApy={poolSummary.poolApy}
+          poolApy={blendedApy}
           selectedId={selectedId}
           onSelect={setSelectedId}
         />
@@ -170,7 +171,7 @@ export default function InvestmentsPage() {
         <Suspense fallback={<ChartSlot />}>
           <InvestmentYieldChart
             investments={sleeveInvestments}
-            blendedApy={poolSummary.poolApy}
+            blendedApy={blendedApy}
           />
         </Suspense>
 

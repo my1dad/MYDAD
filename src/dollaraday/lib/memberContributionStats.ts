@@ -1,8 +1,14 @@
+import { isAdminProfile } from "../../config/admin";
+import { getDadProfiles } from "./dadProfileStorage";
 import { addEasternDays, formatEasternIsoDate } from "./dateTime";
 import { readDataBin } from "./internalDatabase";
 
 export interface MemberContributionStats {
   contributed: number;
+  /** Completed donations only (excludes wallet deposits). */
+  donated: number;
+  /** Wallet-deposit contributions only. */
+  deposited: number;
   equity: number;
   days: number;
   streak: number;
@@ -57,25 +63,36 @@ export function computeMemberStatsFromContributions(
 ): MemberContributionStats {
   const ymds: string[] = [];
   let contributed = 0;
+  let donated = 0;
+  let deposited = 0;
 
   readDataBin("contributions").records.forEach((record) => {
     const payload = record.payload ?? {};
     if (contributionProfileId(payload) !== profileId) return;
     if (!isCompletedDonation(payload)) return;
 
-    contributed += Number(payload.amount);
+    const amount = Number(payload.amount);
+    contributed += amount;
+    if (String(payload.type ?? "") === "wallet-deposit" || record.source === "wallet-deposit") {
+      deposited += amount;
+    } else {
+      donated += amount;
+    }
     const ymd = contributionYmd(payload, record.createdAt);
     if (ymd) ymds.push(ymd);
   });
 
   const uniqueDays = Array.from(new Set(ymds));
   const days = uniqueDays.length;
-  const rounded = roundMoney(contributed);
+  const roundedContributed = roundMoney(contributed);
+  const roundedDonated = roundMoney(donated);
 
   return {
-    contributed: rounded,
-    // Equity tracks contribution capital until yield overlays are applied separately.
-    equity: rounded,
+    contributed: roundedContributed,
+    donated: roundedDonated,
+    deposited: roundMoney(deposited),
+    // Equity tracks donation + deposit capital until yield overlays are applied separately.
+    equity: roundedContributed,
     days,
     streak: computeContributionStreak(uniqueDays, today),
   };
@@ -91,6 +108,156 @@ export function listContributionProfileIds(): string[] {
     if (profileId) ids.add(profileId);
   });
   return Array.from(ids);
+}
+
+/**
+ * Platform-wide completed donations from member roles only
+ * (excludes wallet deposits and master-admin contributions).
+ */
+export function getPlatformMemberDonationTotals(): { donated: number; count: number } {
+  const adminProfileIds = new Set(
+    getDadProfiles()
+      .filter((profile) => isAdminProfile(profile))
+      .map((profile) => profile.id),
+  );
+
+  let donated = 0;
+  let count = 0;
+  readDataBin("contributions").records.forEach((record) => {
+    const payload = record.payload ?? {};
+    if (!isCompletedDonation(payload)) return;
+    if (isWalletDepositContribution(record.source, payload)) return;
+
+    const profileId = contributionProfileId(payload);
+    if (profileId && adminProfileIds.has(profileId)) return;
+
+    donated += Number(payload.amount) || 0;
+    count += 1;
+  });
+
+  return { donated: roundMoney(donated), count };
+}
+
+export function sumPlatformMemberDonations(): number {
+  return getPlatformMemberDonationTotals().donated;
+}
+
+/** Activity row for wallet Recent activity (ledger + contribution donations). */
+export type MemberWalletActivityKind = "deposit" | "donation" | "recurring" | "spend" | "transfer";
+
+export interface MemberWalletActivityItem {
+  id: string;
+  accountId: "checking" | "escrow";
+  type: MemberWalletActivityKind;
+  direction: "credit" | "debit";
+  amount: number;
+  balanceAfter?: number;
+  counterpartyAccountId?: "checking" | "escrow";
+  memo?: string;
+  createdAt: string;
+  /** Contribution-backed rows cannot be edited from the ledger UI. */
+  source: "ledger" | "contribution";
+  frequency?: string;
+}
+
+type LedgerLikeTransaction = {
+  id: string;
+  accountId: "checking" | "escrow";
+  type: "deposit" | "spend" | "transfer";
+  direction: "credit" | "debit";
+  amount: number;
+  balanceAfter: number;
+  counterpartyAccountId?: "checking" | "escrow";
+  memo?: string;
+  createdAt: string;
+};
+
+function isWalletDepositContribution(
+  source: string,
+  payload: Record<string, unknown>,
+): boolean {
+  return String(payload.type ?? "") === "wallet-deposit" || source === "wallet-deposit";
+}
+
+function isRecurringContribution(
+  source: string,
+  payload: Record<string, unknown>,
+): boolean {
+  if (source === "recurring-home-contribution") return true;
+  if (String(payload.type ?? "") === "recurring") return true;
+  return Boolean(payload.recurringEnabled);
+}
+
+function matchesLedgerDeposit(
+  amount: number,
+  createdAt: string,
+  ledger: LedgerLikeTransaction[],
+): boolean {
+  const contribMs = Date.parse(createdAt);
+  return ledger.some((tx) => {
+    if (tx.type !== "deposit") return false;
+    if (Math.abs(tx.amount - amount) > 0.001) return false;
+    if (!Number.isFinite(contribMs)) return true;
+    const txMs = Date.parse(tx.createdAt);
+    if (!Number.isFinite(txMs)) return false;
+    return Math.abs(txMs - contribMs) <= 120_000;
+  });
+}
+
+/**
+ * Wallet Recent activity: member ledger posts plus donations / recurring
+ * contribution records (which settle on platform escrow and never hit the ledger).
+ */
+export function buildMemberWalletActivity(
+  profileId: string,
+  ledgerTransactions: LedgerLikeTransaction[],
+): MemberWalletActivityItem[] {
+  const items: MemberWalletActivityItem[] = ledgerTransactions.map((tx) => ({
+    ...tx,
+    type: tx.type,
+    source: "ledger" as const,
+  }));
+
+  readDataBin("contributions").records.forEach((record) => {
+    const payload = record.payload ?? {};
+    if (contributionProfileId(payload) !== profileId) return;
+    if (!isCompletedDonation(payload)) return;
+
+    const amount = Number(payload.amount);
+    const createdAt = String(payload.contributedAt ?? record.createdAt ?? "");
+    if (!createdAt) return;
+
+    if (isWalletDepositContribution(record.source, payload)) {
+      if (matchesLedgerDeposit(amount, createdAt, ledgerTransactions)) return;
+      items.push({
+        id: `contrib-${record.id}`,
+        accountId: "checking",
+        type: "deposit",
+        direction: "credit",
+        amount,
+        createdAt,
+        memo: String(payload.memo ?? "").trim() || undefined,
+        source: "contribution",
+      });
+      return;
+    }
+
+    const recurring = isRecurringContribution(record.source, payload);
+    const frequency = String(payload.frequency ?? "").trim() || undefined;
+    items.push({
+      id: `contrib-${record.id}`,
+      accountId: "checking",
+      type: recurring ? "recurring" : "donation",
+      direction: "debit",
+      amount,
+      createdAt,
+      memo: String(payload.memo ?? "").trim() || undefined,
+      source: "contribution",
+      frequency,
+    });
+  });
+
+  return items.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
 export function memberStatsEqual(

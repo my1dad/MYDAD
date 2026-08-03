@@ -16,7 +16,7 @@ function resolveGuestView() {
 }
 
 export default function DadRoot() {
-  const { isAuthenticated } = useDadAuth();
+  const { isAuthenticated, isAdmin } = useDadAuth();
   const [guestView, setGuestView] = useState(resolveGuestView);
 
   useEffect(() => {
@@ -25,9 +25,18 @@ export default function DadRoot() {
     return () => window.removeEventListener("hashchange", syncGuestView);
   }, []);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const active = Boolean(isAuthenticated && isAdmin);
+    root.classList.toggle("dda-theme-admin", active);
+    return () => root.classList.remove("dda-theme-admin");
+  }, [isAuthenticated, isAdmin]);
+
   if (isAuthenticated) {
     return (
-      <div className="dda-app h-full w-full overflow-hidden">
+      <div
+        className={`dda-app h-full w-full overflow-hidden${isAdmin ? " dda-app--admin" : ""}`}
+      >
         <PostAuthWorkspace>
           <Suspense fallback={null}>
             <App />

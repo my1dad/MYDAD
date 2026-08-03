@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { CircleDollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -7,41 +7,69 @@ import { formatPoolCurrency } from "../../data/mockData";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocale } from "../../i18n/LocaleContext";
 import { buildAccountsOverviewStats } from "../../lib/accountsOverview";
+import {
+  getDatabaseRevision,
+  subscribeInternalDatabase,
+} from "../../lib/internalDatabase";
 import { resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
-import { useRecurringCashflows } from "../../lib/recurringCashflow";
+import {
+  ensureHomeContributionSchedulesFromContributions,
+  useRecurringCashflows,
+} from "../../lib/recurringCashflow";
 
-const MEMBER_HIDDEN_SEGMENT_IDS = new Set(["redemptionsSent", "redemptionsReceived"]);
+const MEMBER_HIDDEN_SEGMENT_IDS = new Set([
+  "redemptionsSent",
+  "redemptionsReceived",
+  "escrow",
+]);
 
 const SEGMENT_META = {
-  checking: { labelKey: "overviewChecking", color: "#10b981" },
+  checking: { labelKey: "overviewChecking", color: "var(--color-dda-green)" },
   escrow: { labelKey: "overviewEscrow", color: "#38bdf8" },
-  redemptionsSent: { labelKey: "overviewRedemptions", color: "#eab308" },
-  redemptionsReceived: { labelKey: "overviewRedemptionsReceivedShort", color: "#f59e0b" },
-  recurringIncome: { labelKey: "overviewRecurringIncome", color: "#34d399" },
+  deposits: { labelKey: "overviewDeposits", color: "var(--color-dda-gold-light)" },
+  redemptionsSent: { labelKey: "overviewRedemptions", color: "var(--color-dda-gold)" },
+  redemptionsReceived: { labelKey: "overviewRedemptionsReceivedShort", color: "var(--color-dda-gold-deep)" },
+  recurringIncome: { labelKey: "overviewRecurringIncome", color: "#fb7185" },
   recurringExpense: { labelKey: "overviewRecurringExpense", color: "#f87171" },
   recurringTransfer: { labelKey: "overviewRecurringPayments", color: "#a78bfa" },
 };
 
-function buildChartSlices(segments, t) {
-  return segments.map((segment) => ({
-    ...segment,
-    name: t(`pages.accounts.${SEGMENT_META[segment.id]?.labelKey ?? segment.id}`),
-    monthly: segment.id === "recurringIncome" || segment.id === "recurringExpense",
-    pct: 0,
-  }));
+function segmentLabelKey(segmentId, isAdmin = true) {
+  if (segmentId === "deposits" && isAdmin) return "overviewDonations";
+  if (segmentId === "recurringIncome" && !isAdmin) return "overviewRecurringDonations";
+  return SEGMENT_META[segmentId]?.labelKey ?? segmentId;
 }
 
-function OverviewTooltip({ active, payload, t }) {
+function buildChartSlices(segments, t, isAdmin = true) {
+  return segments.map((segment) => {
+    const labelKey = segmentLabelKey(segment.id, isAdmin);
+    return {
+      ...segment,
+      color: SEGMENT_META[segment.id]?.color ?? segment.color,
+      name: t(`pages.accounts.${labelKey}`),
+      monthly: segment.id === "recurringIncome" || segment.id === "recurringExpense",
+      pct: 0,
+    };
+  });
+}
+
+function OverviewTooltip({ active, payload, t, isAdmin = true }) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
   const meta = SEGMENT_META[item.id];
   const snapshotTotal = payload[0].payload.snapshotTotal;
   const pct =
     snapshotTotal > 0 ? Math.round((item.value / snapshotTotal) * 100) : 0;
+  const labelKey = segmentLabelKey(item.id, isAdmin);
   return (
     <div className="dda-chart-tooltip">
-      <p className="font-semibold text-white">{t(`pages.accounts.${meta?.labelKey ?? item.id}`)}</p>
-      <p className="mt-0.5 tabular-nums text-dda-green-light">{formatPoolCurrency(item.value)}</p>
+      <p className="font-semibold text-white">{t(`pages.accounts.${labelKey}`)}</p>
+      <p
+        className="mt-0.5 tabular-nums"
+        style={{ color: meta?.color ?? "var(--color-dda-green-light)" }}
+      >
+        {formatPoolCurrency(item.value)}
+      </p>
       {item.monthly ? (
         <p className="mt-0.5 text-gray-400">{t("pages.accounts.overviewPerMonth")}</p>
       ) : null}
@@ -81,29 +109,51 @@ function MetricGroup({ title, children }) {
 
 export default function AccountsOverviewInfographic() {
   const { t } = useLocale();
-  const { isAdmin } = useDadAuth();
-  const profileId = resolveMemberProfileId();
+  const { isAdmin, profile } = useDadAuth();
+  const profileId = profile?.id || resolveMemberProfileId();
   const ledger = useMemberAccounts(profileId);
   const schedules = useRecurringCashflows(profileId);
+  const dbRevision = useSyncExternalStore(
+    subscribeInternalDatabase,
+    getDatabaseRevision,
+    () => 0,
+  );
+
+  useEffect(() => {
+    ensureHomeContributionSchedulesFromContributions(profileId);
+  }, [profileId, dbRevision]);
 
   const stats = useMemo(
-    () => buildAccountsOverviewStats(profileId),
-    [profileId, ledger, schedules],
+    () => buildAccountsOverviewStats(profileId, { platformScope: isAdmin }),
+    // dbRevision covers contribution deposits that update the overview totals.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ledger/schedules also invalidate
+    [profileId, ledger, schedules, dbRevision, isAdmin],
   );
 
-  const visibleSegments = useMemo(
-    () =>
-      isAdmin
-        ? stats.segments
-        : stats.segments.filter((segment) => !MEMBER_HIDDEN_SEGMENT_IDS.has(segment.id)),
-    [isAdmin, stats.segments],
-  );
+  const visibleSegments = useMemo(() => {
+    if (isAdmin) return stats.segments;
+
+    const withoutHidden = stats.segments.filter(
+      (segment) => !MEMBER_HIDDEN_SEGMENT_IDS.has(segment.id),
+    );
+    const others = withoutHidden.filter((segment) => segment.id !== "checking");
+    if (stats.totalBalance <= 0) return others;
+
+    return [
+      {
+        id: "checking",
+        value: stats.totalBalance,
+        color: SEGMENT_META.checking.color,
+      },
+      ...others,
+    ];
+  }, [isAdmin, stats.segments, stats.totalBalance]);
 
   const chartData = useMemo(() => {
-    const slices = buildChartSlices(visibleSegments, t);
+    const slices = buildChartSlices(visibleSegments, t, isAdmin);
     const snapshotTotal = visibleSegments.reduce((sum, segment) => sum + segment.value, 0);
     return slices.map((slice) => ({ ...slice, snapshotTotal }));
-  }, [visibleSegments, t]);
+  }, [visibleSegments, t, isAdmin]);
 
   const onHandBalance = stats.totalBalance;
 
@@ -154,7 +204,7 @@ export default function AccountsOverviewInfographic() {
                       ))}
                     </Pie>
                     <Tooltip
-                      content={<OverviewTooltip t={t} />}
+                      content={<OverviewTooltip t={t} isAdmin={isAdmin} />}
                       wrapperStyle={{ zIndex: 50, outline: "none" }}
                     />
                   </PieChart>
@@ -186,15 +236,55 @@ export default function AccountsOverviewInfographic() {
                   ? t("pages.accounts.overviewChecking")
                   : t("pages.wallet.overviewLabel")
               }
-              value={formatPoolCurrency(stats.checkingBalance)}
+              value={formatPoolCurrency(
+                isAdmin ? stats.checkingBalance : stats.totalBalance,
+              )}
               accent={SEGMENT_META.checking.color}
-              pct={segmentPct("checking", stats.checkingBalance)}
+              pct={segmentPct(
+                "checking",
+                isAdmin ? stats.checkingBalance : stats.totalBalance,
+              )}
             />
+            {isAdmin ? (
+              <MetricRow
+                label={t("pages.accounts.overviewEscrow")}
+                value={formatPoolCurrency(stats.escrowBalance)}
+                accent={SEGMENT_META.escrow.color}
+                pct={segmentPct("escrow", stats.escrowBalance)}
+              />
+            ) : null}
+          </MetricGroup>
+
+          <MetricGroup
+            title={t(
+              isAdmin
+                ? "pages.accounts.overviewGroupDonations"
+                : "pages.accounts.overviewGroupDeposits",
+            )}
+          >
             <MetricRow
-              label={t("pages.accounts.overviewEscrow")}
-              value={formatPoolCurrency(stats.escrowBalance)}
-              accent={SEGMENT_META.escrow.color}
-              pct={segmentPct("escrow", stats.escrowBalance)}
+              label={t(
+                isAdmin
+                  ? "pages.accounts.overviewDonations"
+                  : "pages.accounts.overviewDeposits",
+              )}
+              value={formatPoolCurrency(stats.depositsTotal)}
+              accent={SEGMENT_META.deposits.color}
+              pct={segmentPct("deposits", stats.depositsTotal)}
+              hint={
+                stats.depositsCount > 0
+                  ? t(
+                      isAdmin
+                        ? "pages.accounts.overviewDonationCount"
+                        : "pages.accounts.overviewDepositCount",
+                      { count: stats.depositsCount },
+                    )
+                  : t(
+                      isAdmin
+                        ? "pages.accounts.overviewNoDonations"
+                        : "pages.accounts.overviewNoDeposits",
+                    )
+              }
             />
           </MetricGroup>
 
@@ -222,41 +312,68 @@ export default function AccountsOverviewInfographic() {
 
           <MetricGroup title={t("pages.accounts.overviewGroupRecurring")}>
             <MetricRow
-              label={t("pages.accounts.overviewRecurringIncome")}
+              label={t(
+                isAdmin
+                  ? "pages.accounts.overviewRecurringIncome"
+                  : "pages.accounts.overviewRecurringDonations",
+              )}
               value={formatPoolCurrency(stats.recurringIncomeMonthly)}
               accent={SEGMENT_META.recurringIncome.color}
               pct={segmentPct("recurringIncome", stats.recurringIncomeMonthly)}
-              hint={t("pages.accounts.overviewPerMonth")}
+              hint={
+                stats.recurringIncomeCount > 0
+                  ? `${t("pages.accounts.overviewPerMonth")} · ${t(
+                      isAdmin
+                        ? "pages.accounts.overviewRecurringIncomeCount"
+                        : "pages.accounts.overviewRecurringDonationCount",
+                      { count: stats.recurringIncomeCount },
+                    )}`
+                  : t("pages.accounts.overviewPerMonth")
+              }
             />
-            <MetricRow
-              label={t("pages.accounts.overviewRecurringExpense")}
-              value={formatPoolCurrency(stats.recurringExpenseMonthly)}
-              accent={SEGMENT_META.recurringExpense.color}
-              pct={segmentPct("recurringExpense", stats.recurringExpenseMonthly)}
-              hint={t("pages.accounts.overviewPerMonth")}
-            />
-            <MetricRow
-              label={t("pages.accounts.overviewRecurringPayments")}
-              value={formatPoolCurrency(stats.recurringTransferMonthly)}
-              accent={SEGMENT_META.recurringTransfer.color}
-              pct={segmentPct("recurringTransfer", stats.recurringTransferMonthly)}
-              hint={t("pages.accounts.overviewPerMonth")}
-            />
+            {isAdmin ? (
+              <>
+                <MetricRow
+                  label={t("pages.accounts.overviewRecurringExpense")}
+                  value={formatPoolCurrency(stats.recurringExpenseMonthly)}
+                  accent={SEGMENT_META.recurringExpense.color}
+                  pct={segmentPct("recurringExpense", stats.recurringExpenseMonthly)}
+                  hint={t("pages.accounts.overviewPerMonth")}
+                />
+                <MetricRow
+                  label={t("pages.accounts.overviewRecurringPayments")}
+                  value={formatPoolCurrency(stats.recurringTransferMonthly)}
+                  accent={SEGMENT_META.recurringTransfer.color}
+                  pct={segmentPct("recurringTransfer", stats.recurringTransferMonthly)}
+                  hint={t("pages.accounts.overviewPerMonth")}
+                />
+              </>
+            ) : null}
             <div
               className={cn(
                 "dda-accounts-overview__net",
-                stats.recurringNetMonthly >= 0
-                  ? "dda-accounts-overview__net--positive"
-                  : "dda-accounts-overview__net--negative",
+                isAdmin
+                  ? stats.recurringNetMonthly >= 0
+                    ? "dda-accounts-overview__net--positive"
+                    : "dda-accounts-overview__net--negative"
+                  : "dda-accounts-overview__net--outcome",
               )}
             >
-              <span>{t("pages.accounts.overviewRecurringNet")}</span>
+              <span>
+                {t(
+                  isAdmin
+                    ? "pages.accounts.overviewRecurringNet"
+                    : "pages.accounts.overviewRecurringOutcome",
+                )}
+              </span>
               <span className="tabular-nums font-semibold">
-                {formatPoolCurrency(stats.recurringNetMonthly)}
+                {isAdmin
+                  ? formatPoolCurrency(stats.recurringNetMonthly)
+                  : `−${formatPoolCurrency(stats.recurringIncomeMonthly)}`}
                 <span className="font-normal opacity-75"> {t("pages.accounts.overviewPerMonth")}</span>
               </span>
             </div>
-            {stats.recurringTransferCount > 0 ? (
+            {isAdmin && stats.recurringTransferCount > 0 ? (
               <p className="dda-accounts-overview__footnote">
                 {stats.recurringPaymentLabels.length
                   ? t("pages.accounts.overviewTransferSummary", {

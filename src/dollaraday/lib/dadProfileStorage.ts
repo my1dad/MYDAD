@@ -477,7 +477,19 @@ export function removeDadProfileRecord(profileId: string): boolean {
 
 export function clearAllDadProfiles(): void {
   localStorage.removeItem(PROFILES_KEY);
+  profilesCache = null;
   notifyProfileListeners();
+}
+
+/** Persist only the given profiles (used by master reset to keep admin alone). */
+export function replaceDadProfilesLocal(profiles: DadProfile[]): void {
+  writeProfiles(profiles, { stamp: false, pushToCloud: false });
+}
+
+export function findMasterAdminProfile(): DadProfile | undefined {
+  return readProfiles().find(
+    (profile) => profile.username.trim().toLowerCase() === ADMIN_USERNAME,
+  );
 }
 
 /** Replace local cache from cloud without re-stamping or re-pushing. */
