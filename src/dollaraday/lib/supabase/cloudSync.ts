@@ -57,6 +57,38 @@ export function getWorkspaceEpoch(): string | null {
   }
 }
 
+function parseEpochValue(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim().replace(/^"|"$/g, "");
+    return trimmed || null;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  try {
+    return parseEpochValue(JSON.stringify(value));
+  } catch {
+    return null;
+  }
+}
+
+function getRemoteWorkspaceEpoch(rows: CloudKvRow[]): string | null {
+  const remote = rows.find(
+    (row) => row.scope_key === GLOBAL_KV_SCOPE && row.kv_key === WORKSPACE_EPOCH_KEY,
+  );
+  if (!remote) return null;
+  return parseEpochValue(remote.value);
+}
+
+/** True when cloud published a newer factory wipe than this device. */
+function isCloudFactoryWipeAuthoritative(remoteKv: CloudKvRow[]): boolean {
+  const remoteEpoch = getRemoteWorkspaceEpoch(remoteKv);
+  if (!remoteEpoch) return false;
+  const localEpoch = getWorkspaceEpoch();
+  return !localEpoch || remoteEpoch > localEpoch;
+}
+
 function isAdminOnlyDirectory(profiles: DadProfile[]): boolean {
   return profiles.length === 1 && isAdminProfile(profiles[0]);
 }
@@ -64,6 +96,14 @@ function isAdminOnlyDirectory(profiles: DadProfile[]): boolean {
 /** After master reset, never merge remote members back on top of the admin-only directory. */
 function shouldHonorFactoryResetDirectory(localProfiles: DadProfile[]): boolean {
   return Boolean(getWorkspaceEpoch()) && isAdminOnlyDirectory(localProfiles);
+}
+
+function isFactoryZeroLockedLocally(): boolean {
+  try {
+    return localStorage.getItem("dollar-a-day-factory-zero") === "1";
+  } catch {
+    return false;
+  }
 }
 
 type SyncedKvKey = (typeof SYNCED_KV_KEYS)[number];
@@ -686,6 +726,8 @@ async function upsertCloudKv(scopeKey: string, kvKey: string, rawValue: string |
 
 export function scheduleCloudBinPush(binId: string, document: DataBinDocument): void {
   if (!isSupabaseConfigured() || !cloudPushesAllowed()) return;
+  // Delivery lock / post-wipe: do not let a fat local browser resurrect cloud balances.
+  if (isFactoryZeroLockedLocally()) return;
 
   const existing = pendingBinPushes.get(binId);
   if (existing) clearTimeout(existing);
@@ -695,6 +737,7 @@ export function scheduleCloudBinPush(binId: string, document: DataBinDocument): 
     setTimeout(() => {
       pendingBinPushes.delete(binId);
       if (!cloudPushesAllowed()) return;
+      if (isFactoryZeroLockedLocally()) return;
       void upsertCloudBin(binId, document);
     }, CLOUD_PUSH_DEBOUNCE_MS),
   );
@@ -795,9 +838,49 @@ export async function syncCloudWorkspace(options: {
     ]);
 
     const cloudEmpty = remoteBins.length === 0 && remoteProfiles.length === 0;
+    const remoteEpoch = getRemoteWorkspaceEpoch(remoteKv);
+    const localEpoch = getWorkspaceEpoch();
+    const adoptCloudWipe = Boolean(remoteEpoch && (!localEpoch || remoteEpoch > localEpoch));
+    const honorLocalReset =
+      Boolean(localEpoch) && (!remoteEpoch || localEpoch! >= remoteEpoch) && !adoptCloudWipe;
 
     const binUpserts: Promise<unknown>[] = [];
-    const honorReset = Boolean(getWorkspaceEpoch());
+
+    // Newer cloud factory wipe wins — stop fat localStorage/devices from re-seeding production.
+    if (adoptCloudWipe) {
+      applyKvToLocalStorage(remoteKv);
+      try {
+        localStorage.setItem("dollar-a-day-factory-zero", "1");
+      } catch {
+        /* ignore */
+      }
+      pauseCloudPushes(24 * 60 * 60_000);
+
+      for (const binId of DAD_BIN_IDS) {
+        const binKey = binKeyForBinId(binId);
+        if (!binKey) continue;
+        const remoteRow = remoteBins.find((row) => row.bin_id === binId);
+        if (remoteRow?.document) {
+          applyExternalBinDocument(binId, binKey, remoteRow.document);
+        }
+      }
+
+      const remoteAdminOnly = isAdminOnlyDirectory(remoteProfiles);
+      if (remoteAdminOnly || remoteProfiles.some((profile) => isAdminProfile(profile))) {
+        const nextProfiles = remoteAdminOnly
+          ? remoteProfiles
+          : remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+        options.replaceLocalProfiles(nextProfiles);
+        if (remoteAdminOnly) {
+          await replaceCloudProfilesDirectory(nextProfiles);
+        }
+      }
+
+      lastSyncAt = new Date().toISOString();
+      lastSyncError = null;
+      notifyCloudStatusListeners();
+      return;
+    }
 
     for (const binId of DAD_BIN_IDS) {
       const binKey = binKeyForBinId(binId);
@@ -806,8 +889,8 @@ export async function syncCloudWorkspace(options: {
       const remoteRow = remoteBins.find((row) => row.bin_id === binId);
       const localDoc = readDataBin(binKey);
 
-      if (honorReset) {
-        // Factory reset: local wiped/seeded bins are authoritative — never merge pre-reset cloud rows.
+      if (honorLocalReset) {
+        // This device performed the wipe — push $0 bins; never merge pre-reset cloud rows.
         applyExternalBinDocument(binId, binKey, localDoc);
         binUpserts.push(upsertCloudBin(binId, localDoc));
         continue;
