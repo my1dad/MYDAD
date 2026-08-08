@@ -242,15 +242,20 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
   const handleApprove = async () => {
     if (!window.confirm(t("pages.admin.profileApproveConfirm", { name: record.name }))) return;
     setActionError("");
-    const result = await approveDadProfileByAdmin(profileId);
+    const result = await approveDadProfileByAdmin(profileId, {
+      username: record.username ?? profile.username,
+    });
     if (!result.ok) {
       setActionError(result.error);
     }
   };
 
-  const handleDeny = () => {
+  const handleDeny = async () => {
     if (!window.confirm(t("pages.admin.profileDenyConfirm", { name: record.name }))) return;
-    const result = denyDadProfileByAdmin(profileId);
+    setActionError("");
+    const result = await denyDadProfileByAdmin(profileId, {
+      username: record.username ?? profile.username,
+    });
     if (!result.ok) {
       setActionError(result.error);
       return;

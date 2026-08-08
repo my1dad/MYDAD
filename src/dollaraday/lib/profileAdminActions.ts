@@ -120,8 +120,45 @@ export function deleteDadProfileByAdmin(profileId: string): AdminActionResult {
   return { ok: true };
 }
 
-export async function approveDadProfileByAdmin(profileId: string): Promise<AdminActionResult> {
-  const profile = findDadProfileById(profileId);
+async function resolveProfileForAdminAction(input: {
+  profileId?: string;
+  username?: string;
+}): Promise<DadProfile | undefined> {
+  const byId = input.profileId ? findDadProfileById(input.profileId) : undefined;
+  if (byId) return byId;
+
+  const username = input.username?.trim();
+  if (username) {
+    const byUsername = findDadProfileByUsername(username);
+    if (byUsername) return byUsername;
+  }
+
+  try {
+    const { pullCloudProfilesNow } = await import("./supabase/cloudSync");
+    const { replaceDadProfilesLocal } = await import("./dadProfileStorage");
+    await pullCloudProfilesNow(getDadProfiles, replaceDadProfilesLocal);
+  } catch (err) {
+    console.warn("[profileAdmin] Cloud pull before approve/deny failed:", err);
+  }
+
+  if (input.profileId) {
+    const afterPull = findDadProfileById(input.profileId);
+    if (afterPull) return afterPull;
+  }
+  if (username) {
+    return findDadProfileByUsername(username);
+  }
+  return undefined;
+}
+
+export async function approveDadProfileByAdmin(
+  profileId: string,
+  options: { username?: string } = {},
+): Promise<AdminActionResult> {
+  const profile = await resolveProfileForAdminAction({
+    profileId,
+    username: options.username,
+  });
   const blocked = guardProtectedProfile(profile);
   if (blocked) return blocked;
 
@@ -130,7 +167,8 @@ export async function approveDadProfileByAdmin(profileId: string): Promise<Admin
     return { ok: false, error: "This member is already approved." };
   }
 
-  const updated = updateDadProfileRecord(profileId, (current) => ({
+  const targetId = profile!.id;
+  const updated = updateDadProfileRecord(targetId, (current) => ({
     ...current,
     approvalStatus: "approved",
     accountStatus: current.accountStatus === "suspended" ? "suspended" : "active",
@@ -171,8 +209,14 @@ export async function approveDadProfileByAdmin(profileId: string): Promise<Admin
   return { ok: true, profile: updated };
 }
 
-export function denyDadProfileByAdmin(profileId: string): AdminActionResult {
-  const profile = findDadProfileById(profileId);
+export async function denyDadProfileByAdmin(
+  profileId: string,
+  options: { username?: string } = {},
+): Promise<AdminActionResult> {
+  const profile = await resolveProfileForAdminAction({
+    profileId,
+    username: options.username,
+  });
   const blocked = guardProtectedProfile(profile);
   if (blocked) return blocked;
 
@@ -180,14 +224,14 @@ export function denyDadProfileByAdmin(profileId: string): AdminActionResult {
     return { ok: false, error: "This membership request was already denied." };
   }
 
-  const updated = updateDadProfileRecord(profileId, (current) => ({
+  const updated = updateDadProfileRecord(profile!.id, (current) => ({
     ...current,
     approvalStatus: "denied",
   }));
   if (!updated) return { ok: false, error: "Profile not found." };
 
   syncProfileToMemberRegistry(updated);
-  clearProfileSession(profileId);
+  clearProfileSession(updated.id);
   logProfileActivity({
     profileId: updated.id,
     proId: updated.proId,

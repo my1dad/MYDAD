@@ -194,8 +194,12 @@ function binKeyForBinId(binId: string): DataBinKey | null {
   return definition?.key ?? null;
 }
 
-function profileToRow(profile: DadProfile) {
-  return {
+/** Schema may lag behind the app — omit account_number when the column is absent. */
+let cloudSupportsAccountNumber = true;
+
+function profileToRow(profile: DadProfile, options: { includeAccountNumber?: boolean } = {}) {
+  const includeAccountNumber = options.includeAccountNumber ?? cloudSupportsAccountNumber;
+  const row: Record<string, unknown> = {
     id: profile.id,
     username: profile.username,
     password: profile.password,
@@ -203,7 +207,6 @@ function profileToRow(profile: DadProfile) {
     full_name: profile.fullName ?? null,
     role: profile.role ?? null,
     pro_id: profile.proId ?? null,
-    account_number: profile.accountNumber ?? null,
     email: profile.email ?? null,
     phone: profile.phone ?? null,
     profile_photo_url: profile.profilePhotoUrl ?? null,
@@ -214,6 +217,15 @@ function profileToRow(profile: DadProfile) {
     last_login_at: profile.lastLoginAt,
     updated_at: profile.updatedAt ?? profile.lastLoginAt ?? profile.createdAt,
   };
+  if (includeAccountNumber) {
+    row.account_number = profile.accountNumber ?? null;
+  }
+  return row;
+}
+
+function isMissingAccountNumberColumnError(message: string | undefined): boolean {
+  const text = String(message ?? "").toLowerCase();
+  return text.includes("account_number") && (text.includes("schema cache") || text.includes("column"));
 }
 
 function rowToProfile(row: CloudProfileRow): DadProfile {
@@ -571,16 +583,31 @@ async function upsertCloudProfiles(profiles: DadProfile[]): Promise<boolean> {
     guardAgainstApprovalDowngrade(profile, remoteById.get(profile.id)),
   );
 
-  const rows = safeProfiles.map((profile) => {
-    const row = profileToRow(profile);
-    // Keep REST payloads small — large data-URL photos can fail upserts silently for the whole batch.
-    if (row.profile_photo_url && row.profile_photo_url.length > 8_000) {
-      row.profile_photo_url = null;
-    }
-    return row;
-  });
+  const buildRows = (includeAccountNumber: boolean) =>
+    safeProfiles.map((profile) => {
+      const row = profileToRow(profile, { includeAccountNumber });
+      // Keep REST payloads small — large data-URL photos can fail upserts silently for the whole batch.
+      if (
+        typeof row.profile_photo_url === "string" &&
+        row.profile_photo_url.length > 8_000
+      ) {
+        row.profile_photo_url = null;
+      }
+      return row;
+    });
 
-  const { error } = await supabase.from("dad_profiles").upsert(rows, { onConflict: "id" });
+  let rows = buildRows(cloudSupportsAccountNumber);
+  let { error } = await supabase.from("dad_profiles").upsert(rows, { onConflict: "id" });
+
+  if (error && cloudSupportsAccountNumber && isMissingAccountNumberColumnError(error.message)) {
+    cloudSupportsAccountNumber = false;
+    console.warn(
+      "[cloudSync] dad_profiles.account_number missing — retrying profile push without that column.",
+    );
+    rows = buildRows(false);
+    ({ error } = await supabase.from("dad_profiles").upsert(rows, { onConflict: "id" }));
+  }
+
   if (error) {
     lastSyncError = `Failed to push profiles: ${error.message}`;
     notifyCloudStatusListeners();
@@ -592,9 +619,25 @@ async function upsertCloudProfiles(profiles: DadProfile[]): Promise<boolean> {
       const { error: rowError } = await supabase
         .from("dad_profiles")
         .upsert(row, { onConflict: "id" });
+      if (
+        rowError &&
+        cloudSupportsAccountNumber &&
+        isMissingAccountNumberColumnError(rowError.message)
+      ) {
+        cloudSupportsAccountNumber = false;
+        const slim = { ...row };
+        delete slim.account_number;
+        const { error: retryError } = await supabase
+          .from("dad_profiles")
+          .upsert(slim, { onConflict: "id" });
+        if (!retryError) continue;
+        failed += 1;
+        console.warn(`[cloudSync] Failed to push profile ${String(row.username)}:`, retryError.message);
+        continue;
+      }
       if (rowError) {
         failed += 1;
-        console.warn(`[cloudSync] Failed to push profile ${row.username}:`, rowError.message);
+        console.warn(`[cloudSync] Failed to push profile ${String(row.username)}:`, rowError.message);
       }
     }
     return failed === 0;
@@ -918,42 +961,55 @@ export async function syncCloudWorkspace(options: {
 
     // Newer cloud factory wipe wins ONLY while cloud is still admin-only.
     // Once members exist in cloud again, never re-lock or prune the directory.
+    // Keep any local pending/non-admin profiles — signup pushes can lag, and wiping
+    // them here makes Approve impossible on the admin device that received the request.
     if (adoptCloudWipe && !remoteHasMembers) {
-      applyKvToLocalStorage(remoteKv);
-      try {
-        localStorage.setItem("dollar-a-day-factory-zero", "1");
-      } catch {
-        /* ignore */
-      }
-      pauseCloudPushes(24 * 60 * 60_000);
+      const localProfilesForWipe = options.getLocalProfiles();
+      const localHasLiveMembers = localProfilesForWipe.some(
+        (profile) => !isAdminProfile(profile),
+      );
 
-      for (const binId of DAD_BIN_IDS) {
-        const binKey = binKeyForBinId(binId);
-        if (!binKey) continue;
-        const remoteRow = remoteBins.find((row) => row.bin_id === binId);
-        if (remoteRow?.document) {
-          applyExternalBinDocument(binId, binKey, remoteRow.document);
+      if (localHasLiveMembers) {
+        clearFactoryZeroDeliveryLock();
+      } else {
+        applyKvToLocalStorage(remoteKv);
+        try {
+          localStorage.setItem("dollar-a-day-factory-zero", "1");
+        } catch {
+          /* ignore */
         }
-      }
+        pauseCloudPushes(24 * 60 * 60_000);
 
-      const nextProfiles = mergeProfilesForWorkspace([], remoteProfiles);
-      if (nextProfiles.length) {
-        options.replaceLocalProfiles(nextProfiles);
-      } else if (remoteProfiles.some((profile) => isAdminProfile(profile))) {
-        options.replaceLocalProfiles(
-          remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1),
-        );
-      }
-      if (isAdminOnlyDirectory(nextProfiles.length ? nextProfiles : remoteProfiles)) {
-        await replaceCloudProfilesDirectory(
-          nextProfiles.length ? nextProfiles : remoteProfiles.filter((p) => isAdminProfile(p)).slice(0, 1),
-        );
-      }
+        for (const binId of DAD_BIN_IDS) {
+          const binKey = binKeyForBinId(binId);
+          if (!binKey) continue;
+          const remoteRow = remoteBins.find((row) => row.bin_id === binId);
+          if (remoteRow?.document) {
+            applyExternalBinDocument(binId, binKey, remoteRow.document);
+          }
+        }
 
-      lastSyncAt = new Date().toISOString();
-      lastSyncError = null;
-      notifyCloudStatusListeners();
-      return;
+        const nextProfiles = mergeProfilesForWorkspace([], remoteProfiles);
+        if (nextProfiles.length) {
+          options.replaceLocalProfiles(nextProfiles);
+        } else if (remoteProfiles.some((profile) => isAdminProfile(profile))) {
+          options.replaceLocalProfiles(
+            remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1),
+          );
+        }
+        if (isAdminOnlyDirectory(nextProfiles.length ? nextProfiles : remoteProfiles)) {
+          await replaceCloudProfilesDirectory(
+            nextProfiles.length
+              ? nextProfiles
+              : remoteProfiles.filter((p) => isAdminProfile(p)).slice(0, 1),
+          );
+        }
+
+        lastSyncAt = new Date().toISOString();
+        lastSyncError = null;
+        notifyCloudStatusListeners();
+        return;
+      }
     }
 
     if (adoptCloudWipe && remoteHasMembers) {

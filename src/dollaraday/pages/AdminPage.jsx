@@ -10,7 +10,11 @@ import {
   consumePendingAdminProfileId,
   subscribePendingAdminProfileId,
 } from "../lib/adminProfileNavigation";
-import { findDadProfileById } from "../lib/dadProfileStorage";
+import {
+  findDadProfileById,
+  getDadProfiles,
+  replaceDadProfilesLocal,
+} from "../lib/dadProfileStorage";
 import {
   approveDadProfileByAdmin,
   denyDadProfileByAdmin,
@@ -35,19 +39,38 @@ export default function AdminPage({ onNavigate }) {
 
   const openProfile = (profileId) => {
     if (!profileId) return;
+    // Only open the detail modal when the profile is actually present locally.
+    if (!findDadProfileById(profileId)) {
+      setRowActionError("");
+      return;
+    }
     setRowActionError("");
     setSelectedProfileId(profileId);
   };
 
   useEffect(() => {
+    if (!isAdmin) return undefined;
+
+    // Pull latest cloud profiles so pending approvals appear even if an earlier
+    // push failed (e.g. schema lag). Keep any local pending members.
+    void import("../lib/supabase/cloudSync")
+      .then(({ pullCloudProfilesNow }) =>
+        pullCloudProfilesNow(getDadProfiles, replaceDadProfilesLocal),
+      )
+      .catch((err) => {
+        console.warn("[AdminPage] Profile pull failed:", err);
+      });
+
     const pendingProfileId = consumePendingAdminProfileId();
-    if (pendingProfileId) openProfile(pendingProfileId);
+    if (pendingProfileId && findDadProfileById(pendingProfileId)) {
+      openProfile(pendingProfileId);
+    }
 
     return subscribePendingAdminProfileId((profileId) => {
       consumePendingAdminProfileId();
-      openProfile(profileId);
+      if (findDadProfileById(profileId)) openProfile(profileId);
     });
-  }, []);
+  }, [isAdmin]);
 
   if (!isAdmin) {
     return (
@@ -80,39 +103,37 @@ export default function AdminPage({ onNavigate }) {
   const handleApproveRow = async (event, member) => {
     event.stopPropagation();
     const profileId = member.profileId ?? member.id;
-    if (!findDadProfileById(profileId)) {
-      setRowActionError(t("pages.admin.memberDetailMissing"));
-      openProfile(profileId);
-      return;
-    }
     if (!window.confirm(t("pages.admin.profileApproveConfirm", { name: member.name }))) return;
 
     setRowActionError("");
     setRowActionBusyId(profileId);
-    const result = await approveDadProfileByAdmin(profileId);
+    const result = await approveDadProfileByAdmin(profileId, {
+      username: member.username,
+    });
     setRowActionBusyId(null);
     if (!result.ok) {
       setRowActionError(result.error);
-    }
-  };
-
-  const handleDenyRow = (event, member) => {
-    event.stopPropagation();
-    const profileId = member.profileId ?? member.id;
-    if (!findDadProfileById(profileId)) {
-      setRowActionError(t("pages.admin.memberDetailMissing"));
-      openProfile(profileId);
       return;
     }
+    setSelectedProfileId(null);
+  };
+
+  const handleDenyRow = async (event, member) => {
+    event.stopPropagation();
+    const profileId = member.profileId ?? member.id;
     if (!window.confirm(t("pages.admin.profileDenyConfirm", { name: member.name }))) return;
 
     setRowActionError("");
     setRowActionBusyId(profileId);
-    const result = denyDadProfileByAdmin(profileId);
+    const result = await denyDadProfileByAdmin(profileId, {
+      username: member.username,
+    });
     setRowActionBusyId(null);
     if (!result.ok) {
       setRowActionError(result.error);
+      return;
     }
+    setSelectedProfileId(null);
   };
 
   return (
