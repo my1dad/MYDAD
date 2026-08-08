@@ -12,6 +12,7 @@ import {
 } from "../lib/adminProfileNavigation";
 import {
   findDadProfileById,
+  findDadProfileByUsername,
   getDadProfiles,
   replaceDadProfilesLocal,
 } from "../lib/dadProfileStorage";
@@ -32,27 +33,64 @@ export default function AdminPage({ onNavigate }) {
   const { loans, translateStatus } = useLocalizedData();
   const { poolSummary } = usePoolState();
   const registeredMembers = useAdminMemberRecords();
-  const [selectedProfileId, setSelectedProfileId] = useState(null);
+  const [selectedMember, setSelectedMember] = useState(null);
   const [rowActionError, setRowActionError] = useState("");
   const [rowActionBusyId, setRowActionBusyId] = useState(null);
   const pendingApprovals = registeredMembers.filter((member) => member.status === "pending").length;
 
-  const openProfile = (profileId) => {
-    if (!profileId) return;
-    // Only open the detail modal when the profile is actually present locally.
-    if (!findDadProfileById(profileId)) {
-      setRowActionError("");
-      return;
-    }
+  const openProfile = (memberOrId, extras = {}) => {
+    const fromList =
+      typeof memberOrId === "string"
+        ? registeredMembers.find((member) => (member.profileId ?? member.id) === memberOrId)
+        : memberOrId;
+    const profileId =
+      typeof memberOrId === "string"
+        ? memberOrId
+        : (fromList?.profileId ?? fromList?.id ?? extras.profileId);
+    const username =
+      fromList?.username ||
+      extras.username ||
+      (profileId ? findDadProfileById(profileId)?.username : undefined);
+    const name = fromList?.name || extras.name || username;
+
+    if (!profileId && !username) return;
+
+    // Always open — modal recovers via username/cloud pull when the id is stale.
     setRowActionError("");
-    setSelectedProfileId(profileId);
+    setSelectedMember({
+      profileId: profileId || "",
+      username: username || "",
+      name: name || "",
+    });
+  };
+
+  const resolvePendingTarget = async (target) => {
+    if (!target) return;
+    try {
+      const { pullCloudProfilesNow, pullCloudProfileForAuth } = await import(
+        "../lib/supabase/cloudSync"
+      );
+      if (target.username) {
+        await pullCloudProfileForAuth(target.username, getDadProfiles, replaceDadProfilesLocal);
+      }
+      await pullCloudProfilesNow(getDadProfiles, replaceDadProfilesLocal);
+    } catch (err) {
+      console.warn("[AdminPage] Profile pull before open failed:", err);
+    }
+
+    const byId = target.profileId ? findDadProfileById(target.profileId) : undefined;
+    const byUsername = target.username ? findDadProfileByUsername(target.username) : undefined;
+    const profile = byId || byUsername;
+    openProfile(profile?.id || target.profileId || "", {
+      username: profile?.username || target.username,
+      name: target.name || profile?.displayName,
+      profileId: profile?.id || target.profileId,
+    });
   };
 
   useEffect(() => {
     if (!isAdmin) return undefined;
 
-    // Pull latest cloud profiles so pending approvals appear even if an earlier
-    // push failed (e.g. schema lag). Keep any local pending members.
     void import("../lib/supabase/cloudSync")
       .then(({ pullCloudProfilesNow }) =>
         pullCloudProfilesNow(getDadProfiles, replaceDadProfilesLocal),
@@ -61,14 +99,14 @@ export default function AdminPage({ onNavigate }) {
         console.warn("[AdminPage] Profile pull failed:", err);
       });
 
-    const pendingProfileId = consumePendingAdminProfileId();
-    if (pendingProfileId && findDadProfileById(pendingProfileId)) {
-      openProfile(pendingProfileId);
+    const pendingTarget = consumePendingAdminProfileId();
+    if (pendingTarget) {
+      void resolvePendingTarget(pendingTarget);
     }
 
-    return subscribePendingAdminProfileId((profileId) => {
+    return subscribePendingAdminProfileId((target) => {
       consumePendingAdminProfileId();
-      if (findDadProfileById(profileId)) openProfile(profileId);
+      void resolvePendingTarget(target);
     });
   }, [isAdmin]);
 
@@ -115,7 +153,7 @@ export default function AdminPage({ onNavigate }) {
       setRowActionError(result.error);
       return;
     }
-    setSelectedProfileId(null);
+    setSelectedMember(null);
   };
 
   const handleDenyRow = async (event, member) => {
@@ -133,7 +171,7 @@ export default function AdminPage({ onNavigate }) {
       setRowActionError(result.error);
       return;
     }
-    setSelectedProfileId(null);
+    setSelectedMember(null);
   };
 
   return (
@@ -259,7 +297,7 @@ export default function AdminPage({ onNavigate }) {
                     <td className="max-w-0 py-2 pr-2 sm:pr-3">
                       <button
                         type="button"
-                        onClick={() => openProfile(profileId)}
+                        onClick={() => openProfile(member)}
                         className="w-full text-left"
                       >
                         <span className="block truncate font-medium text-white hover:text-dda-green-light">
@@ -273,7 +311,7 @@ export default function AdminPage({ onNavigate }) {
                     <td className="py-2 pr-2">
                       <button
                         type="button"
-                        onClick={() => openProfile(profileId)}
+                        onClick={() => openProfile(member)}
                         className="truncate font-mono text-[11px] text-amber-300 hover:text-amber-200"
                         title={member.proId}
                       >
@@ -320,7 +358,7 @@ export default function AdminPage({ onNavigate }) {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => openProfile(profileId)}
+                          onClick={() => openProfile(member)}
                           className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 transition hover:text-white"
                         >
                           {t("pages.admin.memberOpen")}
@@ -352,13 +390,15 @@ export default function AdminPage({ onNavigate }) {
         <AdminSettingsCard />
       </Suspense>
 
-      {selectedProfileId ? (
+      {selectedMember ? (
         <Suspense fallback={null}>
           <AdminMemberDetailModal
-            profileId={selectedProfileId}
-            open={Boolean(selectedProfileId)}
-            onClose={() => setSelectedProfileId(null)}
-            onProfileDeleted={() => setSelectedProfileId(null)}
+            profileId={selectedMember.profileId}
+            usernameHint={selectedMember.username}
+            displayNameHint={selectedMember.name}
+            open={Boolean(selectedMember)}
+            onClose={() => setSelectedMember(null)}
+            onProfileDeleted={() => setSelectedMember(null)}
           />
         </Suspense>
       ) : null}

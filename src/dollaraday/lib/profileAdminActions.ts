@@ -134,8 +134,16 @@ async function resolveProfileForAdminAction(input: {
   }
 
   try {
-    const { pullCloudProfilesNow } = await import("./supabase/cloudSync");
+    const { pullCloudProfilesNow, pullCloudProfileForAuth } = await import("./supabase/cloudSync");
     const { replaceDadProfilesLocal } = await import("./dadProfileStorage");
+
+    // Prefer a single-username pull first — faster and avoids full-directory races.
+    if (username) {
+      await pullCloudProfileForAuth(username, getDadProfiles, replaceDadProfilesLocal);
+      const fromAuthPull = findDadProfileByUsername(username);
+      if (fromAuthPull) return fromAuthPull;
+    }
+
     await pullCloudProfilesNow(getDadProfiles, replaceDadProfilesLocal);
   } catch (err) {
     console.warn("[profileAdmin] Cloud pull before approve/deny failed:", err);
@@ -189,21 +197,23 @@ export async function approveDadProfileByAdmin(
   });
 
   try {
-    const { pushCloudProfilesNow } = await import("./supabase/cloudSync");
+    const { pushCloudProfilesNow, scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
     // Push the approved row immediately so the member can sign in from any device.
     const pushed = await pushCloudProfilesNow([updated]);
     if (!pushed) {
-      return {
-        ok: false,
-        error: "Approved locally, but cloud sync failed. Try Cloud sync now in Admin settings.",
-      };
+      scheduleCloudProfilesPush();
+      console.warn(
+        "[profileAdmin] Approval saved locally; cloud push failed — queued retry.",
+      );
     }
   } catch (err) {
     console.warn("[profileAdmin] Approval cloud push failed:", err);
-    return {
-      ok: false,
-      error: "Approved locally, but cloud sync failed. Try Cloud sync now in Admin settings.",
-    };
+    try {
+      const { scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
+      scheduleCloudProfilesPush();
+    } catch {
+      /* ignore */
+    }
   }
 
   return { ok: true, profile: updated };

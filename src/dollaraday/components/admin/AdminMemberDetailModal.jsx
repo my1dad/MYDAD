@@ -17,6 +17,7 @@ import {
   unsuspendDadProfileByAdmin,
 } from "../../lib/profileAdminActions";
 import {
+  findDadProfileByUsername,
   getDadProfileRevision,
   getDadProfiles,
   getProfileApprovalStatus,
@@ -69,7 +70,14 @@ function moneyInputValue(value) {
   return String(amount);
 }
 
-export default function AdminMemberDetailModal({ profileId, open, onClose, onProfileDeleted }) {
+export default function AdminMemberDetailModal({
+  profileId,
+  usernameHint = "",
+  displayNameHint = "",
+  open,
+  onClose,
+  onProfileDeleted,
+}) {
   const { t } = useLocale();
   const [editOpen, setEditOpen] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -81,6 +89,8 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
   const [equityInput, setEquityInput] = useState("0");
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileLoadFailed, setProfileLoadFailed] = useState(false);
+  const [resolvedProfileId, setResolvedProfileId] = useState(profileId || "");
+  const [actionBusy, setActionBusy] = useState(false);
   const profileRevision = useSyncExternalStore(
     subscribeDadProfiles,
     getDadProfileRevision,
@@ -91,11 +101,23 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
     getDatabaseRevision,
     () => 0,
   );
+  const activeProfileId = useMemo(() => {
+    if (resolvedProfileId && buildAdminMemberDetail(resolvedProfileId)) {
+      return resolvedProfileId;
+    }
+    if (profileId && buildAdminMemberDetail(profileId)) return profileId;
+    if (usernameHint) {
+      const byUsername = findDadProfileByUsername(usernameHint);
+      if (byUsername) return byUsername.id;
+    }
+    return resolvedProfileId || profileId || "";
+  }, [resolvedProfileId, profileId, usernameHint, profileRevision, databaseRevision]);
+
   const detail = useMemo(
-    () => (open && profileId ? buildAdminMemberDetail(profileId) : null),
-    [open, profileId, profileRevision, databaseRevision],
+    () => (open && activeProfileId ? buildAdminMemberDetail(activeProfileId) : null),
+    [open, activeProfileId, profileRevision, databaseRevision],
   );
-  const wallet = useMemberAccounts(profileId || "");
+  const wallet = useMemberAccounts(activeProfileId || "");
 
   useEffect(() => {
     if (!open) return;
@@ -104,10 +126,17 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
     setBalanceSaved(false);
     setEditOpen(false);
     setProfileLoadFailed(false);
-  }, [open, profileId]);
+    setResolvedProfileId(profileId || "");
+    setActionBusy(false);
+  }, [open, profileId, usernameHint]);
 
   useEffect(() => {
-    if (!open || !profileId || detail) {
+    if (!open || detail) {
+      setProfileLoading(false);
+      return undefined;
+    }
+    if (!profileId && !usernameHint) {
+      setProfileLoadFailed(true);
       setProfileLoading(false);
       return undefined;
     }
@@ -117,13 +146,30 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
     setProfileLoadFailed(false);
 
     void import("../../lib/supabase/cloudSync")
-      .then(({ pullCloudProfilesNow }) =>
-        pullCloudProfilesNow(getDadProfiles, replaceDadProfilesLocal),
-      )
-      .then(() => {
+      .then(async ({ pullCloudProfilesNow, pullCloudProfileForAuth }) => {
+        if (usernameHint) {
+          await pullCloudProfileForAuth(usernameHint, getDadProfiles, replaceDadProfilesLocal);
+          if (cancelled) return;
+          const byUsername = findDadProfileByUsername(usernameHint);
+          if (byUsername) {
+            setResolvedProfileId(byUsername.id);
+            return;
+          }
+        }
+        await pullCloudProfilesNow(getDadProfiles, replaceDadProfilesLocal);
         if (cancelled) return;
-        const resolved = buildAdminMemberDetail(profileId);
-        if (!resolved) setProfileLoadFailed(true);
+        if (profileId && buildAdminMemberDetail(profileId)) {
+          setResolvedProfileId(profileId);
+          return;
+        }
+        if (usernameHint) {
+          const byUsername = findDadProfileByUsername(usernameHint);
+          if (byUsername) {
+            setResolvedProfileId(byUsername.id);
+            return;
+          }
+        }
+        setProfileLoadFailed(true);
       })
       .catch(() => {
         if (!cancelled) setProfileLoadFailed(true);
@@ -135,7 +181,7 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
     return () => {
       cancelled = true;
     };
-  }, [open, profileId, detail]);
+  }, [open, profileId, usernameHint, detail]);
 
   useEffect(() => {
     if (!open || !detail) return;
@@ -169,9 +215,43 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, onClose, editOpen]);
 
+  const handleApproveMissing = async () => {
+    const label = displayNameHint || usernameHint || "this member";
+    if (!window.confirm(t("pages.admin.profileApproveConfirm", { name: label }))) return;
+    setActionError("");
+    setActionBusy(true);
+    const result = await approveDadProfileByAdmin(activeProfileId || profileId || "", {
+      username: usernameHint,
+    });
+    setActionBusy(false);
+    if (!result.ok) {
+      setActionError(result.error);
+      return;
+    }
+    if (result.profile?.id) setResolvedProfileId(result.profile.id);
+    onClose();
+  };
+
+  const handleDenyMissing = async () => {
+    const label = displayNameHint || usernameHint || "this member";
+    if (!window.confirm(t("pages.admin.profileDenyConfirm", { name: label }))) return;
+    setActionError("");
+    setActionBusy(true);
+    const result = await denyDadProfileByAdmin(activeProfileId || profileId || "", {
+      username: usernameHint,
+    });
+    setActionBusy(false);
+    if (!result.ok) {
+      setActionError(result.error);
+      return;
+    }
+    onClose();
+  };
+
   if (!open) return null;
 
   if (!detail) {
+    const canAct = Boolean(usernameHint || profileId);
     return createPortal(
       <div className="fixed inset-0 z-[120] flex items-end justify-center p-0 sm:items-center sm:p-4">
         <button
@@ -185,6 +265,16 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
           aria-modal="true"
           className="relative w-full max-w-md rounded-t-3xl border border-white/10 bg-dda-bg p-5 shadow-2xl sm:rounded-2xl"
         >
+          {(displayNameHint || usernameHint) && !profileLoading ? (
+            <div className="mb-3">
+              <p className="text-lg font-semibold text-white">
+                {displayNameHint || `@${usernameHint}`}
+              </p>
+              {usernameHint ? (
+                <p className="text-sm text-gray-500">@{usernameHint}</p>
+              ) : null}
+            </div>
+          ) : null}
           <p className="text-sm text-gray-300">
             {profileLoading
               ? t("pages.admin.memberDetailLoading")
@@ -192,10 +282,37 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
                 ? t("pages.admin.memberDetailMissing")
                 : t("pages.admin.memberDetailLoading")}
           </p>
+          {actionError ? <p className="mt-2 text-sm text-red-400">{actionError}</p> : null}
           {!profileLoading ? (
-            <button type="button" onClick={onClose} className="dda-btn-primary mt-4">
-              {t("common.close")}
-            </button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {canAct ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={actionBusy}
+                    onClick={handleApproveMissing}
+                    className="dda-btn-primary disabled:opacity-50"
+                  >
+                    {t("pages.admin.profileApprove")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionBusy}
+                    onClick={handleDenyMissing}
+                    className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 disabled:opacity-50"
+                  >
+                    {t("pages.admin.profileDeny")}
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-300"
+              >
+                {t("common.close")}
+              </button>
+            </div>
           ) : null}
         </div>
       </div>,
@@ -216,7 +333,7 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
   const handleDelete = () => {
     if (!window.confirm(t("pages.admin.profileDeleteConfirm", { name: record.name }))) return;
     if (!window.confirm(t("pages.admin.profileDeleteConfirmFinal", { name: record.name }))) return;
-    const result = deleteDadProfileByAdmin(profileId);
+    const result = deleteDadProfileByAdmin(activeProfileId || profileId);
     if (!result.ok) {
       setActionError(result.error);
       return;
@@ -231,9 +348,10 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
       : "pages.admin.profileSuspendConfirm";
     if (!window.confirm(t(confirmKey, { name: record.name }))) return;
 
+    const targetId = activeProfileId || profileId;
     const result = isSuspended
-      ? unsuspendDadProfileByAdmin(profileId)
-      : suspendDadProfileByAdmin(profileId);
+      ? unsuspendDadProfileByAdmin(targetId)
+      : suspendDadProfileByAdmin(targetId);
     if (!result.ok) {
       setActionError(result.error);
     }
@@ -242,8 +360,8 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
   const handleApprove = async () => {
     if (!window.confirm(t("pages.admin.profileApproveConfirm", { name: record.name }))) return;
     setActionError("");
-    const result = await approveDadProfileByAdmin(profileId, {
-      username: record.username ?? profile.username,
+    const result = await approveDadProfileByAdmin(activeProfileId || profileId, {
+      username: record.username ?? profile.username ?? usernameHint,
     });
     if (!result.ok) {
       setActionError(result.error);
@@ -253,8 +371,8 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
   const handleDeny = async () => {
     if (!window.confirm(t("pages.admin.profileDenyConfirm", { name: record.name }))) return;
     setActionError("");
-    const result = await denyDadProfileByAdmin(profileId, {
-      username: record.username ?? profile.username,
+    const result = await denyDadProfileByAdmin(activeProfileId || profileId, {
+      username: record.username ?? profile.username ?? usernameHint,
     });
     if (!result.ok) {
       setActionError(result.error);
@@ -280,12 +398,13 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
 
     try {
       // Lock directory totals first so escrow/pool sync cannot wipe them.
-      const updated = adminSetMemberDirectoryBalances(profileId, { contributed, equity });
+      const targetId = activeProfileId || profileId;
+      const updated = adminSetMemberDirectoryBalances(targetId, { contributed, equity });
       if (!updated) {
         setBalanceError(t("pages.admin.memberDetailBalancesFailed"));
         return;
       }
-      adminSetMemberWalletBalances(profileId, { checking, escrow });
+      adminSetMemberWalletBalances(targetId, { checking, escrow });
       setBalanceSaved(true);
     } catch {
       setBalanceError(t("pages.admin.memberDetailBalancesFailed"));

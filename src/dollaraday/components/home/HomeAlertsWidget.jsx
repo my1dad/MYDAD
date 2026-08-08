@@ -93,8 +93,12 @@ export default function HomeAlertsWidget({ onNavigate, className }) {
     if (item.kind === "community_dm" && item.targetProfileId) {
       setPendingDmPartnerId(item.targetProfileId);
     }
-    if (item.kind === "profile_pending" && item.targetProfileId) {
-      setPendingAdminProfileId(item.targetProfileId);
+    if (item.kind === "profile_pending" && (item.targetProfileId || item.targetUsername)) {
+      setPendingAdminProfileId({
+        profileId: item.targetProfileId,
+        username: item.targetUsername,
+        name: item.memberName,
+      });
     }
     onNavigate?.(item.targetPage || (isAdmin ? "members" : "accounts"));
   };

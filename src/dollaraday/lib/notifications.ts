@@ -42,6 +42,7 @@ export interface DdaNotification {
   unread: boolean;
   targetPage?: string;
   targetProfileId?: string;
+  targetUsername?: string;
   dmPartnerId?: string;
   senderName?: string;
   messageBody?: string;
@@ -344,6 +345,7 @@ function buildNotifications(profileId: string | undefined, isAdmin: boolean): Dd
           unread: true,
           targetPage: "admin",
           targetProfileId: profile.id,
+          targetUsername: profile.username,
         });
       });
   }

@@ -194,8 +194,12 @@ function binKeyForBinId(binId: string): DataBinKey | null {
   return definition?.key ?? null;
 }
 
-/** Schema may lag behind the app — omit account_number when the column is absent. */
-let cloudSupportsAccountNumber = true;
+/**
+ * Schema may lag behind the app — omit account_number when the column is absent.
+ * Default false: production dad_profiles has no account_number column; starting true
+ * made every signup/approve upsert fail once with 400 before retry.
+ */
+let cloudSupportsAccountNumber = false;
 
 function profileToRow(profile: DadProfile, options: { includeAccountNumber?: boolean } = {}) {
   const includeAccountNumber = options.includeAccountNumber ?? cloudSupportsAccountNumber;

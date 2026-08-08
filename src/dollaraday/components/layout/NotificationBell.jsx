@@ -226,8 +226,12 @@ export default function NotificationBell({ onNavigate }) {
 
     if (item.kind === "community_dm" && item.dmPartnerId) {
       setPendingDmPartnerId(item.dmPartnerId);
-    } else if (item.kind === "profile_pending" && item.targetProfileId) {
-      setPendingAdminProfileId(item.targetProfileId);
+    } else if (item.kind === "profile_pending" && (item.targetProfileId || item.targetUsername)) {
+      setPendingAdminProfileId({
+        profileId: item.targetProfileId,
+        username: item.targetUsername,
+        name: item.memberName,
+      });
     }
 
     if (item.targetPage) {
