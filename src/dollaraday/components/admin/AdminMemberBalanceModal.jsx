@@ -108,10 +108,15 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
       setCheckingInput(formatMoneyAmount(checking));
 
       try {
-        await pushCloudBinsNow([
-          { binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") },
-          { binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") },
-        ]);
+        const { clearFactoryZeroDeliveryLock } = await import("../../lib/supabase/cloudSync");
+        clearFactoryZeroDeliveryLock();
+        await pushCloudBinsNow(
+          [
+            { binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") },
+            { binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") },
+          ],
+          { force: true },
+        );
       } catch {
         // Local save already succeeded; cloud push can retry later.
       }

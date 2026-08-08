@@ -24,10 +24,15 @@ import {
   replaceDadProfilesLocal,
   subscribeDadProfiles,
 } from "../../lib/dadProfileStorage";
-import { getDatabaseRevision, subscribeInternalDatabase } from "../../lib/internalDatabase";
+import { DATA_BIN_BY_KEY } from "../../lib/dataBins";
+import { getDatabaseRevision, readDataBin, subscribeInternalDatabase } from "../../lib/internalDatabase";
 import { adminSetMemberWalletBalances, useMemberAccounts } from "../../lib/memberAccounts";
 import { adminSetMemberDirectoryBalances } from "../../lib/memberRegistry";
 import { buildAdminMemberDetail } from "../../lib/profileRegistry";
+import {
+  clearFactoryZeroDeliveryLock,
+  pushCloudBinsNow,
+} from "../../lib/supabase/cloudSync";
 
 function DetailSection({ title, children, className }) {
   return (
@@ -391,7 +396,7 @@ export default function AdminMemberDetailModal({
     onClose();
   };
 
-  const handleBalanceSave = (event) => {
+  const handleBalanceSave = async (event) => {
     event.preventDefault();
     setBalanceError("");
     setBalanceSaved(false);
@@ -414,6 +419,18 @@ export default function AdminMemberDetailModal({
         return;
       }
       setCheckingInput(formatMoneyAmount(checking));
+      try {
+        clearFactoryZeroDeliveryLock();
+        await pushCloudBinsNow(
+          [
+            { binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") },
+            { binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") },
+          ],
+          { force: true },
+        );
+      } catch {
+        // Local save already succeeded; cloud can retry on next sync.
+      }
       setBalanceSaved(true);
     } catch {
       setBalanceError(t("pages.admin.memberDetailBalancesFailed"));

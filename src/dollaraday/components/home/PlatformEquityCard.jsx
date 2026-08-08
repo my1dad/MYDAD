@@ -88,9 +88,11 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
     const checking = Number(ledger?.checkingBalance) || 0;
     const escrow = Number(ledger?.escrowBalance) || 0;
     const walletBalance = checking + escrow;
-    const balance = isAdmin
+    // Hero "Investments" = member stake (admin equity/checking), never donations.
+    const investments = isAdmin
       ? Math.max(0, escrow)
-      : Math.max(0, walletBalance + invested - personalDonated);
+      : Math.max(0, equity, invested, checking);
+    const balance = investments;
 
     return {
       equity,
@@ -98,6 +100,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
       donated,
       deposited,
       invested,
+      investments,
       wallet: isAdmin ? escrow : walletBalance,
       checking,
       escrow,
@@ -110,7 +113,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
   const roiPositive = stats.roiAmount >= 0;
   const RoiIcon = roiPositive ? TrendingUp : TrendingDown;
   const interactive = typeof onClick === "function";
-  const balanceLabel = formatBankCurrency(stats.balance);
+  const balanceLabel = formatBankCurrency(stats.investments);
 
   const openLedger = () => {
     if (interactive) onClick();
@@ -223,8 +226,8 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
               <p className="dda-member-bank__balance-label">
                 {t("pages.dashboard.equityInvestments")}
               </p>
-              <p className="dda-member-bank__balance dda-member-bank__balance--donated" aria-live="polite">
-                {formatBankCurrency(stats.donated)}
+              <p className="dda-member-bank__balance" aria-live="polite">
+                {formatBankCurrency(stats.investments)}
               </p>
             </div>
           </div>
