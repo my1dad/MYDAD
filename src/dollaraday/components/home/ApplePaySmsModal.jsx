@@ -37,6 +37,16 @@ function formatUsd(amount) {
   });
 }
 
+/** Always show cents so Apple Cash paste stays unambiguous (send $7.00). */
+function formatUsdFixed(amount) {
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 function isAppleMobile() {
   if (typeof navigator === "undefined") return false;
   return /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -86,7 +96,7 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
   const memberName = getProfileFullName(profile);
   const [presetId, setPresetId] = useState("weekly");
   const [customAmount, setCustomAmount] = useState(String(AMOUNT_PRESETS[0].amount));
-  const [copied, setCopied] = useState(false);
+  const [copiedTarget, setCopiedTarget] = useState(null);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -107,7 +117,7 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
 
   useEffect(() => {
     if (!open) return;
-    setCopied(false);
+    setCopiedTarget(null);
     const seed = Number(initialAmount);
     const match = AMOUNT_PRESETS.find((preset) => Math.abs(preset.amount - seed) < 0.001);
     if (match) {
@@ -125,10 +135,10 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
   }, [open, initialAmount]);
 
   useEffect(() => {
-    if (!copied) return undefined;
-    const timer = window.setTimeout(() => setCopied(false), 2000);
+    if (!copiedTarget) return undefined;
+    const timer = window.setTimeout(() => setCopiedTarget(null), 2000);
     return () => window.clearTimeout(timer);
-  }, [copied]);
+  }, [copiedTarget]);
 
   const amount = useMemo(() => {
     const parsed = Number.parseFloat(customAmount);
@@ -137,30 +147,47 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
     return AMOUNT_PRESETS.find((preset) => preset.id === presetId)?.amount ?? 0;
   }, [presetId, customAmount]);
 
-  const formattedAmount = formatUsd(Math.max(amount, 0) || 0);
+  const safeAmount = Math.max(amount, 0) || 0;
+  const formattedAmount = formatUsd(safeAmount);
+  const formattedAmountFixed = formatUsdFixed(safeAmount);
+
+  /** Short paste prompt for Apple Cash — e.g. "send $7.00" */
+  const pastePrompt = useMemo(
+    () => t("contribute.applePaySmsPastePrompt", { amount: formattedAmountFixed }),
+    [formattedAmountFixed, t],
+  );
 
   const smsMessage = useMemo(() => {
     if (memberName) {
       return t("contribute.applePaySmsBodyNamed", {
-        amount: formattedAmount,
+        amount: formattedAmountFixed,
         name: memberName,
       });
     }
-    return t("contribute.applePaySmsBody", { amount: formattedAmount });
-  }, [formattedAmount, memberName, t]);
+    return t("contribute.applePaySmsBody", { amount: formattedAmountFixed });
+  }, [formattedAmountFixed, memberName, t]);
 
   const smsHref = useMemo(
-    () => buildApplePaySmsHref(APPLE_PAY_SMS_PHONE, smsMessage),
-    [smsMessage],
+    () => buildApplePaySmsHref(APPLE_PAY_SMS_PHONE, pastePrompt),
+    [pastePrompt],
   );
 
-  const handleCopyPhone = async () => {
+  const copyText = async (value, target) => {
     try {
-      await navigator.clipboard.writeText(APPLE_PAY_SMS_PHONE);
-      setCopied(true);
+      await navigator.clipboard.writeText(value);
+      setCopiedTarget(target);
     } catch {
-      setCopied(false);
+      setCopiedTarget(null);
     }
+  };
+
+  const handleCopyPhone = () => {
+    void copyText(APPLE_PAY_SMS_PHONE, "phone");
+  };
+
+  const handleCopyPrompt = () => {
+    if (!(amount > 0)) return;
+    void copyText(pastePrompt, "prompt");
   };
 
   const canSend = amount > 0;
@@ -168,6 +195,8 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
   const handleLaunchSms = (event) => {
     event.preventDefault();
     if (!canSend) return;
+    // Copy prompt first so members can paste into Apple Cash if the sheet opens manually.
+    void navigator.clipboard?.writeText?.(pastePrompt).catch(() => {});
     launchApplePaySms(smsHref);
     window.setTimeout(() => onClose?.(), 250);
   };
@@ -278,7 +307,39 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
             </div>
           </label>
 
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="mt-5 rounded-2xl border border-dda-green/30 bg-dda-green/10 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-dda-green-light">
+                  {t("contribute.applePaySmsPasteLabel")}
+                </p>
+                <p className="dda-apple-pay-sms__paste-prompt mt-2" aria-live="polite">
+                  {canSend ? pastePrompt : t("contribute.applePaySmsPasteEmpty")}
+                </p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400">
+                  {t("contribute.applePaySmsPasteHint")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyPrompt}
+                disabled={!canSend}
+                className="dda-apple-pay-sms__copy"
+                aria-label={t("contribute.applePaySmsCopyPromptAria")}
+              >
+                {copiedTarget === "prompt" ? (
+                  <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
+                )}
+                {copiedTarget === "prompt"
+                  ? t("contribute.applePaySmsCopied")
+                  : t("contribute.applePaySmsCopy")}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
@@ -294,12 +355,14 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
                 className="dda-apple-pay-sms__copy"
                 aria-label={t("contribute.applePaySmsCopyAria")}
               >
-                {copied ? (
+                {copiedTarget === "phone" ? (
                   <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
                 ) : (
                   <Copy className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
                 )}
-                {copied ? t("contribute.applePaySmsCopied") : t("contribute.applePaySmsCopy")}
+                {copiedTarget === "phone"
+                  ? t("contribute.applePaySmsCopied")
+                  : t("contribute.applePaySmsCopy")}
               </button>
             </div>
             <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">

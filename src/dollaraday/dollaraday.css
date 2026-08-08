@@ -2033,6 +2033,17 @@ select.dda-bank-transfer-route__select:focus {
   filter: brightness(1.08);
 }
 
+.dda-apple-pay-sms__paste-prompt {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  word-break: break-word;
+}
+
 .dda-apple-pay-sms__steps {
   margin: 0;
   padding: 0.85rem 0.95rem 0.85rem 1.85rem;
