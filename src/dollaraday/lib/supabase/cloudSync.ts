@@ -460,6 +460,33 @@ async function fetchCloudProfiles(): Promise<DadProfile[]> {
   return ((data ?? []) as CloudProfileRow[]).map(rowToProfile);
 }
 
+/** Fast auth lookup — one username row instead of the full directory. */
+async function fetchCloudProfileByUsername(username: string): Promise<DadProfile | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const normalized = username.trim();
+  if (!normalized) return null;
+
+  // Escape ILIKE wildcards so usernames with _ or % match literally.
+  const pattern = normalized.replace(/([\\%_])/g, "\\$1");
+  const { data, error } = await supabase
+    .from("dad_profiles")
+    .select("*")
+    .ilike("username", pattern)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    lastSyncError = error.message;
+    notifyCloudStatusListeners();
+    console.warn("[cloudSync] Failed to fetch profile by username:", error.message);
+    throw new Error(error.message || "Failed to fetch profile");
+  }
+
+  return data ? rowToProfile(data as CloudProfileRow) : null;
+}
+
 async function fetchCloudKv(): Promise<CloudKvRow[]> {
   const supabase = getSupabaseClient();
   if (!supabase) return [];
@@ -720,6 +747,26 @@ export async function pullCloudProfilesNow(
     );
   }
 
+  return merged;
+}
+
+/**
+ * Auth-screen fast path: merge a single cloud profile by username.
+ * Avoids downloading the whole member directory on every sign-in.
+ */
+export async function pullCloudProfileForAuth(
+  username: string,
+  getLocalProfiles: () => DadProfile[],
+  replaceLocalProfiles: (profiles: DadProfile[]) => void,
+): Promise<DadProfile[]> {
+  if (!isSupabaseConfigured()) return getLocalProfiles();
+
+  const localProfiles = getLocalProfiles();
+  const remoteProfile = await fetchCloudProfileByUsername(username);
+  if (!remoteProfile) return localProfiles;
+
+  const merged = mergeProfilesForWorkspace(localProfiles, [remoteProfile]);
+  replaceLocalProfiles(merged);
   return merged;
 }
 

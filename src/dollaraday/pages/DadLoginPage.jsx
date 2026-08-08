@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { DOLLARADAY_LOGO_URL } from "@/lib/assetUrl";
 import DadLoginPanel from "../components/auth/DadLoginPanel.jsx";
@@ -62,6 +62,24 @@ export default function DadLoginPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Warm the dashboard chunk while the user types credentials.
+  useEffect(() => {
+    const warm = () => {
+      void import("../App.jsx");
+    };
+    const idle =
+      typeof window !== "undefined" && "requestIdleCallback" in window
+        ? window.requestIdleCallback(warm, { timeout: 1500 })
+        : window.setTimeout(warm, 400);
+    return () => {
+      if (typeof window !== "undefined" && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idle);
+      } else {
+        window.clearTimeout(idle);
+      }
+    };
+  }, []);
 
   const resetForm = useCallback((nextMode = "sign-in") => {
     setError("");

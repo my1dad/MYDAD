@@ -1069,6 +1069,8 @@ select.dda-bank-transfer-route__select:focus {
 
 .dda-member-bank {
   position: relative;
+  width: 100%;
+  min-width: 0;
   overflow: hidden;
   border-radius: 1.15rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1180,8 +1182,9 @@ select.dda-bank-transfer-route__select:focus {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  padding: 0.9rem 0.95rem 0.95rem;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.8rem 0.8rem 0.85rem;
 }
 
 @media (min-width: 640px) {
@@ -1191,68 +1194,120 @@ select.dda-bank-transfer-route__select:focus {
   }
 }
 
+/* Mobile: stack greeting above brand so neither fights for width. */
 .dda-member-bank__top {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem 1rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+  min-width: 0;
 }
 
 .dda-member-bank__top .dda-home-greeting {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.3;
 }
 
 .dda-member-bank__brand {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex: 0 1 auto;
-  gap: 0.75rem;
-  text-align: right;
+  gap: 0.55rem;
+  min-width: 0;
+  text-align: left;
+}
+
+.dda-member-bank__brand-copy {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .dda-member-bank__logo {
-  height: 3.5rem;
+  height: 2.65rem;
   width: auto;
+  max-width: 2.85rem;
   flex-shrink: 0;
   object-fit: contain;
   filter: drop-shadow(0 6px 14px rgba(var(--dda-accent-rgb), 0.25));
 }
 
-@media (min-width: 640px) {
-  .dda-member-bank__logo {
-    height: 4rem;
-  }
-}
-
 .dda-member-bank__brand-name {
-  font-size: 1.2rem;
+  font-size: clamp(0.92rem, 3.8vw, 1.15rem);
   font-weight: 800;
   letter-spacing: -0.02em;
-  line-height: 1.1;
+  line-height: 1.15;
   color: #fff;
+  overflow-wrap: anywhere;
 }
 
 .dda-member-bank__brand-sub {
-  margin-top: 0.25rem;
-  font-size: 0.9rem;
+  margin-top: 0.15rem;
+  font-size: clamp(0.62rem, 2.6vw, 0.78rem);
   font-weight: 700;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-dda-green-light);
+}
+
+@media (min-width: 640px) {
+  .dda-member-bank__top {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+  }
+
+  .dda-member-bank__top .dda-home-greeting {
+    flex: 1 1 auto;
+    -webkit-line-clamp: unset;
+    display: block;
+    overflow: visible;
+  }
+
+  .dda-member-bank__brand {
+    justify-content: flex-end;
+    flex: 0 1 auto;
+    gap: 0.75rem;
+    text-align: right;
+  }
+
+  .dda-member-bank__brand-copy {
+    flex: 0 1 auto;
+  }
+
+  .dda-member-bank__logo {
+    height: 4rem;
+    max-width: none;
+  }
+
+  .dda-member-bank__brand-name {
+    font-size: 1.2rem;
+  }
+
+  .dda-member-bank__brand-sub {
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+    letter-spacing: 0.28em;
+  }
 }
 
 .dda-member-bank__ledger {
   display: flex;
   width: 100%;
+  min-width: 0;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.5rem;
   border: 0;
   border-radius: 0.95rem;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025));
-  padding: 0.85rem 0.85rem 0.8rem;
+  padding: 0.75rem 0.7rem 0.7rem;
   text-align: left;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
@@ -1260,6 +1315,13 @@ select.dda-bank-transfer-route__select:focus {
   transition:
     box-shadow 0.2s ease,
     background 0.2s ease;
+}
+
+@media (min-width: 640px) {
+  .dda-member-bank__ledger {
+    gap: 0.55rem;
+    padding: 0.85rem 0.85rem 0.8rem;
+  }
 }
 
 .dda-member-bank__ledger:is(button):not(:disabled):hover {
@@ -1285,21 +1347,36 @@ select.dda-bank-transfer-route__select:focus {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.dda-member-bank__ledger-head > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .dda-member-bank__account-type {
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(209, 213, 219, 0.9);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 640px) {
+  .dda-member-bank__account-type {
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+  }
 }
 
 .dda-member-bank__account-mask-row {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
   margin-top: 0.2rem;
   min-width: 0;
 }
@@ -1307,11 +1384,13 @@ select.dda-bank-transfer-route__select:focus {
 .dda-member-bank__account-mask {
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.78rem;
+  font-size: clamp(0.66rem, 2.7vw, 0.78rem);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.82);
   min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .dda-member-bank__account-reveal {
@@ -1344,14 +1423,23 @@ select.dda-bank-transfer-route__select:focus {
 
 .dda-member-bank__roi {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
   border-radius: 999px;
-  padding: 0.28rem 0.55rem;
-  font-size: 0.68rem;
+  padding: 0.24rem 0.45rem;
+  font-size: 0.64rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .dda-member-bank__roi {
+    gap: 0.25rem;
+    padding: 0.28rem 0.55rem;
+    font-size: 0.68rem;
+  }
 }
 
 .dda-member-bank__roi--up {
@@ -1389,13 +1477,14 @@ select.dda-bank-transfer-route__select:focus {
 }
 
 .dda-member-bank__balance {
-  font-size: clamp(1.85rem, 6vw, 2.35rem);
+  font-size: clamp(1.55rem, 7vw, 2.35rem);
   font-weight: 800;
   letter-spacing: -0.04em;
-  line-height: 1;
+  line-height: 1.05;
   font-variant-numeric: tabular-nums;
   color: #fff;
   text-shadow: 0 10px 30px rgba(var(--dda-accent-rgb), 0.18);
+  overflow-wrap: anywhere;
 }
 
 .dda-member-bank__balance--donated {
@@ -1406,37 +1495,57 @@ select.dda-bank-transfer-route__select:focus {
 .dda-member-bank__chips {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.4rem;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
-@media (min-width: 420px) {
+/* Keep a stable 2×2 on phones; 4-up only when there is real width. */
+@media (min-width: 560px) {
   .dda-member-bank__chips {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.4rem;
   }
 }
 
 .dda-member-bank__chip {
+  min-width: 0;
   border-radius: 0.7rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.22);
-  padding: 0.45rem 0.4rem;
+  padding: 0.4rem 0.3rem;
   text-align: center;
 }
 
+@media (min-width: 640px) {
+  .dda-member-bank__chip {
+    padding: 0.45rem 0.4rem;
+  }
+}
+
 .dda-member-bank__chip-label {
-  font-size: 0.55rem;
+  font-size: 0.52rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgba(156, 163, 175, 0.95);
+  line-height: 1.2;
+}
+
+@media (min-width: 640px) {
+  .dda-member-bank__chip-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.08em;
+  }
 }
 
 .dda-member-bank__chip-value {
   margin-top: 0.18rem;
-  font-size: 0.74rem;
+  font-size: clamp(0.64rem, 2.8vw, 0.74rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: #fff;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 
 .dda-member-bank__cta {

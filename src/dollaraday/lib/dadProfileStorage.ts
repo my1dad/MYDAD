@@ -395,9 +395,10 @@ export async function authenticateDadProfile(
     updatedAt: new Date().toISOString(),
   };
 
+  // Don't block sign-in on a cloud upsert — PostAuthWorkspace syncs shortly after.
   writeProfiles(
     readProfiles().map((item) => (item.id === profile.id ? updated : item)),
-    { stamp: false },
+    { stamp: false, pushToCloud: false },
   );
   return updated;
 }
@@ -488,7 +489,7 @@ export async function loginDadAdmin(username: string, password: string): Promise
 
   writeProfiles(
     readProfiles().map((item) => (item.id === profile.id ? updated : item)),
-    { stamp: false },
+    { stamp: false, pushToCloud: false },
   );
   return updated;
 }

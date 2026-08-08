@@ -144,7 +144,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
                 draggable={false}
                 className="dda-member-bank__logo"
               />
-              <div className="min-w-0">
+              <div className="dda-member-bank__brand-copy">
                 <p className="dda-member-bank__brand-name">{t("pages.dashboard.brandLine1")}</p>
                 <p className="dda-member-bank__brand-sub">{t("pages.dashboard.brandLine2")}</p>
               </div>

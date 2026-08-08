@@ -11,44 +11,36 @@ import {
   isProfilePendingApproval,
   isProfileSuspended,
   loginDadAdmin,
+  profilePasswordMatches,
   replaceAllDadProfiles,
   setDadSessionId,
   subscribeDadProfiles,
 } from "../lib/dadProfileStorage";
 import { clearPendingDmPartnerId } from "../lib/communityDmNavigation";
 
-const AUTH_SYNC_TIMEOUT_MS = 12_000;
+/** Keep auth sync snappy — full directory pulls happen after login. */
+const AUTH_SYNC_TIMEOUT_MS = 4_000;
 
-async function pullProfilesOnce() {
-  const { pullCloudProfilesNow, clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
-    "../lib/supabase/cloudSync"
-  );
-  clearFactoryZeroDeliveryLock();
-  pauseCloudPushes(0);
-  const pull = pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
-  const timeout = new Promise((_, reject) => {
-    window.setTimeout(() => reject(new Error("AUTH_SYNC_TIMEOUT")), AUTH_SYNC_TIMEOUT_MS);
-  });
-  await Promise.race([pull, timeout]);
-}
-
-async function syncProfilesBeforeAuth() {
+async function syncUsernameBeforeAuth(username) {
   try {
-    await pullProfilesOnce();
+    const { pullCloudProfileForAuth, clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
+      "../lib/supabase/cloudSync"
+    );
+    clearFactoryZeroDeliveryLock();
+    pauseCloudPushes(0);
+    const pull = pullCloudProfileForAuth(username, getDadProfiles, replaceAllDadProfiles);
+    const timeout = new Promise((_, reject) => {
+      window.setTimeout(() => reject(new Error("AUTH_SYNC_TIMEOUT")), AUTH_SYNC_TIMEOUT_MS);
+    });
+    await Promise.race([pull, timeout]);
     return { ok: true };
-  } catch (firstErr) {
-    console.warn("[auth] Cloud profile pull before auth failed, retrying once:", firstErr);
-    try {
-      await pullProfilesOnce();
-      return { ok: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err ?? "");
-      console.warn("[auth] Cloud profile pull before auth failed after retry:", err);
-      return {
-        ok: false,
-        error: message === "AUTH_SYNC_TIMEOUT" ? "syncTimeout" : "syncFailed",
-      };
-    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err ?? "");
+    console.warn("[auth] Fast auth profile pull failed:", err);
+    return {
+      ok: false,
+      error: message === "AUTH_SYNC_TIMEOUT" ? "syncTimeout" : "syncFailed",
+    };
   }
 }
 
@@ -135,11 +127,22 @@ export function DadAuthProvider({ children }) {
     const normalizedUsername = String(username ?? "").trim();
     const normalizedPassword = String(password ?? "").trim();
 
-    // Auth screen has no PostAuthWorkspace sync — pull approvals/passwords first.
-    const sync = await syncProfilesBeforeAuth();
+    const localBefore = findDadProfileByUsername(normalizedUsername);
+    const alreadyApprovedLocally =
+      Boolean(localBefore) &&
+      !isProfilePendingApproval(localBefore) &&
+      !isProfileDenied(localBefore) &&
+      !isProfileSuspended(localBefore);
 
-    // Single authenticate path: admin is included via authenticateDadProfile / loginDadAdmin
-    // without a third PBKDF2 verify for status checks.
+    // Fast path: approved/local-known users sign in immediately.
+    // Only block on cloud when the account is missing or still pending locally.
+    // Full directory refresh runs in PostAuthWorkspace after the session starts.
+    let sync = { ok: true };
+    if (!alreadyApprovedLocally) {
+      sync = await syncUsernameBeforeAuth(normalizedUsername);
+    }
+
+    // Admin path (no full-directory wait).
     const adminMatch = await loginDadAdmin(normalizedUsername, normalizedPassword);
     if (adminMatch) {
       setProfile(beginAuthenticatedSession(adminMatch, "login", rememberMe));
@@ -149,11 +152,8 @@ export function DadAuthProvider({ children }) {
 
     const existing = findDadProfileByUsername(normalizedUsername);
     if (existing) {
-      const { profilePasswordMatches } = await import("../lib/dadProfileStorage");
       if (isProfilePendingApproval(existing)) {
-        // Still verify password so we don't leak account status without credentials.
         if (await profilePasswordMatches(existing, normalizedPassword)) {
-          // Local pending may be stale if the cloud pull failed — don't block as pending.
           if (!sync.ok) return { ok: false, error: sync.error };
           return { ok: false, error: "pendingApproval" };
         }
@@ -175,7 +175,6 @@ export function DadAuthProvider({ children }) {
 
     const matched = await authenticateDadProfile(normalizedUsername, normalizedPassword);
     if (!matched) {
-      // New phone / empty local cache: prefer sync errors over "invalid credentials".
       if (!sync.ok && !existing) return { ok: false, error: sync.error };
       return { ok: false, error: "Invalid username or password." };
     }
@@ -186,7 +185,11 @@ export function DadAuthProvider({ children }) {
   }, []);
 
   const register = useCallback(async (input) => {
-    await syncProfilesBeforeAuth();
+    // Registration only needs username uniqueness — use the fast single-row pull.
+    const username = String(input?.username ?? "").trim();
+    if (username) {
+      await syncUsernameBeforeAuth(username);
+    }
 
     const result = await createDadProfile(input);
     if ("error" in result) {
@@ -233,33 +236,26 @@ export function DadAuthProvider({ children }) {
     clearPendingDmPartnerId();
     setDadSessionId(null);
     setProfile(null);
-    setAuthEntryTick((tick) => tick + 1);
   }, []);
-
-  const sessionId = getDadSessionId();
-  const isAuthenticated = Boolean(sessionId && (profile ?? getActiveDadProfile()));
-  const isAdmin = isAdminProfile(profile);
 
   const value = useMemo(
     () => ({
       profile,
       authEntryTick,
-      isAuthenticated,
-      isAdmin,
+      isAuthenticated: Boolean(profile),
+      isAdmin: isAdminProfile(profile),
       login,
       register,
       logout,
     }),
-    [profile, authEntryTick, isAuthenticated, isAdmin, login, register, logout],
+    [profile, authEntryTick, login, register, logout],
   );
 
   return <DadAuthContext.Provider value={value}>{children}</DadAuthContext.Provider>;
 }
 
 export function useDadAuth() {
-  const context = useContext(DadAuthContext);
-  if (!context) {
-    throw new Error("useDadAuth must be used within DadAuthProvider");
-  }
-  return context;
+  const ctx = useContext(DadAuthContext);
+  if (!ctx) throw new Error("useDadAuth must be used within DadAuthProvider");
+  return ctx;
 }

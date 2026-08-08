@@ -5,6 +5,7 @@ import PostAuthWorkspace from "./components/PostAuthWorkspace.jsx";
 
 /**
  * Login stays light. App (dashboard shell) loads only after auth.
+ * DadLoginPage also warms `./App.jsx` so the chunk is often ready on submit.
  */
 const App = lazy(() => import("./App.jsx"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage.jsx"));
@@ -13,6 +14,19 @@ function resolveGuestView() {
   const hash = window.location.hash.replace(/^#\/?/, "").toLowerCase();
   if (hash === "terms") return "terms";
   return "login";
+}
+
+function AuthBootFallback() {
+  return (
+    <div
+      className="flex h-full w-full items-center justify-center bg-[var(--dda-bg,#0b1220)]"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading dashboard"
+    >
+      <div className="h-10 w-10 animate-pulse rounded-full bg-white/15" />
+    </div>
+  );
 }
 
 export default function DadRoot() {
@@ -38,7 +52,7 @@ export default function DadRoot() {
         className={`dda-app h-full w-full overflow-hidden${isAdmin ? " dda-app--admin" : ""}`}
       >
         <PostAuthWorkspace>
-          <Suspense fallback={null}>
+          <Suspense fallback={<AuthBootFallback />}>
             <App />
           </Suspense>
         </PostAuthWorkspace>
@@ -49,7 +63,7 @@ export default function DadRoot() {
   if (guestView === "terms") {
     return (
       <div className="dda-app h-full w-full overflow-hidden">
-        <Suspense fallback={null}>
+        <Suspense fallback={<AuthBootFallback />}>
           <TermsOfServicePage />
         </Suspense>
       </div>
