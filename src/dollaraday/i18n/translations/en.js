@@ -664,6 +664,7 @@ export default {
       overviewRedemptionsReceivedShort: "Received",
       overviewChecking: "BoA Checking",
       overviewEscrow: "Chase Escrow",
+      overviewLiquidity: "Liquidity",
       overviewDeposits: "Total deposited",
       overviewDonations: "Total donations",
       overviewDepositCount: "{{count}} deposits",
