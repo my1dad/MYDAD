@@ -264,6 +264,19 @@ export function workspaceBinsPlugin(binsRoot) {
             return sendJson(res, 200, { ok: true, forceFactoryZero: true });
           }
 
+          // Clear the delivery lock so approved/new members can persist again.
+          if (req.method === "POST" && pathname === "/api/bins/clear-factory-zero") {
+            if (!resolveProfileId(url)) {
+              return sendJson(res, 400, { error: "profileId required" });
+            }
+            try {
+              await fs.unlink(lockPath(workspaceRoot));
+            } catch (err) {
+              if (err?.code !== "ENOENT") throw err;
+            }
+            return sendJson(res, 200, { ok: true, forceFactoryZero: false });
+          }
+
           if (req.method === "POST" && pathname === "/api/bins/reset") {
             if (!resolveProfileId(url)) {
               return sendJson(res, 400, { error: "profileId required" });

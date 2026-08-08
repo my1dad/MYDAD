@@ -3,6 +3,7 @@ import {
   ADMIN_ROLE,
   ADMIN_USERNAME,
   ADMIN_WORKSPACE_NAME,
+  isAdminProfile,
 } from "../../config/admin";
 import { generateProId, normalizeProId } from "./proId";
 import { formatPhoneInput } from "./phoneFormat";
@@ -167,7 +168,12 @@ export function isProfileSuspended(profile: DadProfile | null | undefined): bool
 export function getProfileApprovalStatus(
   profile: DadProfile | null | undefined,
 ): DadProfileApprovalStatus {
-  return profile?.approvalStatus ?? "approved";
+  if (!profile) return "pending";
+  if (profile.approvalStatus === "approved") return "approved";
+  if (profile.approvalStatus === "denied") return "denied";
+  if (profile.approvalStatus === "pending") return "pending";
+  // Missing status: master admin is always approved; members must wait for review.
+  return isAdminProfile(profile) ? "approved" : "pending";
 }
 
 export function isProfilePendingApproval(profile: DadProfile | null | undefined): boolean {
@@ -180,8 +186,12 @@ export function isProfileDenied(profile: DadProfile | null | undefined): boolean
 
 export function isProfileLoginAllowed(profile: DadProfile | null | undefined): boolean {
   if (!profile) return false;
+  if (isAdminProfile(profile)) {
+    return !isProfileSuspended(profile);
+  }
   if (isProfileSuspended(profile)) return false;
-  return getProfileApprovalStatus(profile) === "approved";
+  // Members may sign in only after master admin approval — never on create/pending.
+  return profile.approvalStatus === "approved";
 }
 
 export function findDadProfileByUsername(username: string): DadProfile | undefined {
@@ -339,26 +349,20 @@ export async function createDadProfile(input: {
   const next = [...readProfiles(), profile];
   writeProfiles(next, { stamp: false, pushToCloud: false });
 
-  // New registrations reopen the platform — stop factory-zero pruning.
-  void import("./supabase/cloudSync").then(({ clearFactoryZeroDeliveryLock }) => {
-    clearFactoryZeroDeliveryLock();
-  });
-
   // Email master admin that a new profile needs approval (never block signup).
   void import("./signupAdminNotify").then(({ notifyAdminNewSignup }) => {
     void notifyAdminNewSignup(profile);
   });
 
   // Await cloud publish so master admin sees the new member on other devices immediately.
+  // Clears factory-zero first — otherwise the member row is silently dropped.
   try {
-    const { pushCloudProfilesNow } = await import("./supabase/cloudSync");
-    const pushed = await pushCloudProfilesNow([profile]);
+    const { persistMembersToCloud, scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
+    const pushed = await persistMembersToCloud([profile]);
     if (!pushed) {
       console.warn("[dadProfileStorage] Cloud profile push failed after create; queued retry.");
       queueMicrotask(() => {
-        void import("./supabase/cloudSync").then(({ scheduleCloudProfilesPush }) => {
-          scheduleCloudProfilesPush();
-        });
+        scheduleCloudProfilesPush();
       });
     }
   } catch (err) {
@@ -380,6 +384,8 @@ export async function authenticateDadProfile(
   const profile = findDadProfileByUsername(username.trim());
   const secret = password.trim();
   if (!profile || !(await verifyPassword(secret, profile.password))) return null;
+  // Never authenticate the master-admin row through the member login path.
+  if (isAdminProfile(profile)) return null;
   if (!isProfileLoginAllowed(profile)) return null;
 
   const upgradedPassword =

@@ -8,6 +8,7 @@ import {
   getDadProfiles,
   getDadSessionId,
   isProfileDenied,
+  isProfileLoginAllowed,
   isProfilePendingApproval,
   isProfileSuspended,
   loginDadAdmin,
@@ -23,10 +24,17 @@ const AUTH_SYNC_TIMEOUT_MS = 4_000;
 
 async function syncUsernameBeforeAuth(username) {
   try {
-    const { pullCloudProfileForAuth, clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
-      "../lib/supabase/cloudSync"
-    );
-    clearFactoryZeroDeliveryLock();
+    const {
+      pullCloudProfileForAuth,
+      pauseCloudPushes,
+      isFactoryZeroLocked,
+    } = await import("../lib/supabase/cloudSync");
+
+    // Master reset hard-lock: do not unlock or pull the wiped member directory.
+    if (isFactoryZeroLocked()) {
+      return { ok: true };
+    }
+
     pauseCloudPushes(0);
     const pull = pullCloudProfileForAuth(username, getDadProfiles, replaceAllDadProfiles);
     const timeout = new Promise((_, reject) => {
@@ -110,6 +118,7 @@ export function DadAuthProvider({ children }) {
 
   useEffect(() => {
     return subscribeDadProfiles(() => {
+      // getActiveDadProfile clears pending/denied/suspended sessions.
       const next = getActiveDadProfile();
       setProfile((current) => {
         const currentId = current?.id ?? null;
@@ -126,10 +135,12 @@ export function DadAuthProvider({ children }) {
     const rememberMe = Boolean(options.rememberMe);
     const normalizedUsername = String(username ?? "").trim();
     const normalizedPassword = String(password ?? "").trim();
+    const isMasterAdminLogin = normalizedUsername.toLowerCase() === "admin";
 
     const localBefore = findDadProfileByUsername(normalizedUsername);
     const alreadyApprovedLocally =
       Boolean(localBefore) &&
+      isProfileLoginAllowed(localBefore) &&
       !isProfilePendingApproval(localBefore) &&
       !isProfileDenied(localBefore) &&
       !isProfileSuspended(localBefore);
@@ -142,16 +153,22 @@ export function DadAuthProvider({ children }) {
       sync = await syncUsernameBeforeAuth(normalizedUsername);
     }
 
-    // Admin path (no full-directory wait).
-    const adminMatch = await loginDadAdmin(normalizedUsername, normalizedPassword);
-    if (adminMatch) {
-      setProfile(beginAuthenticatedSession(adminMatch, "login", rememberMe));
-      setAuthEntryTick((tick) => tick + 1);
-      return { ok: true };
+    // Master admin only — never route member credentials into the admin workspace.
+    if (isMasterAdminLogin) {
+      const adminMatch = await loginDadAdmin(normalizedUsername, normalizedPassword);
+      if (adminMatch) {
+        setProfile(beginAuthenticatedSession(adminMatch, "login", rememberMe));
+        setAuthEntryTick((tick) => tick + 1);
+        return { ok: true };
+      }
+      return { ok: false, error: "Invalid username or password." };
     }
 
     const existing = findDadProfileByUsername(normalizedUsername);
     if (existing) {
+      if (isAdminProfile(existing)) {
+        return { ok: false, error: "Invalid username or password." };
+      }
       if (isProfilePendingApproval(existing)) {
         if (await profilePasswordMatches(existing, normalizedPassword)) {
           if (!sync.ok) return { ok: false, error: sync.error };
@@ -178,6 +195,9 @@ export function DadAuthProvider({ children }) {
       if (!sync.ok && !existing) return { ok: false, error: sync.error };
       return { ok: false, error: "Invalid username or password." };
     }
+    if (isAdminProfile(matched) || !isProfileLoginAllowed(matched)) {
+      return { ok: false, error: "pendingApproval" };
+    }
 
     setProfile(beginAuthenticatedSession(matched, "login", rememberMe));
     setAuthEntryTick((tick) => tick + 1);
@@ -191,10 +211,18 @@ export function DadAuthProvider({ children }) {
       await syncUsernameBeforeAuth(username);
     }
 
+    // Creating a profile must never leave anyone signed in (especially not admin).
+    setDadSessionId(null);
+    setProfile(null);
+
     const result = await createDadProfile(input);
     if ("error" in result) {
       return { ok: false, error: result.error };
     }
+
+    // Belt-and-suspenders: registration is a request, not a login.
+    setDadSessionId(null);
+    setProfile(null);
 
     void Promise.all([
       import("../lib/memberRegistry"),

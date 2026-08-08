@@ -571,6 +571,19 @@ export async function requestFactoryZeroDisk(): Promise<boolean> {
   }
 }
 
+/** Remove FACTORY_ZERO.lock so member profiles/bins can be saved again after signup/approve. */
+export async function clearFactoryZeroDisk(): Promise<boolean> {
+  if (!canUseDiskApi()) return false;
+  try {
+    const res = await fetchWithTimeout(`/api/bins/clear-factory-zero${binsQueryString()}`, {
+      method: "POST",
+    }, 5000);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
   for (const binId of DAD_BIN_IDS) {
     cache[binId] = null;
@@ -592,6 +605,7 @@ export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
     try {
       localStorage.setItem("dollar-a-day-factory-zero", "1");
       // Drop non-bin app state that can resurrect deposits / recurring / equity.
+      // Never touch dollar-a-day-profiles here — that deleted approved members on every reload.
       for (const key of Object.keys(localStorage)) {
         if (!key.startsWith("dollar-a-day")) continue;
         if (key === "dollar-a-day-factory-zero") continue;
@@ -608,15 +622,6 @@ export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
       bumpWorkspaceEpoch();
       pauseCloudPushes(24 * 60 * 60_000);
     });
-    void import("./dadProfileStorage").then(
-      ({ findMasterAdminProfile, replaceDadProfilesLocal, setDadSessionId }) => {
-        const admin = findMasterAdminProfile();
-        if (admin) {
-          replaceDadProfilesLocal([admin]);
-          setDadSessionId(admin.id);
-        }
-      },
-    );
     for (const definition of DATA_BIN_DEFINITIONS) {
       const diskRaw = bootstrap[definition.binId];
       const diskDoc = diskRaw

@@ -51,8 +51,10 @@ export default {
     passwordMismatch: "Las contraseñas no coinciden.",
     passwordsMatch: "Las contraseñas coinciden",
     suspendedError: "Esta cuenta ha sido suspendida. Contacta a soporte para obtener ayuda.",
-    pendingApprovalSuccess: "Tu perfil fue enviado. Un administrador maestro revisará tu solicitud antes de que puedas iniciar sesión.",
-    pendingApprovalError: "Tu membresía está pendiente de aprobación del administrador maestro.",
+    pendingApprovalSuccess:
+      "Tu perfil fue enviado. No puedes iniciar sesión hasta que un administrador maestro apruebe tu membresía.",
+    pendingApprovalError:
+      "Tu membresía está pendiente de aprobación del administrador maestro. No puedes acceder a la app hasta ser aprobado.",
     deniedError: "Tu solicitud de membresía fue rechazada. Contacta a soporte si crees que es un error.",
     syncTimeoutError: "No se pudo conectar para verificar la aprobación. Revisa tu conexión e inténtalo de nuevo.",
     syncFailedError: "No se pudo actualizar el estado de tu membresía. Revisa tu conexión e inténtalo de nuevo.",
@@ -939,19 +941,19 @@ export default {
         csvLoadFailed: "No se pudo leer o importar el archivo CSV.",
         masterResetTitle: "Restablecimiento total",
         masterResetDesc:
-          "Borra toda la plataforma y empieza de cero — pool, miembros, aportes, inversiones y datos guardados. La cuenta de administrador maestro siempre permanece.",
+          "Reinicio duro de toda la plataforma a cero. Elimina cada miembro, depósito, equity, aporte, inversión y liquidez. Solo permanece la cuenta de administrador maestro.",
         masterResetAction: "Restablecimiento total",
-        masterResetWarningBadge: "Acción destructiva",
+        masterResetWarningBadge: "Reinicio duro",
         masterResetFinalTitle: "Confirmación final",
         masterResetWarningNote:
-          "Esto elimina permanentemente todos los miembros y perfiles (excepto el administrador maestro), más saldos del pool, aportes, inversiones y datos en este dispositivo y en la nube. El administrador maestro sigue conectado. No se puede deshacer.",
-        masterResetContinue: "Entiendo — continuar",
-        masterResetWorking: "Restableciendo…",
+          "Reinicio duro: elimina permanentemente TODOS los miembros actuales y sus depósitos/equity, más liquidez del pool, aportes, inversiones y datos en este dispositivo y en la nube. Solo el administrador maestro permanece. No se puede deshacer.",
+        masterResetContinue: "Entiendo — eliminar todo",
+        masterResetWorking: "Reinicio duro…",
         masterResetConfirm:
-          "¿Borrar toda la plataforma y restaurar valores de fábrica? Se eliminarán todos los perfiles de miembros y los datos de la plataforma. Tu cuenta de administrador maestro permanecerá.",
+          "¿Reinicio duro de toda la plataforma? Esto elimina TODOS los miembros y todos los datos. Solo tu administrador maestro quedará en $0.",
         masterResetConfirmFinal:
-          "Confirmación final: ¿eliminar todos los miembros y datos de la plataforma (se conserva el administrador maestro)? Esto no se puede deshacer.",
-        masterResetFailed: "Falló el restablecimiento total — revisa la consola.",
+          "Confirmación final: ¿eliminar permanentemente cada miembro y borrar toda la plataforma (se conserva el administrador maestro)? Esto no se puede deshacer.",
+        masterResetFailed: "Falló el restablecimiento — aún pueden quedar miembros o datos en la nube.",
         notificationsTitle: "Notificaciones del dispositivo",
         notificationsDesc: "Activa las notificaciones del navegador para alertas en este dispositivo.",
         notificationsOn: "Notificaciones activadas",

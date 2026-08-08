@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from "react";
+import { isAdminProfile } from "../../config/admin";
 import type { DadProfile } from "./dadProfileStorage";
 import { findDadProfileByProId, getDadProfileRevision, getDadProfiles, subscribeDadProfiles } from "./dadProfileStorage";
 import {
@@ -141,6 +142,7 @@ export function syncAllProfilesToMemberRegistry(): void {
 
 export function getAdminMemberRecords(): AdminMemberRecord[] {
   return getDadProfiles()
+    .filter((profile) => !isAdminProfile(profile))
     .map((profile) => toAdminMemberRecord(profile, findStoredMemberByProfileId(profile.id)))
     .sort((a, b) => {
       if ((a.status === "pending") !== (b.status === "pending")) {

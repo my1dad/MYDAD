@@ -275,29 +275,28 @@ function mergeProfileWithStoredMember(profile: DadProfile, stored?: Member): Mem
   };
 }
 
-/** All local profiles for community chat (includes pending, approved, denied). */
+/** Local member profiles for community chat — excludes master admin. */
 export function getAllProfileMembers(): Member[] {
   const storedByProfileId = new Map<string, Member>();
   getStoredMembers().forEach((member) => {
     storedByProfileId.set(member.profileId ?? member.id, member);
   });
 
-  return dedupeAdminMembers(
-    getDadProfiles()
-      .map((profile) =>
-        enrichMemberWithProfileStatus(
-          mergeProfileWithStoredMember(profile, storedByProfileId.get(profile.id)),
-        ),
-      )
-      .sort((a, b) => {
-        const aTime = new Date(a.joinedAt ?? 0).getTime();
-        const bTime = new Date(b.joinedAt ?? 0).getTime();
-        return bTime - aTime;
-      }),
-  );
+  return getDadProfiles()
+    .filter((profile) => !isAdminProfile(profile))
+    .map((profile) =>
+      enrichMemberWithProfileStatus(
+        mergeProfileWithStoredMember(profile, storedByProfileId.get(profile.id)),
+      ),
+    )
+    .sort((a, b) => {
+      const aTime = new Date(a.joinedAt ?? 0).getTime();
+      const bTime = new Date(b.joinedAt ?? 0).getTime();
+      return bTime - aTime;
+    });
 }
 
-/** Every dashboard profile merged with stored member stats (admin directory source of truth). */
+/** Approved member profiles only — never includes master admin. */
 export function getRegisteredMembers(): Member[] {
   const profiles = getDadProfiles();
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
@@ -307,7 +306,10 @@ export function getRegisteredMembers(): Member[] {
   });
 
   const fromProfiles = profiles
-    .filter((profile) => getProfileApprovalStatus(profile) === "approved")
+    .filter(
+      (profile) =>
+        !isAdminProfile(profile) && getProfileApprovalStatus(profile) === "approved",
+    )
     .map((profile) =>
       mergeProfileWithStoredMember(profile, storedByProfileId.get(profile.id)),
     );
@@ -319,20 +321,23 @@ export function getRegisteredMembers(): Member[] {
   const fromBinOnly = getStoredMembers().filter((member) => {
     const id = member.profileId ?? member.id;
     if (seen.has(id)) return false;
-    if (isAdminMember(member)) return true;
+    // Members access member profiles — never surface master admin here.
+    if (isAdminMember(member)) return false;
     const profile = profilesById.get(id);
-    if (profile) return getProfileApprovalStatus(profile) === "approved";
+    if (profile) {
+      return (
+        !isAdminProfile(profile) && getProfileApprovalStatus(profile) === "approved"
+      );
+    }
     const status = member.status?.trim().toLowerCase();
     return !status || !NON_APPROVED_MEMBER_STATUSES.has(status);
   });
 
-  return dedupeAdminMembers(
-    [...fromProfiles, ...fromBinOnly].sort((a, b) => {
-      const aTime = new Date(a.joinedAt ?? 0).getTime();
-      const bTime = new Date(b.joinedAt ?? 0).getTime();
-      return bTime - aTime;
-    }),
-  );
+  return [...fromProfiles, ...fromBinOnly].sort((a, b) => {
+    const aTime = new Date(a.joinedAt ?? 0).getTime();
+    const bTime = new Date(b.joinedAt ?? 0).getTime();
+    return bTime - aTime;
+  });
 }
 
 export function getMembersList(): Member[] {

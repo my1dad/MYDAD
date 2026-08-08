@@ -76,8 +76,19 @@ export default function MembersPage() {
   const { poolSummary } = usePoolState();
   const members = useMembers();
 
+  // Member directory shows member profiles only (master admin is never listed).
+  const memberDirectory = useMemo(
+    () =>
+      members.filter((member) => {
+        const username = member.username?.trim().toLowerCase();
+        const handle = member.handle?.trim().toLowerCase();
+        return username !== "admin" && handle !== "@admin";
+      }),
+    [members],
+  );
+
   const featuredMembers = useMemo(() => {
-    const registered = members
+    const registered = memberDirectory
       .filter((member) => member.profileId)
       .sort((a, b) => {
         const aTime = new Date(a.joinedAt ?? 0).getTime();
@@ -85,18 +96,18 @@ export default function MembersPage() {
         return bTime - aTime;
       });
     if (registered.length >= 3) return registered.slice(0, 3);
-    const seed = members.filter((member) => !member.profileId);
+    const seed = memberDirectory.filter((member) => !member.profileId);
     return [...registered, ...seed].slice(0, 3);
-  }, [members]);
+  }, [memberDirectory]);
 
   const myMember = useMemo(
     () =>
       profile
-        ? members.find(
+        ? memberDirectory.find(
             (member) => member.profileId === profile.id || member.id === profile.id,
           )
         : null,
-    [members, profile],
+    [memberDirectory, profile],
   );
 
   const openMember = (member) => {
@@ -122,7 +133,7 @@ export default function MembersPage() {
       bg: "color-mix(in srgb, var(--color-dda-green) 24%, transparent)",
       bgDeep: "color-mix(in srgb, var(--color-dda-bg-elevated) 72%, #020617)",
       border: "color-mix(in srgb, var(--color-dda-green-light) 38%, transparent)",
-      value: () => members.filter((m) => m.status === "active").length.toLocaleString(),
+      value: () => memberDirectory.filter((m) => m.status === "active").length.toLocaleString(),
     },
     {
       key: "contributors",
@@ -143,7 +154,7 @@ export default function MembersPage() {
       bgDeep: "color-mix(in srgb, var(--color-dda-bg-elevated) 72%, #020617)",
       border: "color-mix(in srgb, var(--color-dda-gold-light) 38%, transparent)",
       value: () => {
-        const active = members.filter((member) => member.status === "active");
+        const active = memberDirectory.filter((member) => member.status === "active");
         if (!active.length) return "—";
         const average = Math.round(
           active.reduce((sum, member) => sum + member.score, 0) / active.length,
@@ -220,13 +231,17 @@ export default function MembersPage() {
         title={t("pages.members.directory")}
         subtitle={
           isAdmin
-            ? t("pages.members.directorySubtitleAdmin", { count: members.length.toLocaleString() })
-            : t("pages.members.directorySubtitle", { count: members.length.toLocaleString() })
+            ? t("pages.members.directorySubtitleAdmin", {
+                count: memberDirectory.length.toLocaleString(),
+              })
+            : t("pages.members.directorySubtitle", {
+                count: memberDirectory.length.toLocaleString(),
+              })
         }
         scrollable
       >
         <div className="dda-members-list" role="list">
-          {members.map((member) => (
+          {memberDirectory.map((member) => (
             <button
               key={member.id}
               type="button"
@@ -312,7 +327,7 @@ export default function MembersPage() {
       >
         <div className="space-y-2">
           {featuredMembers.map((member, index) => {
-            const fullMember = members.find((m) => m.id === member.id) ?? member;
+            const fullMember = memberDirectory.find((m) => m.id === member.id) ?? member;
             return (
               <button
                 key={member.id}
@@ -363,7 +378,7 @@ export default function MembersPage() {
         >
           <MemberDetailModal
             member={
-              members.find(
+              memberDirectory.find(
                 (item) =>
                   item.id === selectedMember.id ||
                   item.profileId === selectedMember.profileId,
@@ -380,7 +395,7 @@ export default function MembersPage() {
         <Suspense fallback={null}>
           <AdminMemberBalanceModal
             member={
-              members.find(
+              memberDirectory.find(
                 (item) =>
                   item.id === balanceMember.id ||
                   item.profileId === balanceMember.profileId,

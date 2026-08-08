@@ -117,12 +117,14 @@ export default function App() {
 
   useEffect(() => {
     if (isAdmin) return;
+    // Members use member pages only — never the master admin workspace.
     if (
+      activePage === "admin" ||
       activePage === "admin-bins" ||
       activePage === "investments" ||
       activePage === "allocations"
     ) {
-      goTo("dashboard");
+      goTo(activePage === "admin" ? "profile" : "dashboard");
     }
   }, [activePage, isAdmin, goTo]);
 

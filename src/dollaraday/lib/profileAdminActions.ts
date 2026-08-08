@@ -192,24 +192,26 @@ export async function approveDadProfileByAdmin(
     summary: "Membership approved by admin",
   });
 
-  void import("./supabase/cloudSync").then(({ clearFactoryZeroDeliveryLock }) => {
-    clearFactoryZeroDeliveryLock();
-  });
-
   try {
-    const { pushCloudProfilesNow, scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
-    // Push the approved row immediately so the member can sign in from any device.
-    const pushed = await pushCloudProfilesNow([updated]);
+    const { persistMembersToCloud, scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
+    // Force-persist approved member to Supabase (and members bin) so they stay saved.
+    const pushed = await persistMembersToCloud([updated]);
     if (!pushed) {
-      scheduleCloudProfilesPush();
-      console.warn(
-        "[profileAdmin] Approval saved locally; cloud push failed — queued retry.",
-      );
+      // Retry once more after a short delay — first attempt can race a reset lock.
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
+      const retried = await persistMembersToCloud([updated]);
+      if (!retried) {
+        scheduleCloudProfilesPush();
+        console.warn(
+          "[profileAdmin] Approval saved locally; cloud push failed — queued retry. Use Cloud sync now if the member is missing in Supabase.",
+        );
+      }
     }
   } catch (err) {
     console.warn("[profileAdmin] Approval cloud push failed:", err);
     try {
-      const { scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
+      const { persistMembersToCloud, scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
+      await persistMembersToCloud([updated]);
       scheduleCloudProfilesPush();
     } catch {
       /* ignore */
@@ -249,9 +251,12 @@ export async function denyDadProfileByAdmin(
     summary: "Membership denied by admin",
   });
 
-  void import("./supabase/cloudSync")
-    .then(({ pushCloudProfilesNow }) => pushCloudProfilesNow(getDadProfiles()))
-    .catch(() => {});
+  try {
+    const { persistMembersToCloud } = await import("./supabase/cloudSync");
+    await persistMembersToCloud([updated]);
+  } catch (err) {
+    console.warn("[profileAdmin] Deny cloud push failed:", err);
+  }
 
   return { ok: true, profile: updated };
 }

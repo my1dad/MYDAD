@@ -29,6 +29,11 @@ function cloudPushesAllowed(): boolean {
   return Date.now() >= cloudPushPausedUntil;
 }
 
+/** Opportunistic sync while hard-reset lock is active would resurrect wiped members. */
+function opportunisticCloudPushBlocked(): boolean {
+  return isFactoryZeroLocked() || !cloudPushesAllowed();
+}
+
 /** localStorage keys synced to dad_kv (excluding profiles & session keys). */
 export const SYNCED_KV_KEYS = [
   "dollar-a-day-app-settings",
@@ -111,6 +116,10 @@ export function clearFactoryZeroDeliveryLock(): void {
     /* ignore */
   }
   cloudPushPausedUntil = 0;
+  // Also clear the on-disk FACTORY_ZERO.lock (dev) — it was wiping members on every boot.
+  void import("../internalDatabase")
+    .then(({ clearFactoryZeroDisk }) => clearFactoryZeroDisk())
+    .catch(() => {});
 }
 
 type SyncedKvKey = (typeof SYNCED_KV_KEYS)[number];
@@ -233,9 +242,17 @@ function isMissingAccountNumberColumnError(message: string | undefined): boolean
 }
 
 function rowToProfile(row: CloudProfileRow): DadProfile {
+  const username = row.username;
+  const rawApproval = row.approval_status as DadProfile["approvalStatus"] | null | undefined;
+  const approvalStatus: DadProfile["approvalStatus"] = isAdminProfile({ username })
+    ? "approved"
+    : rawApproval === "approved" || rawApproval === "denied" || rawApproval === "pending"
+      ? rawApproval
+      : "pending";
+
   return {
     id: row.id,
-    username: row.username,
+    username,
     password: row.password,
     displayName: row.display_name,
     fullName: row.full_name ?? undefined,
@@ -247,7 +264,7 @@ function rowToProfile(row: CloudProfileRow): DadProfile {
     profilePhotoUrl: row.profile_photo_url ?? undefined,
     referredByProId: row.referred_by_pro_id ?? undefined,
     accountStatus: (row.account_status as DadProfile["accountStatus"]) ?? undefined,
-    approvalStatus: (row.approval_status as DadProfile["approvalStatus"]) ?? undefined,
+    approvalStatus,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
     updatedAt: row.updated_at,
@@ -343,6 +360,11 @@ function preferApprovalStatus(
   const remoteStatus = remote.approvalStatus;
   const winnerStatus = winner.approvalStatus;
 
+  // Master admin is always approved.
+  if (isAdminProfile(winner) || isAdminProfile(local) || isAdminProfile(remote)) {
+    return { ...winner, approvalStatus: "approved" };
+  }
+
   // Approved always beats a stale pending/unknown — never treat missing as approved.
   if (localStatus === "approved" || remoteStatus === "approved") {
     if (winnerStatus !== "denied") {
@@ -360,6 +382,18 @@ function preferApprovalStatus(
     (winnerStatus === "pending" || winnerStatus == null)
   ) {
     return { ...winner, approvalStatus: "denied" };
+  }
+
+  // New signups must stay pending until master admin approves — never drop status.
+  if (
+    localStatus === "pending" ||
+    remoteStatus === "pending" ||
+    winnerStatus === "pending" ||
+    localStatus == null ||
+    remoteStatus == null ||
+    winnerStatus == null
+  ) {
+    return { ...winner, approvalStatus: "pending" };
   }
 
   return winner;
@@ -588,9 +622,32 @@ export function touchCloudKv(storageKey: SyncedKvKey): void {
   scheduleCloudKvPush(storageKey);
 }
 
-async function upsertCloudProfiles(profiles: DadProfile[]): Promise<boolean> {
+async function upsertCloudProfiles(
+  profiles: DadProfile[],
+  options: { force?: boolean } = {},
+): Promise<boolean> {
   const supabase = getSupabaseClient();
   if (!supabase || !profiles.length) return true;
+
+  // Master reset lock blocks opportunistic republish of wiped members.
+  // Critical paths (signup / approve / deny) pass force=true after clearing the lock.
+  let publishProfiles = profiles;
+  if (isFactoryZeroLocked() && !options.force) {
+    const members = profiles.filter((profile) => !isAdminProfile(profile));
+    publishProfiles = profiles.filter((profile) => isAdminProfile(profile));
+    if (members.length && !publishProfiles.length) {
+      console.warn(
+        "[cloudSync] Refusing to drop member profile push while factory-zero is locked.",
+      );
+      return false;
+    }
+    if (members.length) {
+      console.warn(
+        `[cloudSync] Skipped ${members.length} member profile(s) while factory-zero is locked.`,
+      );
+    }
+  }
+  if (!publishProfiles.length) return true;
 
   // Re-read cloud so a stale pending row cannot overwrite an approved member.
   // If we cannot verify, abort — pushing blind pending would undo admin approval.
@@ -603,7 +660,7 @@ async function upsertCloudProfiles(profiles: DadProfile[]): Promise<boolean> {
     return false;
   }
 
-  const safeProfiles = profiles.map((profile) =>
+  const safeProfiles = publishProfiles.map((profile) =>
     guardAgainstApprovalDowngrade(profile, remoteById.get(profile.id)),
   );
 
@@ -674,14 +731,67 @@ async function upsertCloudProfiles(profiles: DadProfile[]): Promise<boolean> {
   return true;
 }
 
-/** Immediately upsert profiles (used on register / critical writes). */
-export async function pushCloudProfilesNow(profiles: DadProfile[]): Promise<boolean> {
+/** Immediately upsert profiles (used on register / approve / critical writes). */
+export async function pushCloudProfilesNow(
+  profiles: DadProfile[],
+  options: { force?: boolean } = {},
+): Promise<boolean> {
   if (!isSupabaseConfigured()) return true;
   if (pendingProfilePush) {
     clearTimeout(pendingProfilePush);
     pendingProfilePush = null;
   }
-  return upsertCloudProfiles(profiles);
+  return upsertCloudProfiles(profiles, options);
+}
+
+/**
+ * Persist member profiles + members bin after signup/approval so they stay in Supabase.
+ * Clears the factory-zero lock first — otherwise member rows are dropped on purpose.
+ */
+export async function persistMembersToCloud(profiles: DadProfile[]): Promise<boolean> {
+  if (!isSupabaseConfigured()) return true;
+  if (!profiles.length) return true;
+
+  clearFactoryZeroDeliveryLock();
+  pauseCloudPushes(0);
+
+  const pushed = await pushCloudProfilesNow(profiles, { force: true });
+  if (!pushed) return false;
+
+  // Verify rows actually landed — upsert can report success while RLS/filters drop them.
+  try {
+    const remote = await fetchCloudProfiles();
+    const remoteIds = new Set(remote.map((profile) => profile.id));
+    const missing = profiles.filter((profile) => !remoteIds.has(profile.id));
+    if (missing.length) {
+      console.warn(
+        `[cloudSync] ${missing.length} member(s) missing after upsert — retrying:`,
+        missing.map((profile) => profile.username),
+      );
+      const retried = await pushCloudProfilesNow(missing, { force: true });
+      if (!retried) return false;
+      const again = await fetchCloudProfiles();
+      const againIds = new Set(again.map((profile) => profile.id));
+      if (profiles.some((profile) => !againIds.has(profile.id))) {
+        console.error("[cloudSync] Members still missing in Supabase after retry.");
+        return false;
+      }
+    }
+  } catch (err) {
+    console.warn("[cloudSync] Could not verify member persist:", err);
+    return false;
+  }
+
+  try {
+    const membersDoc = readDataBin("members");
+    await pushCloudBinsNow(
+      [{ binId: "dollar-a-day-members", document: membersDoc }],
+      { force: true },
+    );
+  } catch (err) {
+    console.warn("[cloudSync] Members bin persist failed:", err);
+  }
+  return true;
 }
 
 /**
@@ -764,29 +874,43 @@ export async function wipeCloudWorkspaceExceptAdmin(admin: DadProfile): Promise<
   for (const timer of pendingKvPushes.values()) clearTimeout(timer);
   pendingKvPushes.clear();
 
-  // 1) Profiles: force-delete every non-admin row (ignore epoch survival).
-  await replaceCloudProfilesDirectory([admin], { force: true });
+  // 1) Profiles: force-delete every non-admin row, retry until cloud is admin-only.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await replaceCloudProfilesDirectory([admin], { force: true });
+    const remaining = (await fetchCloudProfiles()).filter((profile) => !isAdminProfile(profile));
+    if (!remaining.length) break;
+    for (let index = 0; index < remaining.length; index += 100) {
+      const chunk = remaining.slice(index, index + 100).map((profile) => profile.id);
+      const { error } = await supabase.from("dad_profiles").delete().in("id", chunk);
+      if (error) {
+        console.warn("[cloudSync] Forced member delete failed:", error.message);
+        throw new Error(`Failed to delete cloud members: ${error.message}`);
+      }
+    }
+  }
 
-  // 2) Force every bin to empty / post-reset local docs — never leave stale members/pool.
+  const leftoverMembers = (await fetchCloudProfiles()).filter((profile) => !isAdminProfile(profile));
+  if (leftoverMembers.length) {
+    throw new Error(
+      `Master reset could not delete ${leftoverMembers.length} cloud member(s). Try again.`,
+    );
+  }
+
+  // 2) Hard-empty every bin. Settings keeps only the $0 pool seed record.
   const wipedAt = new Date().toISOString();
   await Promise.all(
     DATA_BIN_DEFINITIONS.map((definition) => {
       const local = readDataBin(definition.key);
       const localRecords = Array.isArray(local.records) ? local.records : [];
-      // Prefer wiped local docs; if local still looks polluted, push a hard empty bin.
-      const forceEmpty =
-        definition.key !== "settings" ||
-        localRecords.some((record) => record.id?.startsWith("member-accounts-"));
       const document: DataBinDocument = {
         version: 1,
         binKey: definition.key,
         updatedAt: wipedAt,
-        records: forceEmpty && definition.key !== "settings" ? [] : localRecords,
+        records:
+          definition.key === "settings"
+            ? localRecords.filter((record) => record.id === "pool-live-state")
+            : [],
       };
-      // Settings: keep only the live pool seed record if present; drop wallets/ledgers.
-      if (definition.key === "settings") {
-        document.records = localRecords.filter((record) => record.id === "pool-live-state");
-      }
       return upsertCloudBin(definition.binId, document);
     }),
   );
@@ -819,16 +943,16 @@ export async function pullCloudProfilesNow(
 ): Promise<DadProfile[]> {
   if (!isSupabaseConfigured()) return getLocalProfiles();
 
+  // Always pull member profiles — factory-zero must not hide approved members after login.
+  // Liquidity/bin restoration is gated separately in syncCloudWorkspace.
   const localProfiles = getLocalProfiles();
   const remote = await fetchCloudProfiles();
-  // Always merge — epoch filter inside mergeProfiles drops pre-wipe ghosts,
-  // while post-wipe registrations (pending/approved) reach admin immediately.
   const merged = mergeProfilesForWorkspace(localProfiles, remote);
   replaceLocalProfiles(merged);
 
   const needsPublish = profilesNeedingApprovalPublish(merged, remote);
   if (needsPublish.length > 0) {
-    void upsertCloudProfiles(needsPublish).catch((err) =>
+    void upsertCloudProfiles(needsPublish, { force: true }).catch((err) =>
       console.warn("[cloudSync] Approval re-publish after pull failed:", err),
     );
   }
@@ -882,7 +1006,7 @@ async function upsertCloudKv(scopeKey: string, kvKey: string, rawValue: string |
 }
 
 export function scheduleCloudBinPush(binId: string, document: DataBinDocument): void {
-  if (!isSupabaseConfigured() || !cloudPushesAllowed()) return;
+  if (!isSupabaseConfigured() || opportunisticCloudPushBlocked()) return;
 
   const existing = pendingBinPushes.get(binId);
   if (existing) clearTimeout(existing);
@@ -891,7 +1015,7 @@ export function scheduleCloudBinPush(binId: string, document: DataBinDocument): 
     binId,
     setTimeout(() => {
       pendingBinPushes.delete(binId);
-      if (!cloudPushesAllowed()) return;
+      if (opportunisticCloudPushBlocked()) return;
       void upsertCloudBin(binId, document);
     }, CLOUD_PUSH_DEBOUNCE_MS),
   );
@@ -900,8 +1024,11 @@ export function scheduleCloudBinPush(binId: string, document: DataBinDocument): 
 /** Immediately upsert one or more bins (used after contributions). */
 export async function pushCloudBinsNow(
   bins: Array<{ binId: string; document: DataBinDocument }>,
+  options: { force?: boolean } = {},
 ): Promise<void> {
   if (!isSupabaseConfigured() || !bins.length) return;
+  // Master reset wipe uses upsertCloudBin directly; block opportunistic restores.
+  if (isFactoryZeroLocked() && !options.force) return;
 
   for (const { binId } of bins) {
     const existing = pendingBinPushes.get(binId);
@@ -937,6 +1064,9 @@ function schedulePausedProfileFlush(): void {
 export function scheduleCloudProfilesPush(_profiles?: DadProfile[]): void {
   if (!isSupabaseConfigured()) return;
 
+  // Hard reset: do not queue member directory republish.
+  if (isFactoryZeroLocked()) return;
+
   if (!cloudPushesAllowed()) {
     profilePushQueuedWhilePaused = true;
     schedulePausedProfileFlush();
@@ -946,6 +1076,7 @@ export function scheduleCloudProfilesPush(_profiles?: DadProfile[]): void {
   if (pendingProfilePush) clearTimeout(pendingProfilePush);
   pendingProfilePush = setTimeout(() => {
     pendingProfilePush = null;
+    if (isFactoryZeroLocked()) return;
     if (!cloudPushesAllowed()) {
       profilePushQueuedWhilePaused = true;
       schedulePausedProfileFlush();
@@ -959,7 +1090,7 @@ export function scheduleCloudProfilesPush(_profiles?: DadProfile[]): void {
 }
 
 export function scheduleCloudKvPush(kvKey: SyncedKvKey): void {
-  if (!isSupabaseConfigured() || !cloudPushesAllowed()) return;
+  if (!isSupabaseConfigured() || opportunisticCloudPushBlocked()) return;
 
   const existing = pendingKvPushes.get(kvKey);
   if (existing) clearTimeout(existing);
@@ -968,7 +1099,7 @@ export function scheduleCloudKvPush(kvKey: SyncedKvKey): void {
     kvKey,
     setTimeout(() => {
       pendingKvPushes.delete(kvKey);
-      if (!cloudPushesAllowed()) return;
+      if (opportunisticCloudPushBlocked()) return;
       void upsertCloudKv(GLOBAL_KV_SCOPE, kvKey, localStorage.getItem(kvKey));
     }, CLOUD_PUSH_DEBOUNCE_MS),
   );
@@ -1057,6 +1188,7 @@ export async function syncCloudWorkspace(options: {
 
     if (adoptCloudWipe && remoteHasMembers) {
       // Cloud already has a live member directory — unlock and restore it.
+      // Never delete those members; that made approvals disappear after login.
       clearFactoryZeroDeliveryLock();
     }
 

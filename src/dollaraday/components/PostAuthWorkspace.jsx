@@ -24,25 +24,40 @@ export default function PostAuthWorkspace({ children }) {
 
     const unlockTimer = window.setTimeout(() => {
       void import("../lib/supabase/cloudSync")
-        .then(({ clearFactoryZeroDeliveryLock, pauseCloudPushes, pullCloudProfilesNow, isFactoryZeroLocked }) => {
-          if (!alive) return null;
+        .then(async ({
+          clearFactoryZeroDeliveryLock,
+          pauseCloudPushes,
+          pullCloudProfilesNow,
+          isFactoryZeroLocked,
+          persistMembersToCloud,
+        }) => {
+          if (!alive) return;
 
-          // Master reset sets factory-zero so wiped liquidity/members stay gone.
-          // Clearing that lock here was resurrecting cloud pool + member data on reload.
-          if (isFactoryZeroLocked()) {
-            return pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+          const locals = getDadProfiles();
+          const members = locals.filter(
+            (profile) => profile.username?.trim().toLowerCase() !== "admin",
+          );
+
+          // Never re-wipe cloud on login. If members exist, unlock and force-save them.
+          if (members.length) {
+            clearFactoryZeroDeliveryLock();
+            pauseCloudPushes(0);
+            try {
+              await persistMembersToCloud(members);
+            } catch (err) {
+              console.warn("[PostAuthWorkspace] Member re-persist skipped:", err);
+            }
+          } else if (!isFactoryZeroLocked()) {
+            clearFactoryZeroDeliveryLock();
+            pauseCloudPushes(0);
           }
 
-          clearFactoryZeroDeliveryLock();
-          pauseCloudPushes(0);
-          return pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
-        })
-        .then(() => {
-          if (!alive) return null;
-          return import("../lib/profileRegistry").then(({ syncAllProfilesToMemberRegistry }) => {
-            if (!alive) return;
-            syncAllProfilesToMemberRegistry();
-          });
+          // Always pull cloud profiles so approved members return after logout/login.
+          await pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+          if (!alive) return;
+          const { syncAllProfilesToMemberRegistry } = await import("../lib/profileRegistry");
+          if (!alive) return;
+          syncAllProfilesToMemberRegistry();
         })
         .catch((err) => console.warn("[PostAuthWorkspace] Profile restore skipped:", err));
     }, 50);
@@ -71,9 +86,17 @@ export default function PostAuthWorkspace({ children }) {
           } = await import("../lib/supabase/cloudSync");
           if (!alive) return;
 
-          if (isFactoryZeroLocked()) {
-            // Keep the post-reset wipe lock. Full sync here was reloading pre-reset
-            // liquidity/members from cloud after Master reset.
+          // If members already exist, drop the reset lock so profile sync can run.
+          // Still avoid pulling pre-reset liquidity when the lock remains and there
+          // are no members yet (fresh wipe).
+          const localMembers = getDadProfiles().filter(
+            (profile) => profile.username?.trim().toLowerCase() !== "admin",
+          );
+          if (localMembers.length) {
+            clearFactoryZeroDeliveryLock();
+          } else if (isFactoryZeroLocked()) {
+            // Fresh wipe with no members — skip full bin sync to keep liquidity at $0.
+            // Profiles were already pulled above.
             return;
           }
 

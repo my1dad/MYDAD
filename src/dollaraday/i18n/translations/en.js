@@ -51,8 +51,10 @@ export default {
     passwordMismatch: "Passwords do not match.",
     passwordsMatch: "Passwords match",
     suspendedError: "This account has been suspended. Contact support for help.",
-    pendingApprovalSuccess: "Your profile was submitted. A master admin will review your request before you can sign in.",
-    pendingApprovalError: "Your membership is awaiting master admin approval.",
+    pendingApprovalSuccess:
+      "Your profile was submitted. You cannot sign in until a master admin approves your membership.",
+    pendingApprovalError:
+      "Your membership is awaiting master admin approval. You cannot access the app until you are approved.",
     deniedError: "Your membership request was denied. Contact support if you believe this is an error.",
     syncTimeoutError: "Could not reach the server to check approval. Check your connection and try again.",
     syncFailedError: "Could not refresh your membership status. Check your connection and try again.",
@@ -939,19 +941,19 @@ export default {
         csvLoadFailed: "Could not read or import the CSV file.",
         masterResetTitle: "Master reset",
         masterResetDesc:
-          "Erase the entire platform and start from scratch — pool, members, contributions, investments, and saved data. The master admin account always stays.",
+          "Hard reset the full platform to zero. Deletes every member, deposit, equity balance, contribution, investment, and liquidity total. Only the master admin account remains.",
         masterResetAction: "Master reset",
-        masterResetWarningBadge: "Destructive action",
+        masterResetWarningBadge: "Hard reset",
         masterResetFinalTitle: "Final confirmation",
         masterResetWarningNote:
-          "This permanently deletes all members and profiles (except master admin), plus pool balances, contributions, investments, and saved data on this device and in the cloud. The master admin stays signed in. It cannot be undone.",
-        masterResetContinue: "I understand — continue",
-        masterResetWorking: "Resetting…",
+          "Hard reset: permanently deletes ALL current members and their deposits/equity, plus pool liquidity, contributions, investments, and saved data on this device and in the cloud. Only master admin stays signed in. Cannot be undone.",
+        masterResetContinue: "I understand — delete everything",
+        masterResetWorking: "Hard resetting…",
         masterResetConfirm:
-          "Erase the entire platform and restore factory defaults? Every member profile and all platform data will be deleted. Your master admin account will remain.",
+          "Hard reset the entire platform? This deletes ALL members and all platform data. Only your master admin account will remain at $0.",
         masterResetConfirmFinal:
-          "Final confirmation: delete all members and platform data (master admin kept)? This cannot be undone.",
-        masterResetFailed: "Master reset failed — platform data may still exist in the cloud.",
+          "Final confirmation: permanently delete every member and wipe the full platform (master admin kept)? This cannot be undone.",
+        masterResetFailed: "Master reset failed — members or platform data may still exist in the cloud.",
         notificationsTitle: "Device notifications",
         notificationsDesc: "Enable browser notifications for alerts on this device.",
         notificationsOn: "Notifications enabled",
