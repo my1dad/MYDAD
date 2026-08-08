@@ -36,14 +36,22 @@ function formatUsd(amount) {
   });
 }
 
+function formatUsdFixed(amount) {
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
   const { t } = useLocale();
   const { profile } = useDadAuth();
   const memberName = getProfileFullName(profile);
   const [presetId, setPresetId] = useState("weekly");
   const [customAmount, setCustomAmount] = useState(String(AMOUNT_PRESETS[0].amount));
-  const [copiedEmail, setCopiedEmail] = useState(false);
-  const [copiedMemo, setCopiedMemo] = useState(false);
+  const [copiedTarget, setCopiedTarget] = useState(null);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -64,8 +72,7 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
 
   useEffect(() => {
     if (!open) return;
-    setCopiedEmail(false);
-    setCopiedMemo(false);
+    setCopiedTarget(null);
     const seed = Number(initialAmount);
     const match = AMOUNT_PRESETS.find((preset) => Math.abs(preset.amount - seed) < 0.001);
     if (match) {
@@ -83,16 +90,10 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
   }, [open, initialAmount]);
 
   useEffect(() => {
-    if (!copiedEmail) return undefined;
-    const timer = window.setTimeout(() => setCopiedEmail(false), 2000);
+    if (!copiedTarget) return undefined;
+    const timer = window.setTimeout(() => setCopiedTarget(null), 2000);
     return () => window.clearTimeout(timer);
-  }, [copiedEmail]);
-
-  useEffect(() => {
-    if (!copiedMemo) return undefined;
-    const timer = window.setTimeout(() => setCopiedMemo(false), 2000);
-    return () => window.clearTimeout(timer);
-  }, [copiedMemo]);
+  }, [copiedTarget]);
 
   const amount = useMemo(() => {
     const parsed = Number.parseFloat(customAmount);
@@ -101,39 +102,40 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
     return AMOUNT_PRESETS.find((preset) => preset.id === presetId)?.amount ?? 0;
   }, [presetId, customAmount]);
 
-  const formattedAmount = formatUsd(Math.max(amount, 0) || 0);
+  const safeAmount = Math.max(amount, 0) || 0;
+  const formattedAmount = formatUsd(safeAmount);
+  const formattedAmountFixed = formatUsdFixed(safeAmount);
+  const canCopyMemo = amount > 0;
 
   const memoMessage = useMemo(() => {
     if (memberName) {
       return t("contribute.zellePayBodyNamed", {
-        amount: formattedAmount,
+        amount: formattedAmountFixed,
         name: memberName,
       });
     }
-    return t("contribute.zellePayBody", { amount: formattedAmount });
-  }, [formattedAmount, memberName, t]);
+    return t("contribute.zellePayBody", { amount: formattedAmountFixed });
+  }, [formattedAmountFixed, memberName, t]);
 
-  const handleCopyEmail = async () => {
+  const copyText = async (value, target) => {
     try {
-      await navigator.clipboard.writeText(ZELLE_PAY_EMAIL);
-      setCopiedEmail(true);
+      await navigator.clipboard.writeText(value);
+      setCopiedTarget(target);
     } catch {
-      setCopiedEmail(false);
+      setCopiedTarget(null);
     }
   };
 
-  const handleCopyMemo = async () => {
-    try {
-      await navigator.clipboard.writeText(memoMessage);
-      setCopiedMemo(true);
-    } catch {
-      setCopiedMemo(false);
-    }
+  const handleCopyEmail = () => {
+    void copyText(ZELLE_PAY_EMAIL, "email");
+  };
+
+  const handleCopyMemo = () => {
+    if (!canCopyMemo) return;
+    void copyText(memoMessage, "memo");
   };
 
   if (!open || typeof document === "undefined") return null;
-
-  const canCopy = amount > 0;
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -188,6 +190,38 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
             <li>{t("contribute.zellePayStep3")}</li>
           </ol>
 
+          {/* Hero email copy — same overlay pattern as Apple Pay paste prompt */}
+          <div className="dda-zelle-pay__email-card mt-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#c4b5fd]">
+                  {t("contribute.zellePayTo")}
+                </p>
+                <p className="dda-zelle-pay__email-value mt-2" aria-live="polite">
+                  {ZELLE_PAY_EMAIL}
+                </p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400">
+                  {t("contribute.zellePayEmailHint")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyEmail}
+                className="dda-zelle-pay__copy"
+                aria-label={t("contribute.zellePayCopyEmailAria")}
+              >
+                {copiedTarget === "email" ? (
+                  <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
+                )}
+                {copiedTarget === "email"
+                  ? t("contribute.zellePayCopied")
+                  : t("contribute.zellePayCopy")}
+              </button>
+            </div>
+          </div>
+
           <p className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
             {t("contribute.amountLabel")}
           </p>
@@ -239,48 +273,31 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
             </div>
           </label>
 
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
-                  {t("contribute.zellePayTo")}
-                </p>
-                <p className="mt-1 break-all text-lg font-semibold text-white">{ZELLE_PAY_EMAIL}</p>
-              </div>
-              <button
-                type="button"
-                onClick={handleCopyEmail}
-                className="dda-zelle-pay__copy"
-                aria-label={t("contribute.zellePayCopyEmailAria")}
-              >
-                {copiedEmail ? (
-                  <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
-                )}
-                {copiedEmail ? t("contribute.zellePayCopied") : t("contribute.zellePayCopy")}
-              </button>
-            </div>
-            <div className="mt-3 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
                   {t("contribute.zellePayPreview")}
                 </p>
-                <p className="mt-1.5 text-sm leading-relaxed text-gray-300">{memoMessage}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-gray-300">
+                  {canCopyMemo ? memoMessage : t("contribute.zellePayMemoEmpty")}
+                </p>
               </div>
               <button
                 type="button"
                 onClick={handleCopyMemo}
-                disabled={!canCopy}
+                disabled={!canCopyMemo}
                 className="dda-zelle-pay__copy"
                 aria-label={t("contribute.zellePayCopyMemoAria")}
               >
-                {copiedMemo ? (
+                {copiedTarget === "memo" ? (
                   <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
                 ) : (
                   <Copy className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
                 )}
-                {copiedMemo ? t("contribute.zellePayCopied") : t("contribute.zellePayCopyMemo")}
+                {copiedTarget === "memo"
+                  ? t("contribute.zellePayCopied")
+                  : t("contribute.zellePayCopyMemo")}
               </button>
             </div>
           </div>
@@ -289,9 +306,8 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
         <div className="border-t border-white/10 px-5 py-4">
           <button
             type="button"
-            disabled={!canCopy}
             onClick={handleCopyEmail}
-            className={cn("dda-zelle-pay__cta", !canCopy && "dda-zelle-pay__cta--disabled")}
+            className="dda-zelle-pay__cta"
           >
             <img
               src={ZELLE_LOGO_URL}
@@ -300,7 +316,7 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
               className="dda-zelle-pay__cta-logo"
             />
             <span>
-              {copiedEmail
+              {copiedTarget === "email"
                 ? t("contribute.zellePayCtaCopied")
                 : t("contribute.zellePayCta", { amount: formattedAmount })}
             </span>

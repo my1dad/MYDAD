@@ -2140,6 +2140,23 @@ select.dda-bank-transfer-route__select:focus {
   object-fit: contain;
 }
 
+.dda-zelle-pay__email-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(196, 181, 253, 0.35);
+  background: rgba(109, 30, 212, 0.16);
+  padding: 1rem;
+}
+
+.dda-zelle-pay__email-value {
+  margin: 0;
+  font-size: clamp(1.05rem, 4.2vw, 1.35rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: #fff;
+  word-break: break-all;
+}
+
 .dda-zelle-pay__steps {
   margin: 0;
   padding: 0.85rem 0.95rem 0.85rem 1.85rem;
