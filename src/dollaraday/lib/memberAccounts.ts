@@ -538,13 +538,17 @@ export function adminSetMemberWalletBalances(
     throw new Error("profileId is required");
   }
   const ledger = hydrateMemberAccounts(profileId);
+  const checking = Math.max(0, Math.round((Number(balances.checking) || 0) * 100) / 100);
+  // Admin-funded deposits are community liquidity — mirror into escrow so the
+  // pool widget totals update immediately (pool cash is escrow-driven).
+  const escrow =
+    balances.escrow === undefined
+      ? checking
+      : Math.max(0, Math.round((Number(balances.escrow) || 0) * 100) / 100);
   const next: MemberAccountLedger = {
     ...ledger,
-    checkingBalance: Math.max(0, Math.round((Number(balances.checking) || 0) * 100) / 100),
-    escrowBalance:
-      balances.escrow === undefined
-        ? ledger.escrowBalance
-        : Math.max(0, Math.round((Number(balances.escrow) || 0) * 100) / 100),
+    checkingBalance: checking,
+    escrowBalance: escrow,
   };
   persistLedger(profileId, next);
   return next;

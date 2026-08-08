@@ -590,6 +590,12 @@ export function adminSetMemberDirectoryBalances(
     memberToPayload(updated),
   );
   refreshPoolSessionFromMember(updated);
+  // Recompute community liquidity so admin deposits appear on the pool widget.
+  void import("./poolState")
+    .then(({ syncMemberEscrowToLiquidityPool }) => {
+      syncMemberEscrowToLiquidityPool();
+    })
+    .catch(() => {});
   return updated;
 }
 
