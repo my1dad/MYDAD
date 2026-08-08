@@ -551,17 +551,37 @@ async function upsertCloudBin(binId: string, document: DataBinDocument): Promise
   const supabase = getSupabaseClient();
   if (!supabase) return;
 
-  const { error } = await supabase.from("dad_bins").upsert(
-    {
-      workspace_id: DAD_WORKSPACE_ID,
-      bin_id: binId,
-      document,
-      updated_at: document.updatedAt,
-    },
-    { onConflict: "workspace_id,bin_id" },
-  );
+  const row = {
+    workspace_id: DAD_WORKSPACE_ID,
+    bin_id: binId,
+    document,
+    updated_at: document.updatedAt,
+  };
 
-  if (error) console.warn(`[cloudSync] Failed to push bin ${binId}:`, error.message);
+  // Prefer PATCH so JSON `document` is fully replaced (upsert merge can leave stale pool/members).
+  const { data: existing, error: readError } = await supabase
+    .from("dad_bins")
+    .select("bin_id")
+    .eq("workspace_id", DAD_WORKSPACE_ID)
+    .eq("bin_id", binId)
+    .maybeSingle();
+
+  if (readError) {
+    console.warn(`[cloudSync] Failed to read bin ${binId}:`, readError.message);
+  }
+
+  if (existing?.bin_id) {
+    const { error } = await supabase
+      .from("dad_bins")
+      .update({ document: row.document, updated_at: row.updated_at })
+      .eq("workspace_id", DAD_WORKSPACE_ID)
+      .eq("bin_id", binId);
+    if (error) console.warn(`[cloudSync] Failed to update bin ${binId}:`, error.message);
+    return;
+  }
+
+  const { error } = await supabase.from("dad_bins").insert(row);
+  if (error) console.warn(`[cloudSync] Failed to insert bin ${binId}:`, error.message);
 }
 
 export function touchCloudKv(storageKey: SyncedKvKey): void {
