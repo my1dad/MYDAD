@@ -3608,56 +3608,13 @@ select.dda-bank-transfer-route__select:focus {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.65rem 0.5rem 0.15rem;
+  padding: 0.65rem 0.85rem;
   text-align: left;
   border: 0;
+  cursor: pointer;
   transition:
     background-color 0.15s ease,
     box-shadow 0.15s ease;
-}
-
-.dda-members-list__row-main {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  padding: 0.15rem 0.2rem 0.15rem 0.7rem;
-  text-align: left;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  border-radius: 0.5rem;
-}
-
-.dda-members-list__details {
-  flex-shrink: 0;
-  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.28);
-  border-radius: 0.55rem;
-  background: rgba(var(--dda-accent-rgb), 0.14);
-  color: var(--color-dda-green-soft);
-  padding: 0.4rem 0.65rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.dda-members-list__details:hover {
-  background: rgba(var(--dda-accent-light-rgb), 0.22);
-  border-color: rgba(var(--dda-accent-light-rgb), 0.45);
-  color: #fff;
-}
-
-.dda-members-list__details:focus-visible,
-.dda-members-list__row-main:focus-visible {
-  outline: 2px solid rgba(var(--dda-accent-light-rgb), 0.45);
-  outline-offset: 1px;
 }
 
 .dda-members-list__row:nth-child(odd) {
@@ -3671,6 +3628,12 @@ select.dda-bank-transfer-route__select:focus {
 .dda-members-list__row:hover {
   background: rgba(var(--dda-accent-light-rgb), 0.12);
   box-shadow: inset 0 0 0 1px rgba(var(--dda-accent-light-rgb), 0.14);
+}
+
+.dda-members-list__row:focus-visible {
+  outline: 2px solid rgba(var(--dda-accent-light-rgb), 0.45);
+  outline-offset: -2px;
+  z-index: 1;
 }
 
 .dda-members-list__status--active {

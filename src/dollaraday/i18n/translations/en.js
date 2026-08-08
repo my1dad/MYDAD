@@ -367,7 +367,8 @@ export default {
       featuredSubtitle: "Top community scores",
       directory: "Member directory",
       directorySubtitle: "{{count}} community contributors",
-      profileDetails: "Details",
+      directorySubtitleAdmin: "{{count}} members — tap a row to edit balances",
+      descriptionAdmin: "Tap a member to update contributed, equity, and account balances.",
       openChat: "Open chat room",
       myProfile: "My profile",
       myProfileSub: "Your member dashboard, settings, and account controls.",
@@ -880,6 +881,10 @@ export default {
       memberDetailBalances: "Update balances",
       memberDetailBalancesNote:
         "Set this member’s wallet and directory totals. Contributed and equity stay locked to these admin values until changed again.",
+      memberBalanceKicker: "Member balances",
+      memberBalanceNote:
+        "Update this member’s contributed total, equity, and account balances. Values sync to the platform directory and their wallet.",
+      memberBalanceSaving: "Saving…",
       memberDetailBalanceChecking: "Checking",
       memberDetailBalanceEscrow: "Escrow",
       memberDetailBalancesSave: "Save balances",

@@ -360,6 +360,7 @@ export default {
     members: {
       title: "Miembros",
       description: "Contribuyentes de la comunidad, valores de capital y puntuaciones comunitarias.",
+      descriptionAdmin: "Toca un miembro para actualizar contribuido, equity y saldos de cuenta.",
       activeMembers: "Miembros activos",
       dailyContributors: "Contribuyentes diarios",
       avgScore: "Puntuación comunitaria prom.",
@@ -367,7 +368,7 @@ export default {
       featuredSubtitle: "Mejores puntuaciones comunitarias",
       directory: "Directorio de miembros",
       directorySubtitle: "{{count}} contribuyentes de la comunidad",
-      profileDetails: "Detalles",
+      directorySubtitleAdmin: "{{count}} miembros — toca una fila para editar saldos",
       openChat: "Abrir sala de chat",
       myProfile: "Mi perfil",
       myProfileSub: "Tu panel de miembro, configuración y controles de cuenta.",
@@ -880,6 +881,10 @@ export default {
       memberDetailBalances: "Actualizar saldos",
       memberDetailBalancesNote:
         "Define la billetera y los totales del directorio de este miembro. Contribuido y equity quedan bloqueados a estos valores de admin hasta que los cambies de nuevo.",
+      memberBalanceKicker: "Saldos del miembro",
+      memberBalanceNote:
+        "Actualiza el total contribuido, equity y saldos de cuenta de este miembro. Los valores se sincronizan con el directorio y su billetera.",
+      memberBalanceSaving: "Guardando…",
       memberDetailBalanceChecking: "Cuenta corriente",
       memberDetailBalanceEscrow: "Custodia",
       memberDetailBalancesSave: "Guardar saldos",

@@ -8,7 +8,6 @@ import {
   Settings,
   TrendingUp,
   Wallet,
-  Wrench,
   X,
 } from "lucide-react";
 import { lockBodyScroll } from "@/lib/modalBodyLock";
@@ -85,9 +84,7 @@ export default function MemberDetailModal({
   member,
   open,
   onClose,
-  isAdmin = false,
   isOwnProfile = false,
-  onOpenProfileRegistry,
 }) {
   const { t } = useLocale();
   const { translateTier, translateStatus } = useLocalizedData();
@@ -151,17 +148,6 @@ export default function MemberDetailModal({
                 <h2 id="member-detail-title" className="truncate text-lg font-bold text-white">
                   {detail.name}
                 </h2>
-                {isAdmin && member?.profileId && onOpenProfileRegistry ? (
-                  <button
-                    type="button"
-                    onClick={() => onOpenProfileRegistry(member)}
-                    className="shrink-0 rounded-md p-1 text-amber-300/90 transition hover:bg-amber-400/10 hover:text-amber-200"
-                    aria-label={t("memberModal.openProfileRegistry")}
-                    title={t("memberModal.openProfileRegistry")}
-                  >
-                    <Wrench className="h-4 w-4" strokeWidth={2.25} />
-                  </button>
-                ) : null}
               </div>
               <p className="text-sm text-gray-400">
                 {detail.handle} · {translateTier(detail.tier)}

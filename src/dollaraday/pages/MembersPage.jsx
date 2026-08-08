@@ -12,7 +12,7 @@ import { useLocalizedData } from "../i18n/localizedData";
 import { usePoolState } from "../lib/poolState";
 
 const MemberDetailModal = lazy(() => import("../components/members/MemberDetailModal"));
-const AdminMemberDetailModal = lazy(() => import("../components/admin/AdminMemberDetailModal"));
+const AdminMemberBalanceModal = lazy(() => import("../components/admin/AdminMemberBalanceModal"));
 
 function MemberStatCard({ title, value, icon: Icon, accent, bg, bgDeep, border }) {
   return (
@@ -72,7 +72,7 @@ export default function MembersPage() {
   const { isAdmin, profile } = useDadAuth();
   const { translateStatus } = useLocalizedData();
   const [selectedMember, setSelectedMember] = useState(null);
-  const [adminProfileId, setAdminProfileId] = useState(null);
+  const [balanceMember, setBalanceMember] = useState(null);
   const { poolSummary } = usePoolState();
   const members = useMembers();
 
@@ -100,6 +100,10 @@ export default function MembersPage() {
   );
 
   const openMember = (member) => {
+    if (isAdmin && member.profileId) {
+      startTransition(() => setBalanceMember(member));
+      return;
+    }
     startTransition(() => setSelectedMember(member));
   };
 
@@ -108,13 +112,6 @@ export default function MembersPage() {
     Boolean(profile) &&
     isMemberProfile(profile) &&
     (selectedMember.profileId === profile.id || selectedMember.id === profile.id);
-
-  const handleOpenProfileDetails = (member) => {
-    const profileId = member.profileId ?? member.id;
-    if (!profileId) return;
-    setSelectedMember(null);
-    startTransition(() => setAdminProfileId(profileId));
-  };
 
   const memberStats = [
     {
@@ -160,7 +157,9 @@ export default function MembersPage() {
     <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title={t("pages.members.title")}
-        description={t("pages.members.description")}
+        description={
+          isAdmin ? t("pages.members.descriptionAdmin") : t("pages.members.description")
+        }
       />
 
       {!isAdmin && myMember ? (
@@ -219,99 +218,90 @@ export default function MembersPage() {
 
       <DashboardCard
         title={t("pages.members.directory")}
-        subtitle={t("pages.members.directorySubtitle", { count: members.length.toLocaleString() })}
+        subtitle={
+          isAdmin
+            ? t("pages.members.directorySubtitleAdmin", { count: members.length.toLocaleString() })
+            : t("pages.members.directorySubtitle", { count: members.length.toLocaleString() })
+        }
         scrollable
       >
         <div className="dda-members-list" role="list">
-          {members.map((member) => {
-            const canOpenAdminDetails = isAdmin && Boolean(member.profileId);
-            return (
-              <div key={member.id} role="listitem" className="dda-members-list__row group">
-                <button
-                  type="button"
-                  onClick={() => openMember(member)}
-                  className="dda-members-list__row-main"
-                >
-                  <span className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-dda-green-light/25 to-dda-green/10 text-[10px] font-bold text-dda-green-soft ring-1 ring-dda-green-light/25 sm:h-9 sm:w-9 sm:text-xs">
-                      {getMemberInitials(member.name)}
-                    </span>
-                    <span className="min-w-0 text-left">
-                      <span className="block truncate text-sm font-medium text-gray-200 transition group-hover:text-white">
-                        {member.name}
-                      </span>
-                      <span className="block truncate text-xs text-gray-500">{member.handle}</span>
-                    </span>
+          {members.map((member) => (
+            <button
+              key={member.id}
+              type="button"
+              role="listitem"
+              onClick={() => openMember(member)}
+              className="dda-members-list__row group"
+            >
+              <span className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-dda-green-light/25 to-dda-green/10 text-[10px] font-bold text-dda-green-soft ring-1 ring-dda-green-light/25 sm:h-9 sm:w-9 sm:text-xs">
+                  {getMemberInitials(member.name)}
+                </span>
+                <span className="min-w-0 text-left">
+                  <span className="block truncate text-sm font-medium text-gray-200 transition group-hover:text-white">
+                    {member.name}
                   </span>
+                  <span className="block truncate text-xs text-gray-500">{member.handle}</span>
+                </span>
+              </span>
 
-                  <span
-                    className={cn(
-                      "hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide sm:inline-flex sm:text-[11px] dda-members-list__status",
-                      member.status === "active"
-                        ? "dda-members-list__status--active"
-                        : "dda-members-list__status--inactive"
-                    )}
-                  >
-                    {translateStatus(member.status)}
-                  </span>
+              <span
+                className={cn(
+                  "hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide sm:inline-flex sm:text-[11px] dda-members-list__status",
+                  member.status === "active"
+                    ? "dda-members-list__status--active"
+                    : "dda-members-list__status--inactive"
+                )}
+              >
+                {translateStatus(member.status)}
+              </span>
 
-                  <span className="ml-2 hidden min-w-[4.5rem] shrink-0 text-right sm:ml-3 sm:block">
-                    <span className="block text-[10px] uppercase tracking-wide text-gray-500">
-                      {t("memberModal.contributed")}
-                    </span>
-                    <span className="font-semibold tabular-nums text-white">
-                      ${member.contributed.toLocaleString()}
-                    </span>
-                  </span>
+              <span className="ml-2 hidden min-w-[4.5rem] shrink-0 text-right sm:ml-3 sm:block">
+                <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("memberModal.contributed")}
+                </span>
+                <span className="font-semibold tabular-nums text-white">
+                  ${member.contributed.toLocaleString()}
+                </span>
+              </span>
 
-                  <span className="ml-2 shrink-0 text-right sm:ml-3">
-                    <span className="block text-[10px] uppercase tracking-wide text-gray-500">
-                      {t("common.equity")}
-                    </span>
-                    <span className="font-semibold tabular-nums text-dda-green-light">
-                      ${member.equity.toLocaleString()}
-                    </span>
-                  </span>
+              <span className="ml-2 shrink-0 text-right sm:ml-3">
+                <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("common.equity")}
+                </span>
+                <span className="font-semibold tabular-nums text-dda-green-light">
+                  ${member.equity.toLocaleString()}
+                </span>
+              </span>
 
-                  <span className="ml-2 hidden min-w-[3.25rem] shrink-0 text-right sm:ml-3 sm:block">
-                    <span className="block text-[10px] uppercase tracking-wide text-gray-500">
-                      {t("memberModal.streak")}
-                    </span>
-                    <span className="font-semibold tabular-nums text-white">{member.streak}</span>
-                  </span>
+              <span className="ml-2 hidden min-w-[3.25rem] shrink-0 text-right sm:ml-3 sm:block">
+                <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("memberModal.streak")}
+                </span>
+                <span className="font-semibold tabular-nums text-white">{member.streak}</span>
+              </span>
 
-                  <span className="ml-2 hidden min-w-[3.75rem] shrink-0 text-right sm:ml-3 md:block">
-                    <span className="block text-[10px] uppercase tracking-wide text-gray-500">
-                      {t("memberModal.avgDaily")}
-                    </span>
-                    <span className="font-semibold tabular-nums text-white">
-                      $
-                      {member.days
-                        ? (member.contributed / member.days).toFixed(2)
-                        : "0.00"}
-                    </span>
-                  </span>
+              <span className="ml-2 hidden min-w-[3.75rem] shrink-0 text-right sm:ml-3 md:block">
+                <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("memberModal.avgDaily")}
+                </span>
+                <span className="font-semibold tabular-nums text-white">
+                  $
+                  {member.days
+                    ? (member.contributed / member.days).toFixed(2)
+                    : "0.00"}
+                </span>
+              </span>
 
-                  <span className="ml-2 hidden shrink-0 text-right sm:ml-3 lg:block">
-                    <span className="block text-[10px] uppercase tracking-wide text-gray-500">
-                      {t("common.score")}
-                    </span>
-                    <span className="font-semibold tabular-nums text-white">{member.score}</span>
-                  </span>
-                </button>
-
-                {canOpenAdminDetails ? (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenProfileDetails(member)}
-                    className="dda-members-list__details"
-                  >
-                    {t("pages.members.profileDetails")}
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
+              <span className="ml-2 hidden shrink-0 text-right sm:ml-3 lg:block">
+                <span className="block text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("common.score")}
+                </span>
+                <span className="font-semibold tabular-nums text-white">{member.score}</span>
+              </span>
+            </button>
+          ))}
         </div>
       </DashboardCard>
 
@@ -375,20 +365,17 @@ export default function MembersPage() {
             member={selectedMember}
             open={Boolean(selectedMember)}
             onClose={() => setSelectedMember(null)}
-            isAdmin={isAdmin}
             isOwnProfile={isOwnProfileOpen}
-            onOpenProfileRegistry={handleOpenProfileDetails}
           />
         </Suspense>
       ) : null}
 
-      {adminProfileId ? (
+      {balanceMember ? (
         <Suspense fallback={null}>
-          <AdminMemberDetailModal
-            profileId={adminProfileId}
-            open={Boolean(adminProfileId)}
-            onClose={() => setAdminProfileId(null)}
-            onProfileDeleted={() => setAdminProfileId(null)}
+          <AdminMemberBalanceModal
+            member={balanceMember}
+            open={Boolean(balanceMember)}
+            onClose={() => setBalanceMember(null)}
           />
         </Suspense>
       ) : null}
