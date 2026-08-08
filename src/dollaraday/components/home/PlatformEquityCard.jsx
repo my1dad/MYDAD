@@ -76,7 +76,6 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
       Number(contributionStats?.contributed ?? stored?.contributed ?? currentMember?.totalContributed) ||
       0;
     const personalDonated = Number(contributionStats?.donated) || 0;
-    // Master admin Donations figure = all member-role donations platform-wide.
     const donated = isAdmin ? sumPlatformMemberDonations() : personalDonated;
     const deposited = Number(contributionStats?.deposited) || 0;
     const equity =
@@ -86,8 +85,6 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
     const checking = Number(ledger?.checkingBalance) || 0;
     const escrow = Number(ledger?.escrowBalance) || 0;
     const walletBalance = checking + escrow;
-    // Admin available = Chase Escrow (same ledger as Accounts hub card).
-    // Members: wallet + invested − personal donations.
     const balance = isAdmin
       ? Math.max(0, escrow)
       : Math.max(0, walletBalance + invested - personalDonated);
@@ -111,7 +108,18 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
   const RoiIcon = roiPositive ? TrendingUp : TrendingDown;
   const interactive = typeof onClick === "function";
   const balanceLabel = formatBankCurrency(stats.balance);
-  const LedgerTag = interactive ? "button" : "div";
+
+  const openLedger = () => {
+    if (interactive) onClick();
+  };
+
+  const onLedgerKeyDown = (event) => {
+    if (!interactive) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick();
+    }
+  };
 
   return (
     <section
@@ -129,7 +137,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
         {!wallet ? (
           <div className="dda-member-bank__top">
             {userFullName ? (
-              <p className="dda-home-greeting">
+              <p className="dda-home-greeting dda-member-bank__greeting">
                 <span className="dda-home-greeting__label">{t("pages.dashboard.welcomeLabel")}</span>{" "}
                 <span className="dda-home-greeting__name">{userFullName}</span>
               </p>
@@ -152,10 +160,16 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
           </div>
         ) : null}
 
-        <LedgerTag
-          type={interactive ? "button" : undefined}
-          className={cn("dda-member-bank__ledger", !interactive && "dda-member-bank__ledger--static")}
-          onClick={interactive ? onClick : undefined}
+        <div
+          role={interactive ? "button" : undefined}
+          tabIndex={interactive ? 0 : undefined}
+          className={cn(
+            "dda-member-bank__ledger",
+            interactive && "dda-member-bank__ledger--interactive",
+            !interactive && "dda-member-bank__ledger--static",
+          )}
+          onClick={interactive ? openLedger : undefined}
+          onKeyDown={interactive ? onLedgerKeyDown : undefined}
           aria-label={t(
             interactive
               ? wallet
@@ -166,16 +180,15 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
           )}
         >
           <div className="dda-member-bank__ledger-head">
-            <div className="min-w-0">
+            <div className="dda-member-bank__ledger-meta">
               <p className="dda-member-bank__account-type">{t("pages.dashboard.equityTitle")}</p>
               <div className="dda-member-bank__account-mask-row">
                 <p className="dda-member-bank__account-mask" aria-live="polite">
                   {accountDisplay}
                 </p>
                 {fullAccountNumber ? (
-                  <span
-                    role="button"
-                    tabIndex={0}
+                  <button
+                    type="button"
                     className="dda-member-bank__account-reveal"
                     aria-label={t(
                       accountVisible
@@ -184,14 +197,9 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
                     )}
                     aria-pressed={accountVisible}
                     onClick={toggleAccountVisibility}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        toggleAccountVisibility(event);
-                      }
-                    }}
                   >
                     <RevealIcon className="h-3.5 w-3.5" strokeWidth={2.25} />
-                  </span>
+                  </button>
                 ) : null}
               </div>
             </div>
@@ -218,7 +226,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
             </div>
           </div>
 
-          <div className="dda-member-bank__chips">
+          <div className="dda-member-bank__chips" aria-label="Account summary">
             <div className="dda-member-bank__chip">
               <p className="dda-member-bank__chip-label">{t("pages.dashboard.equityContributed")}</p>
               <p className="dda-member-bank__chip-value">{formatBankCurrency(stats.deposited)}</p>
@@ -248,7 +256,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
               </p>
             </div>
           </div>
-        </LedgerTag>
+        </div>
       </div>
     </section>
   );
