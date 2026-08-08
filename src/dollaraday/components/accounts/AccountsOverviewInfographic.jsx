@@ -287,35 +287,32 @@ export default function AccountsOverviewInfographic() {
             />
           </MetricGroup>
 
-          <MetricGroup
-            title={t(
-              isAdmin
-                ? "pages.accounts.overviewGroupDonations"
-                : "pages.accounts.overviewGroupDeposits",
-            )}
-          >
+          <MetricGroup title={t("pages.accounts.overviewGroupDeposits")}>
             <MetricRow
-              label={t(
+              label={t("pages.accounts.overviewDeposits")}
+              value={formatPoolCurrency(
                 isAdmin
-                  ? "pages.accounts.overviewDonations"
-                  : "pages.accounts.overviewDeposits",
+                  ? Math.max(stats.depositsTotal, adminLiquidityTotal)
+                  : stats.depositsTotal,
               )}
-              value={formatPoolCurrency(stats.depositsTotal)}
               accent={SEGMENT_META.deposits.color}
-              pct={segmentPct("deposits", stats.depositsTotal)}
+              pct={segmentPct(
+                "deposits",
+                isAdmin
+                  ? Math.max(stats.depositsTotal, adminLiquidityTotal)
+                  : stats.depositsTotal,
+              )}
               hint={
-                stats.depositsCount > 0
-                  ? t(
-                      isAdmin
-                        ? "pages.accounts.overviewDonationCount"
-                        : "pages.accounts.overviewDepositCount",
-                      { count: stats.depositsCount },
-                    )
-                  : t(
-                      isAdmin
-                        ? "pages.accounts.overviewNoDonations"
-                        : "pages.accounts.overviewNoDeposits",
-                    )
+                (isAdmin
+                  ? Math.max(stats.depositsCount, adminLiquidityTotal > 0 ? 1 : 0)
+                  : stats.depositsCount) > 0
+                  ? t("pages.accounts.overviewDepositCount", {
+                      count: Math.max(
+                        stats.depositsCount,
+                        isAdmin && adminLiquidityTotal > 0 ? 1 : 0,
+                      ),
+                    })
+                  : t("pages.accounts.overviewNoDeposits")
               }
             />
           </MetricGroup>

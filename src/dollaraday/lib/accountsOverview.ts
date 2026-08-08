@@ -2,6 +2,11 @@ import type { MemberAccountTransaction } from "./memberAccounts";
 import { hydrateMemberAccounts } from "./memberAccounts";
 import { readDataBin } from "./internalDatabase";
 import { getPlatformMemberDonationTotals } from "./memberContributionStats";
+import {
+  getCompletedContributionCapital,
+  getTotalAdminFundedMemberCapital,
+  getTotalMemberDepositCapitalFromLedgers,
+} from "./memberEscrowTotals";
 import type { RecurringCashflow, RecurringFrequency } from "./recurringCashflow";
 import { getRecurringCashflows, isHomeContributionSchedule } from "./recurringCashflow";
 
@@ -253,9 +258,23 @@ export function buildAccountsOverviewStats(
   const platformDonations = options.platformScope
     ? getPlatformMemberDonationTotals()
     : null;
-  // Admin Accounts overview mirrors home equity card Donations total.
-  const deposits = platformDonations
-    ? { total: platformDonations.donated, count: platformDonations.count }
+  // Admin Accounts: sum member deposits (admin-funded checking/equity + ledgers + contributions).
+  const deposits = options.platformScope
+    ? (() => {
+        const total = Math.max(
+          getTotalMemberDepositCapitalFromLedgers(),
+          getTotalAdminFundedMemberCapital(),
+          getCompletedContributionCapital(),
+          platformDonations?.donated ?? 0,
+        );
+        const fundedMembers = readDataBin("members").records.filter(
+          (record) =>
+            record.payload?.adminBalancesLocked === true &&
+            (Number(record.payload?.equity) > 0 || Number(record.payload?.contributed) > 0),
+        ).length;
+        const count = Math.max(fundedMembers, platformDonations?.count ?? 0);
+        return { total, count };
+      })()
     : personalDeposits;
   const redemptions = sumRedemptions(ledger.transactions);
   const donationSeeds = sumRecurringDonationsFromContributions(profileId);
