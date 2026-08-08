@@ -5508,65 +5508,222 @@ select.dda-bank-transfer-route__select {
   background: rgba(var(--dda-accent-light-rgb), 0.08);
 }
 
+.dda-admin-member-sheet {
+  border-radius: 1.5rem 1.5rem 0 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(var(--dda-accent-light-rgb), 0.12), transparent 55%),
+    linear-gradient(180deg, rgba(14, 28, 32, 0.98) 0%, rgba(7, 16, 19, 0.98) 100%);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+}
+
+@media (min-width: 640px) {
+  .dda-admin-member-sheet {
+    border-radius: 1.25rem;
+  }
+}
+
+.dda-admin-member-sheet__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.15rem 1.25rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent);
+}
+
+.dda-admin-member-sheet__kicker {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-dda-green-light);
+}
+
+.dda-admin-member-sheet__title {
+  margin-top: 0.2rem;
+  font-size: 1.25rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-admin-member-sheet__meta {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.dda-admin-member-sheet__chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #9ca3af;
+  font-size: 0.75rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dda-admin-member-sheet__chip--gold {
+  border-color: rgba(212, 175, 55, 0.28);
+  background: rgba(212, 175, 55, 0.1);
+  color: #f0d78c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.6875rem;
+}
+
+.dda-admin-member-sheet__close {
+  flex-shrink: 0;
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  color: #9ca3af;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dda-admin-member-sheet__close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
 .dda-admin-member-detail__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.75rem;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.18);
 }
 
-.dda-admin-member-detail__action {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--color-dda-green-light);
-  transition: color 0.15s ease;
+.dda-admin-member-detail__pill {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.65rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #d1d5db;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.dda-admin-member-detail__action:hover {
+.dda-admin-member-detail__pill:hover {
+  background: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
 
-.dda-admin-member-detail__action--danger {
+.dda-admin-member-detail__pill--approve {
+  border-color: rgba(var(--dda-accent-light-rgb), 0.35);
+  background: rgba(var(--dda-accent-light-rgb), 0.14);
+  color: var(--color-dda-green-light);
+}
+
+.dda-admin-member-detail__pill--approve:hover {
+  background: rgba(var(--dda-accent-light-rgb), 0.22);
+  color: #fff;
+}
+
+.dda-admin-member-detail__pill--danger {
+  border-color: rgba(248, 113, 113, 0.28);
+  background: rgba(248, 113, 113, 0.1);
   color: #f87171;
 }
 
-.dda-admin-member-detail__action--danger:hover {
+.dda-admin-member-detail__pill--danger:hover {
+  background: rgba(248, 113, 113, 0.18);
   color: #fca5a5;
 }
 
-.dda-admin-member-detail__action--warn {
+.dda-admin-member-detail__pill--warn {
+  border-color: rgba(212, 175, 55, 0.3);
+  background: rgba(212, 175, 55, 0.1);
   color: var(--color-dda-gold-light);
 }
 
-.dda-admin-member-detail__action--warn:hover {
+.dda-admin-member-detail__pill--warn:hover {
+  background: rgba(212, 175, 55, 0.18);
   color: var(--color-dda-gold-soft);
 }
 
-.dda-admin-member-detail__action--approve {
+.dda-admin-member-balance-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.22);
+  background:
+    linear-gradient(145deg, rgba(var(--dda-accent-light-rgb), 0.12), rgba(255, 255, 255, 0.02) 55%),
+    rgba(0, 0, 0, 0.22);
+}
+
+.dda-admin-member-balance-card__label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.dda-admin-member-balance-card__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.85rem;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.55rem 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dda-admin-member-balance-card__field:focus-within {
+  border-color: rgba(var(--dda-accent-light-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--dda-accent-light-rgb), 0.16);
+}
+
+.dda-admin-member-balance-card__currency {
+  flex-shrink: 0;
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--color-dda-green-light);
-}
-
-.dda-admin-member-detail__action--approve:hover {
-  color: #fff;
-}
-
-.dda-admin-member-detail__action-sep {
-  color: rgba(255, 255, 255, 0.18);
-  font-size: 0.75rem;
   user-select: none;
 }
 
+.dda-admin-member-balance-card__input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0.35rem 0;
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-dda-green-light);
+  outline: none;
+}
+
 .dda-admin-member-detail__section + .dda-admin-member-detail__section {
-  margin-top: 1.25rem;
-  padding-top: 1.25rem;
+  margin-top: 1.35rem;
+  padding-top: 1.35rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .dda-admin-member-detail__section-title {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -5576,7 +5733,7 @@ select.dda-bank-transfer-route__select {
 
 .dda-admin-member-detail__grid {
   display: grid;
-  gap: 0.625rem;
+  gap: 0.75rem;
 }
 
 @media (min-width: 640px) {
@@ -5588,15 +5745,19 @@ select.dda-bank-transfer-route__select {
 .dda-admin-member-detail__row {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: 0.2rem;
   min-width: 0;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .dda-admin-member-detail__label {
-  font-size: 0.6875rem;
-  font-weight: 600;
+  font-size: 0.625rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: #6b7280;
 }
 
@@ -5607,31 +5768,27 @@ select.dda-bank-transfer-route__select {
   word-break: break-word;
 }
 
+.dda-admin-member-detail__panel {
+  padding: 0.35rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.dda-admin-member-detail__panel .dda-admin-member-detail__row {
+  border: 0;
+  background: transparent;
+}
+
 .dda-admin-member-detail__stats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
-}
-
-.dda-admin-member-detail__balance-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.75rem;
-}
-
-@media (min-width: 640px) {
-  .dda-admin-member-detail__stats {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .dda-admin-member-detail__balance-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .dda-admin-member-detail__stats > div {
-  padding: 0.75rem;
-  border-radius: 0.75rem;
+  padding: 0.85rem 0.75rem;
+  border-radius: 0.9rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -5652,8 +5809,8 @@ select.dda-bank-transfer-route__select {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.75rem;
-  border-radius: 0.75rem;
+  padding: 0.8rem 0.85rem;
+  border-radius: 0.9rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }

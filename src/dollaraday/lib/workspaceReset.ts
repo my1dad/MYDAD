@@ -77,6 +77,22 @@ function restampAllDataBins(stamp: string): void {
   }
 }
 
+/** Seed $0 pool into an otherwise empty settings bin (no member wallets/ledgers). */
+function seedZeroPlatform(wipedAt: string): void {
+  wipeAllDataBins(wipedAt);
+  resetPoolStateToSeed();
+  syncPoolCapitalFromLedger();
+  // Drop anything syncPoolCapitalFromLedger might have re-derived except pool seed.
+  const settings = readDataBin("settings");
+  replaceDataBinNow("settings", {
+    version: 1,
+    binKey: "settings",
+    updatedAt: new Date().toISOString(),
+    records: settings.records.filter((record) => record.id === "pool-live-state"),
+  });
+  restampAllDataBins(new Date().toISOString());
+}
+
 export async function resetLiquidityPool(): Promise<void> {
   const { clearDataBin } = await import("./internalDatabase");
   clearDataBin("contributions");
@@ -100,8 +116,8 @@ export async function resetWorkspaceForBacktest(): Promise<void> {
 }
 
 /**
- * Factory-reset: wipe all balances, ledgers, members, transactions (local + Supabase).
- * Master admin remains signed in at $0.
+ * Factory-reset: wipe all balances, ledgers, members, deposits, equity (local + Supabase).
+ * Master admin remains signed in at $0 with an empty platform.
  */
 export async function masterResetDashboard(): Promise<void> {
   const preservedAdmin = snapshotMasterAdmin(findMasterAdminProfile());
@@ -124,10 +140,7 @@ export async function masterResetDashboard(): Promise<void> {
   }
 
   const epoch = bumpWorkspaceEpoch();
-  wipeAllDataBins(epoch);
-  resetPoolStateToSeed();
-  syncPoolCapitalFromLedger();
-  restampAllDataBins(new Date().toISOString());
+  seedZeroPlatform(epoch);
 
   let admin = preservedAdmin;
   if (admin) {
@@ -145,7 +158,6 @@ export async function masterResetDashboard(): Promise<void> {
 
   // Persist wiped bins to disk + localStorage before any cloud I/O.
   await flushInternalDatabase();
-  // Re-lock / re-seed disk after flush (flush may have been partially blocked).
   await requestFactoryZeroDisk();
 
   try {
@@ -159,10 +171,7 @@ export async function masterResetDashboard(): Promise<void> {
 
   // Re-assert $0 after cloud round-trip (guards against remote merge races).
   invalidateMemberAccountsCache();
-  wipeAllDataBins(new Date().toISOString());
-  resetPoolStateToSeed();
-  syncPoolCapitalFromLedger();
-  restampAllDataBins(new Date().toISOString());
+  seedZeroPlatform(new Date().toISOString());
   replaceDadProfilesLocal([admin]);
   setDadSessionId(admin.id);
 
@@ -173,6 +182,7 @@ export async function masterResetDashboard(): Promise<void> {
     if (!localStorage.getItem(SESSION_KEY) && !localStorage.getItem(PERSISTENT_SESSION_KEY)) {
       setDadSessionId(admin.id);
     }
+    localStorage.setItem("dollar-a-day-factory-zero", "1");
   } catch {
     /* ignore */
   }

@@ -362,7 +362,13 @@ export default function MembersPage() {
           }
         >
           <MemberDetailModal
-            member={selectedMember}
+            member={
+              members.find(
+                (item) =>
+                  item.id === selectedMember.id ||
+                  item.profileId === selectedMember.profileId,
+              ) ?? selectedMember
+            }
             open={Boolean(selectedMember)}
             onClose={() => setSelectedMember(null)}
             isOwnProfile={isOwnProfileOpen}
@@ -373,7 +379,13 @@ export default function MembersPage() {
       {balanceMember ? (
         <Suspense fallback={null}>
           <AdminMemberBalanceModal
-            member={balanceMember}
+            member={
+              members.find(
+                (item) =>
+                  item.id === balanceMember.id ||
+                  item.profileId === balanceMember.profileId,
+              ) ?? balanceMember
+            }
             open={Boolean(balanceMember)}
             onClose={() => setBalanceMember(null)}
           />

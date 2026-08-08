@@ -316,6 +316,13 @@ export default function AdminSettingsCard() {
     setStatus("");
     setSyncingCloud(true);
     try {
+      const { clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
+        "../../lib/supabase/cloudSync"
+      );
+      // Explicit admin sync reopens the platform after a master reset wipe lock.
+      clearFactoryZeroDeliveryLock();
+      pauseCloudPushes(0);
+
       await syncCloudWorkspace({
         getLocalProfiles: getDadProfiles,
         replaceLocalProfiles: (profiles) => {

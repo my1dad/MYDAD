@@ -8,6 +8,7 @@ import { useDadAuth } from "../context/DadAuthContext.jsx";
 /**
  * Keep the UI free. Background work is minimal and delayed:
  * 1) Unlock delivery lock + pull profiles so admin sees members immediately
+ *    (skipped while factory-zero lock is active after master reset)
  * 2) Rebuild member registry from profiles
  * 3) Light local pool hydrate
  * 4) Full cloud sync later
@@ -21,13 +22,18 @@ export default function PostAuthWorkspace({ children }) {
     let alive = true;
     const cleanups = [];
 
-    // Immediately reopen member sync after any factory-zero delivery lock.
     const unlockTimer = window.setTimeout(() => {
       void import("../lib/supabase/cloudSync")
-        .then(({ clearFactoryZeroDeliveryLock, pauseCloudPushes, pullCloudProfilesNow }) => {
+        .then(({ clearFactoryZeroDeliveryLock, pauseCloudPushes, pullCloudProfilesNow, isFactoryZeroLocked }) => {
           if (!alive) return null;
+
+          // Master reset sets factory-zero so wiped liquidity/members stay gone.
+          // Clearing that lock here was resurrecting cloud pool + member data on reload.
+          if (isFactoryZeroLocked()) {
+            return pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+          }
+
           clearFactoryZeroDeliveryLock();
-          // Cancel the 24h pause that blocked member/bin cloud sync after wipe.
           pauseCloudPushes(0);
           return pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
         })
@@ -51,16 +57,25 @@ export default function PostAuthWorkspace({ children }) {
         .catch((err) => console.warn("[PostAuthWorkspace] Local hydrate skipped:", err));
     }, 800);
 
-    // Full cloud sync once, deferred.
+    // Full cloud sync once, deferred — skip while factory-zero lock is active.
     const cloudTimer = window.setTimeout(() => {
       if (!alive || document.visibilityState !== "visible") return;
 
       void (async () => {
         try {
-          const { initCloudSync, clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
-            "../lib/supabase/cloudSync"
-          );
+          const {
+            initCloudSync,
+            clearFactoryZeroDeliveryLock,
+            pauseCloudPushes,
+            isFactoryZeroLocked,
+          } = await import("../lib/supabase/cloudSync");
           if (!alive) return;
+
+          if (isFactoryZeroLocked()) {
+            // Keep the post-reset wipe lock. Full sync here was reloading pre-reset
+            // liquidity/members from cloud after Master reset.
+            return;
+          }
 
           clearFactoryZeroDeliveryLock();
           pauseCloudPushes(0);

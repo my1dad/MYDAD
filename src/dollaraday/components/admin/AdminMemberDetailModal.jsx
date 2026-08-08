@@ -27,11 +27,11 @@ import {
 import { getDatabaseRevision, subscribeInternalDatabase } from "../../lib/internalDatabase";
 import { adminSetMemberWalletBalances, useMemberAccounts } from "../../lib/memberAccounts";
 import { adminSetMemberDirectoryBalances } from "../../lib/memberRegistry";
-import { buildAdminMemberDetail, getProfileMemberRoi } from "../../lib/profileRegistry";
+import { buildAdminMemberDetail } from "../../lib/profileRegistry";
 
-function DetailSection({ title, children }) {
+function DetailSection({ title, children, className }) {
   return (
-    <section className="dda-admin-member-detail__section">
+    <section className={cn("dda-admin-member-detail__section", className)}>
       <h3 className="dda-admin-member-detail__section-title">{title}</h3>
       {children}
     </section>
@@ -64,10 +64,35 @@ function formatWhen(iso) {
   }
 }
 
-function moneyInputValue(value) {
+function parseMoneyInput(value) {
+  const cleaned = String(value ?? "").replace(/,/g, "").replace(/[^0-9.]/g, "");
+  if (!cleaned) return NaN;
+  const amount = Number(cleaned);
+  return Number.isFinite(amount) ? amount : NaN;
+}
+
+function formatMoneyAmount(value) {
   const amount = Number(value);
-  if (!Number.isFinite(amount)) return "0";
-  return String(amount);
+  if (!Number.isFinite(amount)) return "0.00";
+  return amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatMoneyDisplay(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "$0.00";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+}
+
+function sanitizeMoneyTyping(value) {
+  let next = String(value ?? "").replace(/[^0-9.]/g, "");
+  const firstDot = next.indexOf(".");
+  if (firstDot !== -1) {
+    next = `${next.slice(0, firstDot + 1)}${next.slice(firstDot + 1).replace(/\./g, "")}`;
+  }
+  return next;
 }
 
 export default function AdminMemberDetailModal({
@@ -83,10 +108,7 @@ export default function AdminMemberDetailModal({
   const [actionError, setActionError] = useState("");
   const [balanceError, setBalanceError] = useState("");
   const [balanceSaved, setBalanceSaved] = useState(false);
-  const [checkingInput, setCheckingInput] = useState("0");
-  const [escrowInput, setEscrowInput] = useState("0");
-  const [contributedInput, setContributedInput] = useState("0");
-  const [equityInput, setEquityInput] = useState("0");
+  const [checkingInput, setCheckingInput] = useState("0.00");
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   const [resolvedProfileId, setResolvedProfileId] = useState(profileId || "");
@@ -185,18 +207,8 @@ export default function AdminMemberDetailModal({
 
   useEffect(() => {
     if (!open || !detail) return;
-    setCheckingInput(moneyInputValue(wallet.checkingBalance));
-    setEscrowInput(moneyInputValue(wallet.escrowBalance));
-    setContributedInput(moneyInputValue(detail.record.contributed));
-    setEquityInput(moneyInputValue(detail.record.equity));
-  }, [
-    open,
-    profileId,
-    detail?.record.contributed,
-    detail?.record.equity,
-    wallet.checkingBalance,
-    wallet.escrowBalance,
-  ]);
+    setCheckingInput(formatMoneyAmount(wallet.checkingBalance));
+  }, [open, activeProfileId, wallet.checkingBalance]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -263,8 +275,9 @@ export default function AdminMemberDetailModal({
         <div
           role="dialog"
           aria-modal="true"
-          className="relative w-full max-w-md rounded-t-3xl border border-white/10 bg-dda-bg p-5 shadow-2xl sm:rounded-2xl"
+          className="dda-admin-member-sheet relative w-full max-w-md p-5"
         >
+          <div className="dda-accent-bar" />
           {(displayNameHint || usernameHint) && !profileLoading ? (
             <div className="mb-3">
               <p className="text-lg font-semibold text-white">
@@ -299,7 +312,7 @@ export default function AdminMemberDetailModal({
                     type="button"
                     disabled={actionBusy}
                     onClick={handleDenyMissing}
-                    className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 disabled:opacity-50"
+                    className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 disabled:opacity-50"
                   >
                     {t("pages.admin.profileDeny")}
                   </button>
@@ -308,7 +321,7 @@ export default function AdminMemberDetailModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-gray-300"
+                className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-gray-300"
               >
                 {t("common.close")}
               </button>
@@ -326,9 +339,6 @@ export default function AdminMemberDetailModal({
   const approvalStatus = getProfileApprovalStatus(profile);
   const isPending = approvalStatus === "pending";
   const isDenied = approvalStatus === "denied";
-  const roi = getProfileMemberRoi(record);
-  const roiPositive = roi.amount >= 0;
-  const roiSign = roiPositive ? "+" : "−";
 
   const handleDelete = () => {
     if (!window.confirm(t("pages.admin.profileDeleteConfirm", { name: record.name }))) return;
@@ -386,25 +396,24 @@ export default function AdminMemberDetailModal({
     setBalanceError("");
     setBalanceSaved(false);
 
-    const checking = Number(checkingInput);
-    const escrow = Number(escrowInput);
-    const contributed = Number(contributedInput);
-    const equity = Number(equityInput);
-
-    if ([checking, escrow, contributed, equity].some((value) => !Number.isFinite(value) || value < 0)) {
+    const checking = parseMoneyInput(checkingInput);
+    if (!Number.isFinite(checking) || checking < 0) {
       setBalanceError(t("pages.admin.memberDetailBalancesInvalid"));
       return;
     }
 
     try {
-      // Lock directory totals first so escrow/pool sync cannot wipe them.
       const targetId = activeProfileId || profileId;
-      const updated = adminSetMemberDirectoryBalances(targetId, { contributed, equity });
-      if (!updated) {
+      adminSetMemberWalletBalances(targetId, { checking });
+      const directory = adminSetMemberDirectoryBalances(targetId, {
+        contributed: checking,
+        equity: checking,
+      });
+      if (!directory) {
         setBalanceError(t("pages.admin.memberDetailBalancesFailed"));
         return;
       }
-      adminSetMemberWalletBalances(targetId, { checking, escrow });
+      setCheckingInput(formatMoneyAmount(checking));
       setBalanceSaved(true);
     } catch {
       setBalanceError(t("pages.admin.memberDetailBalancesFailed"));
@@ -426,114 +435,96 @@ export default function AdminMemberDetailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="admin-member-detail-title"
-        className="relative flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-dda-bg shadow-2xl sm:max-h-[88dvh] sm:rounded-2xl"
+        className="dda-admin-member-sheet relative flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden sm:max-h-[88dvh]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="dda-accent-bar" />
 
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
-          <div className="flex min-w-0 items-start gap-3">
+        <header className="dda-admin-member-sheet__header">
+          <div className="flex min-w-0 items-start gap-3.5">
             <MemberAvatar
               initials={record.name?.slice(0, 2).toUpperCase() || "?"}
               imageUrl={record.profilePhotoUrl}
               size="lg"
             />
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-dda-green-light">
+              <p className="dda-admin-member-sheet__kicker">
                 {t("pages.admin.memberDetailKicker")}
               </p>
-              <h2 id="admin-member-detail-title" className="mt-1 truncate text-lg font-semibold text-white">
+              <h2 id="admin-member-detail-title" className="dda-admin-member-sheet__title">
                 {record.name}
               </h2>
-              {isPending ? (
-                <span className="mt-2 inline-block">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {isPending ? (
                   <Badge variant="warning">{t("pages.admin.profilePendingBadge")}</Badge>
-                </span>
-              ) : null}
-              {isDenied ? (
-                <span className={cn("inline-block", isPending ? "ml-2" : "mt-2")}>
+                ) : null}
+                {isDenied ? (
                   <Badge variant="danger">{t("pages.admin.profileDeniedBadge")}</Badge>
-                </span>
-              ) : null}
-              {isSuspended && !isPending && !isDenied ? (
-                <span className="mt-2 inline-block">
+                ) : null}
+                {isSuspended && !isPending && !isDenied ? (
                   <Badge variant="warning">{t("pages.admin.profileSuspendedBadge")}</Badge>
+                ) : null}
+                <span className="dda-admin-member-sheet__chip">
+                  {record.username ? `@${record.username}` : record.handle}
                 </span>
-              ) : null}
-              <p className="mt-1 text-sm text-gray-500">
-                {record.username ? `@${record.username}` : record.handle}
-                {record.proId ? ` · ${record.proId}` : ""}
-              </p>
+                {record.proId ? (
+                  <span className="dda-admin-member-sheet__chip dda-admin-member-sheet__chip--gold">
+                    {record.proId}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label={t("common.close")}
-            className="rounded-lg p-2 text-gray-400 transition hover:bg-white/5 hover:text-white"
+            className="dda-admin-member-sheet__close"
           >
             <X className="h-4 w-4" />
           </button>
-        </div>
+        </header>
 
         {!isProtected ? (
-          <div className="dda-admin-member-detail__actions border-b border-white/10 px-5 py-3">
+          <div className="dda-admin-member-detail__actions">
             {isPending || isDenied ? (
-              <>
-                <button
-                  type="button"
-                  onClick={handleApprove}
-                  className="dda-admin-member-detail__action dda-admin-member-detail__action--approve"
-                >
-                  {t("pages.admin.profileApprove")}
-                </button>
-                {isPending ? (
-                  <>
-                    <span className="dda-admin-member-detail__action-sep" aria-hidden="true">
-                      |
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleDeny}
-                      className="dda-admin-member-detail__action dda-admin-member-detail__action--danger"
-                    >
-                      {t("pages.admin.profileDeny")}
-                    </button>
-                  </>
-                ) : null}
-                <span className="dda-admin-member-detail__action-sep" aria-hidden="true">
-                  |
-                </span>
-              </>
+              <button
+                type="button"
+                onClick={handleApprove}
+                className="dda-admin-member-detail__pill dda-admin-member-detail__pill--approve"
+              >
+                {t("pages.admin.profileApprove")}
+              </button>
+            ) : null}
+            {isPending ? (
+              <button
+                type="button"
+                onClick={handleDeny}
+                className="dda-admin-member-detail__pill dda-admin-member-detail__pill--danger"
+              >
+                {t("pages.admin.profileDeny")}
+              </button>
             ) : null}
             <button
               type="button"
               onClick={handleDelete}
-              className="dda-admin-member-detail__action dda-admin-member-detail__action--danger"
+              className="dda-admin-member-detail__pill dda-admin-member-detail__pill--danger"
             >
               {t("pages.admin.profileDelete")}
             </button>
             {!isPending ? (
-              <>
-                <span className="dda-admin-member-detail__action-sep" aria-hidden="true">
-                  |
-                </span>
-                <button
-                  type="button"
-                  onClick={handleSuspendToggle}
-                  className="dda-admin-member-detail__action dda-admin-member-detail__action--warn"
-                >
-                  {isSuspended ? t("pages.admin.profileReactivate") : t("pages.admin.profileSuspend")}
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={handleSuspendToggle}
+                className="dda-admin-member-detail__pill dda-admin-member-detail__pill--warn"
+              >
+                {isSuspended ? t("pages.admin.profileReactivate") : t("pages.admin.profileSuspend")}
+              </button>
             ) : null}
-            <span className="dda-admin-member-detail__action-sep" aria-hidden="true">
-              |
-            </span>
             <button
               type="button"
               onClick={() => setEditOpen(true)}
-              className="dda-admin-member-detail__action"
+              className="dda-admin-member-detail__pill"
             >
               {t("pages.admin.profileEdit")}
             </button>
@@ -544,7 +535,55 @@ export default function AdminMemberDetailModal({
           <p className="border-b border-white/10 px-5 py-2 text-sm text-red-400">{actionError}</p>
         ) : null}
 
-        <div className="dda-scroll overflow-y-auto px-5 py-4">
+        <div className="dda-scroll overflow-y-auto px-5 py-5">
+          <DetailSection title={t("pages.admin.memberDetailBalances")} className="!mt-0 !border-0 !pt-0">
+            <form onSubmit={handleBalanceSave} className="space-y-3">
+              <p className="text-[12px] leading-relaxed text-gray-500">
+                {t("pages.admin.memberDetailBalancesNote")}
+              </p>
+              <div className="dda-admin-member-balance-card">
+                <label htmlFor="admin-balance-checking" className="dda-admin-member-balance-card__label">
+                  {t("pages.admin.memberDetailBalanceChecking")}
+                </label>
+                <div className="dda-admin-member-balance-card__field">
+                  <span className="dda-admin-member-balance-card__currency" aria-hidden="true">
+                    $
+                  </span>
+                  <input
+                    id="admin-balance-checking"
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={checkingInput}
+                    onFocus={(event) => {
+                      event.target.select();
+                    }}
+                    onChange={(event) => {
+                      setCheckingInput(sanitizeMoneyTyping(event.target.value));
+                      setBalanceSaved(false);
+                    }}
+                    onBlur={() => {
+                      const amount = parseMoneyInput(checkingInput);
+                      if (Number.isFinite(amount) && amount >= 0) {
+                        setCheckingInput(formatMoneyAmount(amount));
+                      } else {
+                        setCheckingInput("0.00");
+                      }
+                    }}
+                    className="dda-admin-member-balance-card__input"
+                  />
+                </div>
+              </div>
+              {balanceError ? <p className="text-sm text-red-400">{balanceError}</p> : null}
+              {balanceSaved ? (
+                <p className="text-sm text-dda-green-light">{t("pages.admin.memberDetailBalancesSaved")}</p>
+              ) : null}
+              <button type="submit" className="dda-btn-primary">
+                {t("pages.admin.memberDetailBalancesSave")}
+              </button>
+            </form>
+          </DetailSection>
+
           <DetailSection title={t("pages.admin.memberDetailIdentity")}>
             <div className="dda-admin-member-detail__grid">
               <DetailRow label={t("pages.admin.proId")} value={record.proId} mono />
@@ -573,7 +612,7 @@ export default function AdminMemberDetailModal({
           </DetailSection>
 
           <DetailSection title={t("pages.admin.memberDetailCredentials")}>
-            <div className="dda-panel rounded-xl p-3">
+            <div className="dda-admin-member-detail__panel">
               <DetailRow label={t("login.username")} value={record.username ? `@${record.username}` : "—"} mono />
               <DetailRow
                 label={t("login.password")}
@@ -594,126 +633,18 @@ export default function AdminMemberDetailModal({
                 <p className="mt-1 font-bold text-white">{record.days}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-gray-500">{t("common.equity")}</p>
-                <p className="mt-1 font-bold text-dda-green-light">${record.equity.toLocaleString()}</p>
+                <p className="text-[10px] uppercase tracking-wide text-gray-500">
+                  {t("pages.admin.memberDetailBalanceChecking")}
+                </p>
+                <p className="mt-1 font-bold tabular-nums text-dda-green-light">
+                  {formatMoneyDisplay(wallet.checkingBalance)}
+                </p>
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-gray-500">{t("common.score")}</p>
                 <p className="mt-1 font-bold text-white">{record.score}</p>
               </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-gray-500">
-                  {t("pages.admin.memberDetailRoi")}
-                </p>
-                <p
-                  className={cn(
-                    "mt-1 font-bold tabular-nums",
-                    roiPositive ? "text-dda-green-light" : "text-red-400",
-                  )}
-                >
-                  {roiSign}
-                  {formatPoolCurrency(Math.abs(roi.amount))}
-                </p>
-                <p
-                  className={cn(
-                    "mt-0.5 text-[10px] tabular-nums",
-                    roiPositive ? "text-gray-500" : "text-red-400/80",
-                  )}
-                >
-                  {roiPositive ? "+" : "−"}
-                  {Math.abs(roi.pct).toFixed(2)}%
-                </p>
-              </div>
             </div>
-          </DetailSection>
-
-          <DetailSection title={t("pages.admin.memberDetailBalances")}>
-            <form onSubmit={handleBalanceSave} className="space-y-3">
-              <p className="text-[11px] leading-relaxed text-gray-500">
-                {t("pages.admin.memberDetailBalancesNote")}
-              </p>
-              <div className="dda-admin-member-detail__balance-grid">
-                <div>
-                  <label htmlFor="admin-balance-checking" className="mb-1.5 block text-xs font-semibold text-gray-400">
-                    {t("pages.admin.memberDetailBalanceChecking")}
-                  </label>
-                  <input
-                    id="admin-balance-checking"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={checkingInput}
-                    onChange={(event) => {
-                      setCheckingInput(event.target.value);
-                      setBalanceSaved(false);
-                    }}
-                    className="dda-input"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="admin-balance-escrow" className="mb-1.5 block text-xs font-semibold text-gray-400">
-                    {t("pages.admin.memberDetailBalanceEscrow")}
-                  </label>
-                  <input
-                    id="admin-balance-escrow"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={escrowInput}
-                    onChange={(event) => {
-                      setEscrowInput(event.target.value);
-                      setBalanceSaved(false);
-                    }}
-                    className="dda-input"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="admin-balance-contributed" className="mb-1.5 block text-xs font-semibold text-gray-400">
-                    {t("pages.admin.memberDetailContributed")}
-                  </label>
-                  <input
-                    id="admin-balance-contributed"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={contributedInput}
-                    onChange={(event) => {
-                      setContributedInput(event.target.value);
-                      setBalanceSaved(false);
-                    }}
-                    className="dda-input"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="admin-balance-equity" className="mb-1.5 block text-xs font-semibold text-gray-400">
-                    {t("common.equity")}
-                  </label>
-                  <input
-                    id="admin-balance-equity"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={equityInput}
-                    onChange={(event) => {
-                      setEquityInput(event.target.value);
-                      setBalanceSaved(false);
-                    }}
-                    className="dda-input"
-                  />
-                </div>
-              </div>
-              {balanceError ? <p className="text-sm text-red-400">{balanceError}</p> : null}
-              {balanceSaved ? (
-                <p className="text-sm text-dda-green-light">{t("pages.admin.memberDetailBalancesSaved")}</p>
-              ) : null}
-              <button type="submit" className="dda-btn-primary">
-                {t("pages.admin.memberDetailBalancesSave")}
-              </button>
-            </form>
           </DetailSection>
 
           <DetailSection title={t("pages.admin.memberDetailDonations", { count: contributions.length })}>

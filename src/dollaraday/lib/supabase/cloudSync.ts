@@ -668,7 +668,10 @@ export async function pushCloudProfilesNow(profiles: DadProfile[]): Promise<bool
  * Master reset: delete every cloud profile not in `profiles`, then upsert the keepers.
  * Upsert alone cannot remove members, so a factory reset would otherwise resurrect them.
  */
-export async function replaceCloudProfilesDirectory(profiles: DadProfile[]): Promise<boolean> {
+export async function replaceCloudProfilesDirectory(
+  profiles: DadProfile[],
+  options: { force?: boolean } = {},
+): Promise<boolean> {
   if (!isSupabaseConfigured()) return true;
 
   const supabase = getSupabaseClient();
@@ -683,11 +686,12 @@ export async function replaceCloudProfilesDirectory(profiles: DadProfile[]): Pro
     const remote = await fetchCloudProfiles();
     const keepIds = new Set(profiles.map((profile) => profile.id));
     const epoch = getWorkspaceEpoch();
-    // Never delete members that registered/updated after the factory wipe epoch.
+    // force=true (master reset): delete every non-keeper regardless of epoch.
+    // Otherwise never delete members that registered/updated after the wipe epoch.
     const staleIds = remote
       .filter((profile) => {
         if (keepIds.has(profile.id)) return false;
-        if (!epoch) return true;
+        if (options.force || !epoch) return true;
         const created = profile.createdAt ?? "";
         const updated = profile.updatedAt ?? "";
         return created < epoch && updated < epoch;
@@ -713,6 +717,14 @@ export async function replaceCloudProfilesDirectory(profiles: DadProfile[]): Pro
   return upsertCloudProfiles(profiles);
 }
 
+export function isFactoryZeroLocked(): boolean {
+  try {
+    return localStorage.getItem("dollar-a-day-factory-zero") === "1";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Hard wipe Supabase workspace data (bins + kv + non-admin profiles).
  * Used by master reset so past platform data cannot reload from the cloud.
@@ -732,22 +744,29 @@ export async function wipeCloudWorkspaceExceptAdmin(admin: DadProfile): Promise<
   for (const timer of pendingKvPushes.values()) clearTimeout(timer);
   pendingKvPushes.clear();
 
-  // 1) Profiles: only master admin remains.
-  await replaceCloudProfilesDirectory([admin]);
+  // 1) Profiles: force-delete every non-admin row (ignore epoch survival).
+  await replaceCloudProfilesDirectory([admin], { force: true });
 
-  // 2) Bins: push the post-reset local documents (empty members/txns + seeded $0 pool).
+  // 2) Force every bin to empty / post-reset local docs — never leave stale members/pool.
   const wipedAt = new Date().toISOString();
   await Promise.all(
     DATA_BIN_DEFINITIONS.map((definition) => {
       const local = readDataBin(definition.key);
+      const localRecords = Array.isArray(local.records) ? local.records : [];
+      // Prefer wiped local docs; if local still looks polluted, push a hard empty bin.
+      const forceEmpty =
+        definition.key !== "settings" ||
+        localRecords.some((record) => record.id?.startsWith("member-accounts-"));
       const document: DataBinDocument = {
-        ...local,
-        version: local.version ?? 1,
+        version: 1,
         binKey: definition.key,
-        // Ensure cloud timestamp beats any pre-reset remote row.
-        updatedAt: local.updatedAt && local.updatedAt > wipedAt ? local.updatedAt : wipedAt,
-        records: Array.isArray(local.records) ? local.records : [],
+        updatedAt: wipedAt,
+        records: forceEmpty && definition.key !== "settings" ? [] : localRecords,
       };
+      // Settings: keep only the live pool seed record if present; drop wallets/ledgers.
+      if (definition.key === "settings") {
+        document.records = localRecords.filter((record) => record.id === "pool-live-state");
+      }
       return upsertCloudBin(definition.binId, document);
     }),
   );
@@ -1028,15 +1047,18 @@ export async function syncCloudWorkspace(options: {
       const remoteRow = remoteBins.find((row) => row.bin_id === binId);
       const localDoc = readDataBin(binKey);
 
-      // Never push a wiped empty local members bin over a populated cloud directory.
+      // During an active factory-zero lock, always push local wiped bins — never
+      // preserve a populated cloud directory that survived an incomplete reset.
+      const factoryZero = isFactoryZeroLocked();
       const skipLocalWipePush =
+        !factoryZero &&
         honorLocalReset &&
         remoteHasMembers &&
         binId === "members" &&
         (localDoc.records?.length ?? 0) === 0 &&
         (remoteRow?.document?.records?.length ?? 0) > 0;
 
-      if (honorLocalReset && !skipLocalWipePush && !remoteHasMembers) {
+      if ((honorLocalReset || factoryZero) && !skipLocalWipePush && (!remoteHasMembers || factoryZero)) {
         // This device performed the wipe — push $0 bins; never merge pre-reset cloud rows.
         applyExternalBinDocument(binId, binKey, localDoc);
         binUpserts.push(upsertCloudBin(binId, localDoc));

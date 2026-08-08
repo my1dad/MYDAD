@@ -532,7 +532,7 @@ export function getMemberAccountLedger(profileId = resolveMemberProfileId()): Me
 /** Admin override: set checking / escrow wallet balances for a member. */
 export function adminSetMemberWalletBalances(
   profileId: string,
-  balances: { checking: number; escrow: number },
+  balances: { checking: number; escrow?: number },
 ): MemberAccountLedger {
   if (!profileId) {
     throw new Error("profileId is required");
@@ -541,7 +541,10 @@ export function adminSetMemberWalletBalances(
   const next: MemberAccountLedger = {
     ...ledger,
     checkingBalance: Math.max(0, Math.round((Number(balances.checking) || 0) * 100) / 100),
-    escrowBalance: Math.max(0, Math.round((Number(balances.escrow) || 0) * 100) / 100),
+    escrowBalance:
+      balances.escrow === undefined
+        ? ledger.escrowBalance
+        : Math.max(0, Math.round((Number(balances.escrow) || 0) * 100) / 100),
   };
   persistLedger(profileId, next);
   return next;
