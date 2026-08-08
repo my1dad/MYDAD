@@ -18,7 +18,9 @@ import {
 } from "../../lib/profileAdminActions";
 import {
   getDadProfileRevision,
+  getDadProfiles,
   getProfileApprovalStatus,
+  replaceDadProfilesLocal,
   subscribeDadProfiles,
 } from "../../lib/dadProfileStorage";
 import { getDatabaseRevision, subscribeInternalDatabase } from "../../lib/internalDatabase";
@@ -77,6 +79,8 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
   const [escrowInput, setEscrowInput] = useState("0");
   const [contributedInput, setContributedInput] = useState("0");
   const [equityInput, setEquityInput] = useState("0");
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   const profileRevision = useSyncExternalStore(
     subscribeDadProfiles,
     getDadProfileRevision,
@@ -99,7 +103,39 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
     setBalanceError("");
     setBalanceSaved(false);
     setEditOpen(false);
+    setProfileLoadFailed(false);
   }, [open, profileId]);
+
+  useEffect(() => {
+    if (!open || !profileId || detail) {
+      setProfileLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setProfileLoading(true);
+    setProfileLoadFailed(false);
+
+    void import("../../lib/supabase/cloudSync")
+      .then(({ pullCloudProfilesNow }) =>
+        pullCloudProfilesNow(getDadProfiles, replaceDadProfilesLocal),
+      )
+      .then(() => {
+        if (cancelled) return;
+        const resolved = buildAdminMemberDetail(profileId);
+        if (!resolved) setProfileLoadFailed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setProfileLoadFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, profileId, detail]);
 
   useEffect(() => {
     if (!open || !detail) return;
@@ -149,10 +185,18 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
           aria-modal="true"
           className="relative w-full max-w-md rounded-t-3xl border border-white/10 bg-dda-bg p-5 shadow-2xl sm:rounded-2xl"
         >
-          <p className="text-sm text-red-400">{t("pages.admin.memberDetailMissing")}</p>
-          <button type="button" onClick={onClose} className="dda-btn-primary mt-4">
-            {t("common.close")}
-          </button>
+          <p className="text-sm text-gray-300">
+            {profileLoading
+              ? t("pages.admin.memberDetailLoading")
+              : profileLoadFailed
+                ? t("pages.admin.memberDetailMissing")
+                : t("pages.admin.memberDetailLoading")}
+          </p>
+          {!profileLoading ? (
+            <button type="button" onClick={onClose} className="dda-btn-primary mt-4">
+              {t("common.close")}
+            </button>
+          ) : null}
         </div>
       </div>,
       document.body,
