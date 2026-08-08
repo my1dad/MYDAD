@@ -209,17 +209,21 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
           onClick={interactive ? openLedger : undefined}
           onKeyDown={interactive ? onLedgerKeyDown : undefined}
           aria-label={t(
-            interactive
-              ? wallet
-                ? "pages.dashboard.equityAriaWallet"
-                : "pages.dashboard.equityAria"
-              : "pages.dashboard.equityAriaStatic",
+            isAdmin
+              ? "pages.dashboard.liquidityAria"
+              : interactive
+                ? wallet
+                  ? "pages.dashboard.equityAriaWallet"
+                  : "pages.dashboard.equityAria"
+                : "pages.dashboard.equityAriaStatic",
             { amount: balanceLabel },
           )}
         >
           <div className="dda-member-bank__ledger-head">
             <div className="dda-member-bank__ledger-meta">
-              <p className="dda-member-bank__account-type">{t("pages.dashboard.equityTitle")}</p>
+              <p className="dda-member-bank__account-type">
+                {t(isAdmin ? "pages.dashboard.liquidityTitle" : "pages.dashboard.equityTitle")}
+              </p>
               <div className="dda-member-bank__account-mask-row">
                 <p className="dda-member-bank__account-mask" aria-live="polite">
                   {accountDisplay}
