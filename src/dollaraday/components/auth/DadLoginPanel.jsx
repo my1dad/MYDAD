@@ -20,6 +20,7 @@ export default function DadLoginPanel({
   onSwitchMode,
   error,
   success,
+  submitting = false,
   username,
   password,
   rememberMe,
@@ -126,8 +127,13 @@ export default function DadLoginPanel({
               {error}
             </p>
           ) : null}
-          <button type="submit" className="dda-btn-primary w-full py-2.5">
-            {t("login.openDashboard")}
+          <button
+            type="submit"
+            className="dda-btn-primary w-full py-2.5 disabled:pointer-events-none disabled:opacity-60"
+            disabled={submitting}
+            aria-busy={submitting}
+          >
+            {submitting ? t("login.signingIn") : t("login.openDashboard")}
           </button>
         </form>
       ) : (
@@ -242,8 +248,13 @@ export default function DadLoginPanel({
               {error}
             </p>
           )}
-          <button type="submit" className="dda-btn-primary w-full py-2.5">
-            {t("login.createProfile")}
+          <button
+            type="submit"
+            className="dda-btn-primary w-full py-2.5 disabled:pointer-events-none disabled:opacity-60"
+            disabled={submitting}
+            aria-busy={submitting}
+          >
+            {submitting ? t("login.creatingProfile") : t("login.createProfile")}
           </button>
         </form>
       )}

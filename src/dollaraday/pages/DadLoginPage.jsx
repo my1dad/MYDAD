@@ -109,7 +109,11 @@ export default function DadLoginPage() {
                 ? t("login.pendingApprovalError")
                 : result.error === "denied"
                   ? t("login.deniedError")
-                  : result.error,
+                  : result.error === "syncTimeout"
+                    ? t("login.syncTimeoutError")
+                    : result.error === "syncFailed"
+                      ? t("login.syncFailedError")
+                      : result.error,
           );
           return;
         }
@@ -219,6 +223,7 @@ export default function DadLoginPage() {
                   onSwitchMode={switchMode}
                   error={error}
                   success={success}
+                  submitting={submitting}
                   username={username}
                   password={password}
                   rememberMe={rememberMe}

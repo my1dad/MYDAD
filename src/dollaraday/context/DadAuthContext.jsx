@@ -17,6 +17,8 @@ import {
 } from "../lib/dadProfileStorage";
 import { clearPendingDmPartnerId } from "../lib/communityDmNavigation";
 
+const AUTH_SYNC_TIMEOUT_MS = 12_000;
+
 async function syncProfilesBeforeAuth() {
   try {
     const { pullCloudProfilesNow, clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
@@ -24,9 +26,19 @@ async function syncProfilesBeforeAuth() {
     );
     clearFactoryZeroDeliveryLock();
     pauseCloudPushes(0);
-    await pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+    const pull = pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+    const timeout = new Promise((_, reject) => {
+      window.setTimeout(() => reject(new Error("AUTH_SYNC_TIMEOUT")), AUTH_SYNC_TIMEOUT_MS);
+    });
+    await Promise.race([pull, timeout]);
+    return { ok: true };
   } catch (err) {
-    console.warn("[auth] Cloud profile pull before auth skipped:", err);
+    const message = err instanceof Error ? err.message : String(err ?? "");
+    console.warn("[auth] Cloud profile pull before auth failed:", err);
+    return {
+      ok: false,
+      error: message === "AUTH_SYNC_TIMEOUT" ? "syncTimeout" : "syncFailed",
+    };
   }
 }
 
@@ -110,47 +122,51 @@ export function DadAuthProvider({ children }) {
 
   const login = useCallback(async (username, password, options = {}) => {
     const rememberMe = Boolean(options.rememberMe);
+    const normalizedUsername = String(username ?? "").trim();
+    const normalizedPassword = String(password ?? "").trim();
 
     // Auth screen has no PostAuthWorkspace sync — pull approvals/passwords first.
-    await syncProfilesBeforeAuth();
+    const sync = await syncProfilesBeforeAuth();
 
     // Single authenticate path: admin is included via authenticateDadProfile / loginDadAdmin
     // without a third PBKDF2 verify for status checks.
-    const adminMatch = await loginDadAdmin(username, password);
+    const adminMatch = await loginDadAdmin(normalizedUsername, normalizedPassword);
     if (adminMatch) {
       setProfile(beginAuthenticatedSession(adminMatch, "login", rememberMe));
       setAuthEntryTick((tick) => tick + 1);
       return { ok: true };
     }
 
-    const existing = findDadProfileByUsername(username);
+    const existing = findDadProfileByUsername(normalizedUsername);
     if (existing) {
+      const { profilePasswordMatches } = await import("../lib/dadProfileStorage");
       if (isProfilePendingApproval(existing)) {
         // Still verify password so we don't leak account status without credentials.
-        const { profilePasswordMatches } = await import("../lib/dadProfileStorage");
-        if (await profilePasswordMatches(existing, password)) {
+        if (await profilePasswordMatches(existing, normalizedPassword)) {
+          // Local pending may be stale if the cloud pull failed — don't block as pending.
+          if (!sync.ok) return { ok: false, error: sync.error };
           return { ok: false, error: "pendingApproval" };
         }
         return { ok: false, error: "Invalid username or password." };
       }
       if (isProfileDenied(existing)) {
-        const { profilePasswordMatches } = await import("../lib/dadProfileStorage");
-        if (await profilePasswordMatches(existing, password)) {
+        if (await profilePasswordMatches(existing, normalizedPassword)) {
           return { ok: false, error: "denied" };
         }
         return { ok: false, error: "Invalid username or password." };
       }
       if (isProfileSuspended(existing)) {
-        const { profilePasswordMatches } = await import("../lib/dadProfileStorage");
-        if (await profilePasswordMatches(existing, password)) {
+        if (await profilePasswordMatches(existing, normalizedPassword)) {
           return { ok: false, error: "suspended" };
         }
         return { ok: false, error: "Invalid username or password." };
       }
     }
 
-    const matched = await authenticateDadProfile(username, password);
+    const matched = await authenticateDadProfile(normalizedUsername, normalizedPassword);
     if (!matched) {
+      // New phone / empty local cache: prefer sync errors over "invalid credentials".
+      if (!sync.ok && !existing) return { ok: false, error: sync.error };
       return { ok: false, error: "Invalid username or password." };
     }
 

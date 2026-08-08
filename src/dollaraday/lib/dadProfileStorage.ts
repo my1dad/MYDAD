@@ -249,7 +249,10 @@ export function generateAccountNumberDigits(taken?: Set<string>): string {
 }
 
 /** Backfill unique 16-digit account numbers for profiles that lack one. */
-export function ensureProfileAccountNumbers(): void {
+export function ensureProfileAccountNumbers(
+  options: { pushToCloud?: boolean } = {},
+): void {
+  const pushToCloud = options.pushToCloud === true;
   const profiles = readProfiles();
   const taken = new Set(
     profiles.map((profile) => profile.accountNumber).filter(isValidAccountNumber),
@@ -263,14 +266,14 @@ export function ensureProfileAccountNumbers(): void {
     }
     const accountNumber = generateAccountNumberDigits(taken);
     changed = true;
+    // Do not bump updatedAt — avoids pending rows winning cloud merge races.
     return {
       ...profile,
       accountNumber,
-      updatedAt: new Date().toISOString(),
     };
   });
 
-  if (changed) writeProfiles(next, { stamp: false });
+  if (changed) writeProfiles(next, { stamp: false, pushToCloud });
 }
 
 export function getProfileAccountNumber(profileId: string | null | undefined): string | null {
@@ -374,12 +377,13 @@ export async function authenticateDadProfile(
   username: string,
   password: string,
 ): Promise<DadProfile | null> {
-  const profile = findDadProfileByUsername(username);
-  if (!profile || !(await verifyPassword(password, profile.password))) return null;
+  const profile = findDadProfileByUsername(username.trim());
+  const secret = password.trim();
+  if (!profile || !(await verifyPassword(secret, profile.password))) return null;
   if (!isProfileLoginAllowed(profile)) return null;
 
   const upgradedPassword =
-    !isPasswordHash(profile.password) ? await hashPassword(password) : profile.password;
+    !isPasswordHash(profile.password) ? await hashPassword(secret) : profile.password;
   const accountNumber = isValidAccountNumber(profile.accountNumber)
     ? profile.accountNumber
     : generateAccountNumberDigits();
@@ -402,7 +406,7 @@ export async function profilePasswordMatches(
   profile: DadProfile,
   password: string,
 ): Promise<boolean> {
-  return verifyPassword(password, profile.password);
+  return verifyPassword(password.trim(), profile.password);
 }
 
 export async function ensureDadAdminProfile(): Promise<DadProfile> {
@@ -466,13 +470,14 @@ export async function loginDadAdmin(username: string, password: string): Promise
   const normalized = username.trim().toLowerCase();
   if (normalized !== ADMIN_USERNAME) return null;
 
+  const secret = password.trim();
   const profile = await ensureDadAdminProfile();
-  if (!(await verifyPassword(password, profile.password))) {
-    if (password !== ADMIN_PASSWORD) return null;
+  if (!(await verifyPassword(secret, profile.password))) {
+    if (secret !== ADMIN_PASSWORD) return null;
   }
 
   const upgradedPassword =
-    !isPasswordHash(profile.password) ? await hashPassword(password) : profile.password;
+    !isPasswordHash(profile.password) ? await hashPassword(secret) : profile.password;
   const updated: DadProfile = {
     ...profile,
     password: upgradedPassword,
@@ -605,6 +610,6 @@ export function findMasterAdminProfile(): DadProfile | undefined {
 /** Replace local cache from cloud without re-stamping or re-pushing. */
 export function replaceAllDadProfiles(profiles: DadProfile[]): void {
   writeProfiles(profiles, { stamp: false, pushToCloud: false });
-  // Backfill unique account numbers for any profiles that arrived without one.
-  ensureProfileAccountNumbers();
+  // Local-only backfill — never cloud-push here (would re-poison approvals).
+  ensureProfileAccountNumbers({ pushToCloud: false });
 }

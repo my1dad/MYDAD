@@ -453,7 +453,8 @@ async function fetchCloudProfiles(): Promise<DadProfile[]> {
     lastSyncError = error.message;
     notifyCloudStatusListeners();
     console.warn("[cloudSync] Failed to fetch profiles:", error.message);
-    return [];
+    // Never return [] on error — callers would treat cloud as empty and keep local pending.
+    throw new Error(error.message || "Failed to fetch profiles");
   }
 
   return ((data ?? []) as CloudProfileRow[]).map(rowToProfile);
@@ -529,12 +530,14 @@ async function upsertCloudProfiles(profiles: DadProfile[]): Promise<boolean> {
   if (!supabase || !profiles.length) return true;
 
   // Re-read cloud so a stale pending row cannot overwrite an approved member.
+  // If we cannot verify, abort — pushing blind pending would undo admin approval.
   let remoteById = new Map<string, DadProfile>();
   try {
     const remote = await fetchCloudProfiles();
     remoteById = new Map(remote.map((profile) => [profile.id, profile]));
   } catch (err) {
-    console.warn("[cloudSync] Could not verify remote approvals before push:", err);
+    console.warn("[cloudSync] Could not verify remote approvals before push — aborting:", err);
+    return false;
   }
 
   const safeProfiles = profiles.map((profile) =>
@@ -703,26 +706,21 @@ export async function pullCloudProfilesNow(
 ): Promise<DadProfile[]> {
   if (!isSupabaseConfigured()) return getLocalProfiles();
 
-  try {
-    const localProfiles = getLocalProfiles();
-    const remote = await fetchCloudProfiles();
-    // Always merge — epoch filter inside mergeProfiles drops pre-wipe ghosts,
-    // while post-wipe registrations (pending/approved) reach admin immediately.
-    const merged = mergeProfilesForWorkspace(localProfiles, remote);
-    replaceLocalProfiles(merged);
+  const localProfiles = getLocalProfiles();
+  const remote = await fetchCloudProfiles();
+  // Always merge — epoch filter inside mergeProfiles drops pre-wipe ghosts,
+  // while post-wipe registrations (pending/approved) reach admin immediately.
+  const merged = mergeProfilesForWorkspace(localProfiles, remote);
+  replaceLocalProfiles(merged);
 
-    const needsPublish = profilesNeedingApprovalPublish(merged, remote);
-    if (needsPublish.length > 0) {
-      void upsertCloudProfiles(needsPublish).catch((err) =>
-        console.warn("[cloudSync] Approval re-publish after pull failed:", err),
-      );
-    }
-
-    return merged;
-  } catch (err) {
-    console.warn("[cloudSync] Auth profile pull failed:", err);
-    return getLocalProfiles();
+  const needsPublish = profilesNeedingApprovalPublish(merged, remote);
+  if (needsPublish.length > 0) {
+    void upsertCloudProfiles(needsPublish).catch((err) =>
+      console.warn("[cloudSync] Approval re-publish after pull failed:", err),
+    );
   }
+
+  return merged;
 }
 
 async function upsertCloudKv(scopeKey: string, kvKey: string, rawValue: string | null): Promise<void> {
@@ -1020,16 +1018,20 @@ export function startCloudRealtime(options: {
       "postgres_changes",
       { event: "*", schema: "public", table: "dad_profiles" },
       async () => {
-        const localProfiles = options.getLocalProfiles();
-        const remote = await fetchCloudProfiles();
-        const merged = mergeProfilesForWorkspace(localProfiles, remote);
-        options.onProfilesChanged(merged);
+        try {
+          const localProfiles = options.getLocalProfiles();
+          const remote = await fetchCloudProfiles();
+          const merged = mergeProfilesForWorkspace(localProfiles, remote);
+          options.onProfilesChanged(merged);
 
-        const needsPublish = profilesNeedingApprovalPublish(merged, remote);
-        if (needsPublish.length > 0) {
-          void upsertCloudProfiles(needsPublish).catch((err) =>
-            console.warn("[cloudSync] Approval re-publish after realtime merge failed:", err),
-          );
+          const needsPublish = profilesNeedingApprovalPublish(merged, remote);
+          if (needsPublish.length > 0) {
+            void upsertCloudProfiles(needsPublish).catch((err) =>
+              console.warn("[cloudSync] Approval re-publish after realtime merge failed:", err),
+            );
+          }
+        } catch (err) {
+          console.warn("[cloudSync] Realtime profile merge skipped:", err);
         }
       },
     )
