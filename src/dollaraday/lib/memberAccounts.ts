@@ -505,7 +505,7 @@ export function redeemToMemberProfile(
   toProfileId: string,
   amount: number,
   memo?: string,
-  options: { allowLiquidityPool?: boolean; liquidityAvailable?: number } = {},
+  _options: { allowLiquidityPool?: boolean; liquidityAvailable?: number } = {},
 ): boolean {
   if (fromProfileId === toProfileId) return false;
   if (!Number.isFinite(amount) || amount <= 0) return false;
@@ -513,19 +513,28 @@ export function redeemToMemberProfile(
   const senderLedger = hydrateMemberAccounts(fromProfileId);
   const walletAvailable =
     (Number(senderLedger.checkingBalance) || 0) + (Number(senderLedger.escrowBalance) || 0);
-  const poolAvailable = Math.max(0, Number(options.liquidityAvailable) || 0);
-  const available = options.allowLiquidityPool
-    ? Math.max(walletAvailable, poolAvailable)
-    : walletAvailable;
-  if (amount > available) return false;
+  // Never mint from aggregate pool metrics — only debit a real sender wallet.
+  if (amount > walletAvailable) return false;
 
   const note = memo?.trim() || undefined;
   let remaining = Math.round(amount * 100) / 100;
+  const spentFromChecking: number[] = [];
+  const spentFromEscrow: number[] = [];
+
+  const reverseSpends = () => {
+    for (const take of spentFromEscrow) {
+      depositToMemberAccount(fromProfileId, "escrow", take, "Redemption reversal");
+    }
+    for (const take of spentFromChecking) {
+      depositToMemberAccount(fromProfileId, "checking", take, "Redemption reversal");
+    }
+  };
 
   // Spend checking first, then escrow (liquidity).
   if (remaining > 0 && senderLedger.checkingBalance > 0) {
     const take = Math.min(remaining, senderLedger.checkingBalance);
     if (!spendFromMemberAccount(fromProfileId, "checking", take, note)) return false;
+    spentFromChecking.push(take);
     remaining = Math.round((remaining - take) * 100) / 100;
   }
   if (remaining > 0) {
@@ -533,29 +542,22 @@ export function redeemToMemberProfile(
     if (fresh.escrowBalance > 0) {
       const take = Math.min(remaining, fresh.escrowBalance);
       if (!spendFromMemberAccount(fromProfileId, "escrow", take, note)) {
-        if (amount - remaining > 0) {
-          depositToMemberAccount(fromProfileId, "checking", amount - remaining, "Redemption reversal");
-        }
+        reverseSpends();
         return false;
       }
+      spentFromEscrow.push(take);
       remaining = Math.round((remaining - take) * 100) / 100;
     }
   }
 
-  // Non-admin transfers must fully debit the sender wallet.
-  if (remaining > 0 && !options.allowLiquidityPool) {
-    const spent = Math.round((amount - remaining) * 100) / 100;
-    if (spent > 0) {
-      depositToMemberAccount(fromProfileId, "checking", spent, "Redemption reversal");
-    }
+  if (remaining > 0) {
+    reverseSpends();
     return false;
   }
 
-  // Admin liquidity transfer: credit recipient even when sender wallet was empty
-  // (funds are allocated from community liquidity totals).
   const deposited = depositToMemberAccount(toProfileId, "checking", amount, note);
   if (!deposited) {
-    depositToMemberAccount(fromProfileId, "checking", amount - remaining, "Redemption reversal");
+    reverseSpends();
     return false;
   }
 

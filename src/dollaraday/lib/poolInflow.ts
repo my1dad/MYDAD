@@ -172,6 +172,7 @@ function buildAllocationComparisonCurrent(
     completed.filter((row) => contributionYmd(row.contributedAt) === ymd).length;
 
   const todayCount = donationsOn(today);
+  const yesterdayCount = donationsOn(formatEasternIsoDate(subtractDays(easternNow(), 1)));
 
   const weekCounts = Array.from({ length: 7 }, (_, index) => {
     const ymd = formatEasternIsoDate(subtractDays(easternNow(), 6 - index));
@@ -182,7 +183,7 @@ function buildAllocationComparisonCurrent(
     : 0;
 
   return {
-    yesterday: todayCount,
+    yesterday: yesterdayCount,
     "last-week": weekAverage,
     "last-month": monthlyInflow,
     milestone: todayCount,
@@ -199,9 +200,10 @@ export function countTodaysDeposits(today = formatEasternIsoDate()): number {
     return contributionYmd(row.contributedAt) === today;
   }).length;
 
+  // Wallet ledger deposits only when contribution rows are missing for today
+  // (avoids double-counting admin deposits that write both).
   if (contributionCount > 0) return contributionCount;
 
-  // Fallback: wallet deposit credits when contribution rows are not present.
   return collectMemberAccountTransactions().filter((transaction) => {
     if (!transaction.createdAt || transaction.type !== "deposit") return false;
     if (transaction.direction !== "credit") return false;

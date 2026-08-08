@@ -341,7 +341,7 @@ export function getRegisteredMembers(): Member[] {
 }
 
 export function getMembersList(): Member[] {
-  return getRegisteredMembers();
+  return dedupeAdminMembers(getRegisteredMembers());
 }
 
 export function useFeaturedMembers(limit = 3): Member[] {
@@ -382,7 +382,7 @@ export function useMembers(): Member[] {
     void dbRevision;
     // Profiles are the source of truth for the member directory (approved members).
     // The members bin may be empty after a wipe even when cloud profiles exist.
-    return getRegisteredMembers();
+    return dedupeAdminMembers(getRegisteredMembers());
   }, [profileRevision, dbRevision]);
 }
 
@@ -401,7 +401,7 @@ export function useRegisteredMembers(): Member[] {
   return useMemo(() => {
     void profileRevision;
     void dbRevision;
-    return getRegisteredMembers();
+    return dedupeAdminMembers(getRegisteredMembers());
   }, [profileRevision, dbRevision]);
 }
 

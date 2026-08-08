@@ -41,7 +41,7 @@ export default defineConfig({
           if (id.includes("clsx") || id.includes("tailwind-merge")) return "react-vendor";
           if (id.includes("recharts") || id.includes("/d3-") || id.includes("\\d3-")) return "charts";
           if (id.includes("@supabase")) return "supabase";
-          if (id.includes("lucide-react")) return "icons";
+          // Do not force lucide into one mega-chunk — let unused icon trees split with routes.
           if (id.includes("react-dom") || id.includes("/react/") || id.includes("scheduler")) {
             return "react-vendor";
           }

@@ -4,6 +4,8 @@ import { DAD_BIN_IDS, DAD_STORAGE_PROFILE_ID, DATA_BIN_DEFINITIONS, type DataBin
 import type { DadProfile } from "../dadProfileStorage";
 import {
   applyExternalBinDocument,
+  beginBulkWrite,
+  endBulkWrite,
   readDataBin,
   type DataBinDocument,
 } from "../internalDatabase";
@@ -1274,13 +1276,18 @@ export async function syncCloudWorkspace(options: {
         }
         pauseCloudPushes(24 * 60 * 60_000);
 
-        for (const binId of DAD_BIN_IDS) {
-          const binKey = binKeyForBinId(binId);
-          if (!binKey) continue;
-          const remoteRow = remoteBins.find((row) => row.bin_id === binId);
-          if (remoteRow?.document) {
-            applyExternalBinDocument(binId, binKey, remoteRow.document);
+        beginBulkWrite();
+        try {
+          for (const binId of DAD_BIN_IDS) {
+            const binKey = binKeyForBinId(binId);
+            if (!binKey) continue;
+            const remoteRow = remoteBins.find((row) => row.bin_id === binId);
+            if (remoteRow?.document) {
+              applyExternalBinDocument(binId, binKey, remoteRow.document);
+            }
           }
+        } finally {
+          endBulkWrite();
         }
 
         const nextProfiles = mergeProfilesForWorkspace([], remoteProfiles);
@@ -1312,40 +1319,45 @@ export async function syncCloudWorkspace(options: {
       clearFactoryZeroDeliveryLock();
     }
 
-    for (const binId of DAD_BIN_IDS) {
-      const binKey = binKeyForBinId(binId);
-      if (!binKey) continue;
+    beginBulkWrite();
+    try {
+      for (const binId of DAD_BIN_IDS) {
+        const binKey = binKeyForBinId(binId);
+        if (!binKey) continue;
 
-      const remoteRow = remoteBins.find((row) => row.bin_id === binId);
-      const localDoc = readDataBin(binKey);
+        const remoteRow = remoteBins.find((row) => row.bin_id === binId);
+        const localDoc = readDataBin(binKey);
 
-      // During an active factory-zero lock, always push local wiped bins — never
-      // preserve a populated cloud directory that survived an incomplete reset.
-      const factoryZero = isFactoryZeroLocked();
-      const skipLocalWipePush =
-        !factoryZero &&
-        honorLocalReset &&
-        remoteHasMembers &&
-        binId === "members" &&
-        (localDoc.records?.length ?? 0) === 0 &&
-        (remoteRow?.document?.records?.length ?? 0) > 0;
+        // During an active factory-zero lock, always push local wiped bins — never
+        // preserve a populated cloud directory that survived an incomplete reset.
+        const factoryZero = isFactoryZeroLocked();
+        const skipLocalWipePush =
+          !factoryZero &&
+          honorLocalReset &&
+          remoteHasMembers &&
+          binId === "members" &&
+          (localDoc.records?.length ?? 0) === 0 &&
+          (remoteRow?.document?.records?.length ?? 0) > 0;
 
-      if ((honorLocalReset || factoryZero) && !skipLocalWipePush && (!remoteHasMembers || factoryZero)) {
-        // This device performed the wipe — push $0 bins; never merge pre-reset cloud rows.
-        applyExternalBinDocument(binId, binKey, localDoc);
-        binUpserts.push(upsertCloudBin(binId, localDoc));
-        continue;
+        if ((honorLocalReset || factoryZero) && !skipLocalWipePush && (!remoteHasMembers || factoryZero)) {
+          // This device performed the wipe — push $0 bins; never merge pre-reset cloud rows.
+          applyExternalBinDocument(binId, binKey, localDoc);
+          binUpserts.push(upsertCloudBin(binId, localDoc));
+          continue;
+        }
+
+        const { merged, source } = mergeBinDocuments(localDoc, remoteRow?.document ?? null);
+
+        applyExternalBinDocument(binId, binKey, merged);
+
+        // Seed empty cloud, push local wins, or publish record-level merges so every
+        // member contribution reaches the shared liquidity workspace.
+        if (cloudEmpty || source === "local" || source === "merged") {
+          binUpserts.push(upsertCloudBin(binId, merged));
+        }
       }
-
-      const { merged, source } = mergeBinDocuments(localDoc, remoteRow?.document ?? null);
-
-      applyExternalBinDocument(binId, binKey, merged);
-
-      // Seed empty cloud, push local wins, or publish record-level merges so every
-      // member contribution reaches the shared liquidity workspace.
-      if (cloudEmpty || source === "local" || source === "merged") {
-        binUpserts.push(upsertCloudBin(binId, merged));
-      }
+    } finally {
+      endBulkWrite();
     }
 
     await Promise.all(binUpserts);

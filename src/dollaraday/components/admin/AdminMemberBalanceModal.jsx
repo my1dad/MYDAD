@@ -23,7 +23,6 @@ import {
 import { findDadProfileById, getDadProfiles } from "../../lib/dadProfileStorage";
 import { logProfileActivity } from "../../lib/profileActivity";
 import { syncMemberEscrowToLiquidityPool, syncPoolInflowMetrics } from "../../lib/poolState";
-import { pushCloudBinsNow } from "../../lib/supabase/cloudSync";
 
 const ADMIN_POPUP_DEPOSIT_SOURCE = "admin-member-deposit";
 const ADMIN_POPUP_DEPOSIT_MEMO = "Admin deposit";
@@ -243,7 +242,9 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
       setSaved(true);
 
       try {
-        const { clearFactoryZeroDeliveryLock } = await import("../../lib/supabase/cloudSync");
+        const { clearFactoryZeroDeliveryLock, pushCloudBinsNow } = await import(
+          "../../lib/supabase/cloudSync"
+        );
         clearFactoryZeroDeliveryLock();
         await pushCloudBinsNow(
           [

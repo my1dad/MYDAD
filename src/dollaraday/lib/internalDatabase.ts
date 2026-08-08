@@ -584,10 +584,17 @@ export async function clearFactoryZeroDisk(): Promise<boolean> {
   }
 }
 
-export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
-  for (const binId of DAD_BIN_IDS) {
-    cache[binId] = null;
+/** Sync-seed bins from localStorage so first authenticated paint is not $0 empty. */
+export function ensureLocalBinsHydrated(): void {
+  for (const definition of DATA_BIN_DEFINITIONS) {
+    if (cache[definition.binId] != null) continue;
+    cache[definition.binId] = readLocalBin(definition.binId) ?? createEmptyBin(definition.key);
   }
+}
+
+export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
+  // Keep any already-hydrated local bins; never wipe the cache to null before await.
+  ensureLocalBinsHydrated();
 
   // Instant path: localStorage first so login UI is never blocked on network/disk.
   const loadFromLocal = () => {

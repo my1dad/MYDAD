@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { APPLE_PAY_LOGO_URL, ZELLE_LOGO_URL } from "@/lib/assetUrl";
 import { cn } from "@/lib/utils";
 import { useLocale } from "../../i18n/LocaleContext";
-import ApplePaySmsModal from "./ApplePaySmsModal.jsx";
-import ZellePayModal from "./ZellePayModal.jsx";
+
+const ApplePaySmsModal = lazy(() => import("./ApplePaySmsModal.jsx"));
+const ZellePayModal = lazy(() => import("./ZellePayModal.jsx"));
 
 function PaymentMethods({ hideLabel = false }) {
   const { t } = useLocale();
@@ -46,8 +47,16 @@ function PaymentMethods({ hideLabel = false }) {
         </div>
       </div>
 
-      <ApplePaySmsModal open={applePayOpen} onClose={() => setApplePayOpen(false)} />
-      <ZellePayModal open={zelleOpen} onClose={() => setZelleOpen(false)} />
+      {applePayOpen || zelleOpen ? (
+        <Suspense fallback={null}>
+          {applePayOpen ? (
+            <ApplePaySmsModal open={applePayOpen} onClose={() => setApplePayOpen(false)} />
+          ) : null}
+          {zelleOpen ? (
+            <ZellePayModal open={zelleOpen} onClose={() => setZelleOpen(false)} />
+          ) : null}
+        </Suspense>
+      ) : null}
     </>
   );
 }

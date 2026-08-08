@@ -29,7 +29,6 @@ export default function PostAuthWorkspace({ children }) {
           pauseCloudPushes,
           pullCloudProfilesNow,
           isFactoryZeroLocked,
-          persistMembersToCloud,
         }) => {
           if (!alive) return;
 
@@ -38,21 +37,14 @@ export default function PostAuthWorkspace({ children }) {
             (profile) => profile.username?.trim().toLowerCase() !== "admin",
           );
 
-          // Never re-wipe cloud on login. If members exist, unlock and force-save them.
-          if (members.length) {
-            clearFactoryZeroDeliveryLock();
-            pauseCloudPushes(0);
-            try {
-              await persistMembersToCloud(members);
-            } catch (err) {
-              console.warn("[PostAuthWorkspace] Member re-persist skipped:", err);
-            }
-          } else if (!isFactoryZeroLocked()) {
+          // Unlock delivery so pulls can restore members — do not re-push the whole
+          // directory on every login (that raced and janked first paint).
+          if (members.length || !isFactoryZeroLocked()) {
             clearFactoryZeroDeliveryLock();
             pauseCloudPushes(0);
           }
 
-          // Always pull cloud profiles so approved members return after logout/login.
+          // Pull cloud profiles so approved members return after logout/login.
           await pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
           if (!alive) return;
           const { syncAllProfilesToMemberRegistry } = await import("../lib/profileRegistry");

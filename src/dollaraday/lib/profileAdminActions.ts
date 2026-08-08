@@ -205,12 +205,24 @@ export async function deleteDadProfileByAdmin(profileId: string): Promise<AdminA
     const { deleteCloudMemberProfile } = await import("./supabase/cloudSync");
     const cloudOk = await deleteCloudMemberProfile(profileId);
     if (!cloudOk) {
-      console.warn(
-        "[profileAdmin] Member removed locally and blocked from sync; cloud row delete failed — retry delete or Cloud sync.",
-      );
+      return {
+        ok: false,
+        error: "Member removed locally, but cloud delete failed. Try delete again.",
+      };
     }
   } catch (err) {
     console.warn("[profileAdmin] Permanent delete cloud step failed:", err);
+    return {
+      ok: false,
+      error: "Member removed locally, but cloud delete failed. Try delete again.",
+    };
+  }
+
+  try {
+    const { syncMemberEscrowToLiquidityPool } = await import("./poolState");
+    syncMemberEscrowToLiquidityPool();
+  } catch {
+    /* ignore */
   }
 
   return { ok: true };

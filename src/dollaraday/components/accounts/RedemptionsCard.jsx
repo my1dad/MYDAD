@@ -1,16 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, CheckCircle2, Gift } from "lucide-react";
-import { isAdminProfile } from "../../../config/admin";
 import DashboardCard from "../layout/DashboardCard";
 import { formatPoolCurrency } from "../../data/mockData";
-import { useDadAuth } from "../../context/DadAuthContext";
 import { useLocale } from "../../i18n/LocaleContext";
 import { getActiveDadProfile } from "../../lib/dadProfileStorage";
-import {
-  getCompletedContributionCapital,
-  getTotalAdminFundedMemberCapital,
-  getTotalMemberDepositCapitalFromLedgers,
-} from "../../lib/memberEscrowTotals";
 import { logProfileActivity } from "../../lib/profileActivity";
 import { useAdminMemberRecords } from "../../lib/profileRegistry";
 import {
@@ -55,17 +48,8 @@ function handleAmountChange(value, setAmount) {
   setAmount(formatMoneyInput(stripped));
 }
 
-function getLiquidityAvailable() {
-  return Math.max(
-    getTotalMemberDepositCapitalFromLedgers(),
-    getTotalAdminFundedMemberCapital(),
-    getCompletedContributionCapital(),
-  );
-}
-
 export default function RedemptionsCard() {
   const { t } = useLocale();
-  const { profile, isAdmin } = useDadAuth();
   const fromProfileId = resolveMemberProfileId();
   const senderLedger = useMemberAccounts(fromProfileId);
   const savedMembers = useAdminMemberRecords();
@@ -107,11 +91,8 @@ export default function RedemptionsCard() {
 
   const recipientLedger = useMemberAccounts(selectedProfileId || fromProfileId);
   const selectedRecipient = recipientOptions.find((option) => option.id === selectedProfileId);
-  const walletAvailable =
+  const senderBalance =
     (Number(senderLedger.checkingBalance) || 0) + (Number(senderLedger.escrowBalance) || 0);
-  const senderBalance = isAdmin
-    ? Math.max(walletAvailable, getLiquidityAvailable())
-    : walletAvailable;
   const recipientBalance =
     selectedProfileId && selectedProfileId !== fromProfileId
       ? (Number(recipientLedger.checkingBalance) || 0) +
@@ -140,10 +121,7 @@ export default function RedemptionsCard() {
         profile: recipientLabel,
       });
 
-    const ok = redeemToMemberProfile(fromProfileId, selectedProfileId, parsed, redemptionMemo, {
-      allowLiquidityPool: isAdmin || isAdminProfile(profile),
-      liquidityAvailable: senderBalance,
-    });
+    const ok = redeemToMemberProfile(fromProfileId, selectedProfileId, parsed, redemptionMemo);
     if (!ok) {
       setError(t("pages.accounts.redemptionFailed"));
       return;

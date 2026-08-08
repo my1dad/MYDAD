@@ -1,8 +1,11 @@
 import { useEffect } from "react";
-import { initInternalDatabase } from "../lib/internalDatabase";
+import { ensureLocalBinsHydrated, initInternalDatabase } from "../lib/internalDatabase";
+
+// Seed bins before first paint so authenticated reload doesn't flash empty balances.
+ensureLocalBinsHydrated();
 
 /**
- * Kick off local DB in the background. Never block first paint / login / nav.
+ * Kick off full DB init in the background. Never block first paint / login / nav.
  */
 export default function DdaStorageBootstrap({ children }) {
   useEffect(() => {
