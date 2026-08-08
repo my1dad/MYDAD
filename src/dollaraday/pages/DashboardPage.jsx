@@ -34,6 +34,7 @@ export default function DashboardPage({ onNavigate }) {
         onContributeOther={() => openContribute(null, { custom: true, frequency: "weekly" })}
         onPoolClick={() => onNavigate?.("pool")}
         onWalletClick={() => onNavigate?.("accounts")}
+        onNavigate={onNavigate}
       />
 
       {contributeOpen ? (

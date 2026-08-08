@@ -4,6 +4,7 @@ import {
   Bell,
   CheckCheck,
   CircleDollarSign,
+  Megaphone,
   MessageCircle,
   RefreshCw,
   Trash2,
@@ -31,6 +32,7 @@ const VIEWPORT_PAD = 12;
 
 const kindIcons = {
   community_dm: MessageCircle,
+  community_board: Megaphone,
   profile_pending: UserPlus,
   profile_approved: UserCheck,
   profile_denied: UserX,
@@ -48,6 +50,8 @@ function getNotificationTitle(item, t, isAdmin) {
   switch (item.kind) {
     case "community_dm":
       return item.senderName ?? t("notifications.communityDm");
+    case "community_board":
+      return t("notifications.communityBoardTitle");
     case "profile_pending":
       return item.memberName ?? t("notifications.pendingTitle");
     case "profile_approved":
@@ -72,6 +76,8 @@ function getNotificationBody(item, t, isAdmin) {
   switch (item.kind) {
     case "community_dm":
       return item.messageBody ?? "";
+    case "community_board":
+      return item.messageBody?.trim() || t("notifications.communityBoardBody");
     case "profile_pending":
       return t("notifications.pendingBody");
     case "profile_approved":

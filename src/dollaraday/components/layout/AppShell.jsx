@@ -46,7 +46,7 @@ export default function AppShell({
             variant="app"
             scrollKey={shellScrollKey}
             mainClassName="px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 lg:px-6 lg:py-4"
-            contentClassName="mx-auto max-w-6xl lg:max-w-6xl"
+            contentClassName="mx-auto max-w-6xl lg:max-w-7xl"
             footer={
               <BottomNav activePage={activePage} onNavigate={onNavigate} onPrefetch={onPrefetch} />
             }

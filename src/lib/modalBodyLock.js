@@ -1,6 +1,15 @@
 let lockCount = 0;
 let savedOverflow = "";
 
+/** Force-clear any leftover body scroll lock (HMR / crashed modal teardown). */
+export function resetBodyScrollLock() {
+  lockCount = 0;
+  if (typeof document !== "undefined") {
+    document.body.style.overflow = savedOverflow || "";
+  }
+  savedOverflow = "";
+}
+
 /** Lock document body scroll; supports nested modals via ref counting. */
 export function lockBodyScroll() {
   if (lockCount === 0) {
@@ -15,4 +24,11 @@ export function lockBodyScroll() {
       document.body.style.overflow = savedOverflow;
     }
   };
+}
+
+// Vite HMR can unmount modals without running effect cleanups → stuck overlay lock.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    resetBodyScrollLock();
+  });
 }

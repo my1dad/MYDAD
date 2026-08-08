@@ -1,11 +1,15 @@
-import { useMemo, useSyncExternalStore } from "react";
-import { ArrowUpRight, Eye, TrendingDown, TrendingUp } from "lucide-react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { Eye, EyeOff, TrendingDown, TrendingUp } from "lucide-react";
 import { DOLLARADAY_LOGO_URL } from "@/lib/assetUrl";
 import { cn } from "@/lib/utils";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocale } from "../../i18n/LocaleContext";
 import { getPositionAllocatedValue } from "../../lib/allocationRoi";
 import { useAllocationPositions } from "../../lib/allocationPositions";
+import {
+  formatGroupedAccountNumber,
+  getProfileAccountNumber,
+} from "../../lib/dadProfileStorage";
 import {
   getDatabaseRevision,
   subscribeInternalDatabase,
@@ -37,6 +41,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
   const { t } = useLocale();
   const { profile, isAdmin } = useDadAuth();
   const { currentMember } = usePoolState();
+  const [accountVisible, setAccountVisible] = useState(false);
   const profileId = profile?.id ?? currentMember?.id;
   const positions = useAllocationPositions(profileId);
   const ledger = useMemberAccounts(profileId);
@@ -46,9 +51,20 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
     () => 0,
   );
   const userFullName = getProfileFullName(profile);
+  const fullAccountNumber = profileId ? getProfileAccountNumber(profileId) : null;
   const accountMask = profileId
     ? maskAccountNumber(profileId, isAdmin ? "escrow" : "checking")
     : "•••• •••• •••• 0000";
+  const accountDisplay = accountVisible && fullAccountNumber
+    ? formatGroupedAccountNumber(fullAccountNumber)
+    : accountMask;
+  const RevealIcon = accountVisible ? EyeOff : Eye;
+
+  const toggleAccountVisibility = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setAccountVisible((visible) => !visible);
+  };
 
   const stats = useMemo(() => {
     void dbRevision;
@@ -111,17 +127,15 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
 
       <div className="dda-member-bank__inner">
         {!wallet ? (
-          <>
-            <div className="dda-member-bank__top">
-              {userFullName ? (
-                <p className="dda-home-greeting">
-                  <span className="dda-home-greeting__label">{t("pages.dashboard.welcomeLabel")}</span>{" "}
-                  <span className="dda-home-greeting__name">{userFullName}</span>
-                </p>
-              ) : (
-                <span className="dda-home-greeting dda-home-greeting--empty" aria-hidden="true" />
-              )}
-            </div>
+          <div className="dda-member-bank__top">
+            {userFullName ? (
+              <p className="dda-home-greeting">
+                <span className="dda-home-greeting__label">{t("pages.dashboard.welcomeLabel")}</span>{" "}
+                <span className="dda-home-greeting__name">{userFullName}</span>
+              </p>
+            ) : (
+              <span className="dda-home-greeting dda-home-greeting--empty" aria-hidden="true" />
+            )}
 
             <div className="dda-member-bank__brand">
               <img
@@ -135,7 +149,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
                 <p className="dda-member-bank__brand-sub">{t("pages.dashboard.brandLine2")}</p>
               </div>
             </div>
-          </>
+          </div>
         ) : null}
 
         <LedgerTag
@@ -154,7 +168,32 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
           <div className="dda-member-bank__ledger-head">
             <div className="min-w-0">
               <p className="dda-member-bank__account-type">{t("pages.dashboard.equityTitle")}</p>
-              <p className="dda-member-bank__account-mask">{accountMask}</p>
+              <div className="dda-member-bank__account-mask-row">
+                <p className="dda-member-bank__account-mask" aria-live="polite">
+                  {accountDisplay}
+                </p>
+                {fullAccountNumber ? (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="dda-member-bank__account-reveal"
+                    aria-label={t(
+                      accountVisible
+                        ? "pages.dashboard.equityHideAccount"
+                        : "pages.dashboard.equityShowAccount",
+                    )}
+                    aria-pressed={accountVisible}
+                    onClick={toggleAccountVisibility}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        toggleAccountVisibility(event);
+                      }
+                    }}
+                  >
+                    <RevealIcon className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  </span>
+                ) : null}
+              </div>
             </div>
             <span
               className={cn(
@@ -171,15 +210,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
           <div className="dda-member-bank__balance-row">
             <div className="dda-member-bank__balance-col">
               <p className="dda-member-bank__balance-label">
-                {t("pages.dashboard.equityBalanceLabel")}
-              </p>
-              <p className="dda-member-bank__balance" aria-live="polite">
-                {balanceLabel}
-              </p>
-            </div>
-            <div className="dda-member-bank__balance-col dda-member-bank__balance-col--donated">
-              <p className="dda-member-bank__balance-label">
-                {t("pages.dashboard.equityDonated")}
+                {t("pages.dashboard.equityInvestments")}
               </p>
               <p className="dda-member-bank__balance dda-member-bank__balance--donated" aria-live="polite">
                 {formatBankCurrency(stats.donated)}
@@ -217,14 +248,6 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
               </p>
             </div>
           </div>
-
-          {interactive ? (
-            <span className="dda-member-bank__cta">
-              <Eye className="h-3.5 w-3.5" strokeWidth={2.25} />
-              {t(wallet ? "pages.dashboard.equityHintWallet" : "pages.dashboard.equityHint")}
-              <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.25} />
-            </span>
-          ) : null}
         </LedgerTag>
       </div>
     </section>

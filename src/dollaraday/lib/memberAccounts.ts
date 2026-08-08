@@ -1,6 +1,11 @@
 import { useSyncExternalStore } from "react";
 import { ADMIN_USERNAME } from "../../config/admin";
-import { findDadProfileByUsername, getActiveDadProfile } from "./dadProfileStorage";
+import {
+  findDadProfileByUsername,
+  formatMaskedAccountNumber,
+  getActiveDadProfile,
+  getProfileAccountNumber,
+} from "./dadProfileStorage";
 import { readDataBin, subscribeInternalDatabase, upsertDataRecord } from "./internalDatabase";
 import { easternNow, formatEasternTimeWithZone, type DdaLocale } from "./dateTime";
 import { getPoolState, syncMemberEscrowToLiquidityPool } from "./poolState";
@@ -549,8 +554,12 @@ export function formatAccountTransactionTime(iso: string, locale: DdaLocale = "e
   }
 }
 
-export function maskAccountNumber(profileId: string, accountId: MemberAccountId): string {
+export function maskAccountNumber(profileId: string, _accountId?: MemberAccountId): string {
+  const accountNumber = getProfileAccountNumber(profileId);
+  if (accountNumber) return formatMaskedAccountNumber(accountNumber);
+
+  // Legacy fallback for profiles mid-migration.
   const seed = profileId.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const suffix = accountId === "checking" ? (seed % 9000) + 1000 : ((seed * 7) % 9000) + 1000;
+  const suffix = ((seed % 9000) + 1000).toString();
   return `•••• •••• •••• ${suffix}`;
 }

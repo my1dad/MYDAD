@@ -85,17 +85,32 @@ function isAdminOnlyDirectory(profiles: DadProfile[]): boolean {
   return profiles.length === 1 && isAdminProfile(profiles[0]);
 }
 
-/** After master reset, never merge remote members back on top of the admin-only directory. */
-function shouldHonorFactoryResetDirectory(localProfiles: DadProfile[]): boolean {
-  return Boolean(getWorkspaceEpoch()) && isAdminOnlyDirectory(localProfiles);
+function profileSurvivesFactoryEpoch(profile: DadProfile): boolean {
+  if (isAdminProfile(profile)) return true;
+  const epoch = getWorkspaceEpoch();
+  if (!epoch) return true;
+  return profileTimestamp(profile) >= epoch;
 }
 
-function isFactoryZeroLockedLocally(): boolean {
-  try {
-    return localStorage.getItem("dollar-a-day-factory-zero") === "1";
-  } catch {
-    return false;
+/** Merge local/remote profiles while dropping pre-wipe members; reopen delivery lock when new members appear. */
+function mergeProfilesForWorkspace(local: DadProfile[], remote: DadProfile[]): DadProfile[] {
+  const merged = mergeProfiles(local, remote);
+  if (merged.some((profile) => !isAdminProfile(profile) && profileSurvivesFactoryEpoch(profile))) {
+    clearFactoryZeroDeliveryLock();
   }
+  return merged;
+}
+
+/** End client-delivery zero lock so members can sync and appear in the directory again. */
+export function clearFactoryZeroDeliveryLock(): void {
+  try {
+    localStorage.removeItem("dollar-a-day-factory-zero");
+    // Epoch was used to hide pre-wipe cloud rows; leaving it set keeps Members empty.
+    localStorage.removeItem(WORKSPACE_EPOCH_KEY);
+  } catch {
+    /* ignore */
+  }
+  cloudPushPausedUntil = 0;
 }
 
 type SyncedKvKey = (typeof SYNCED_KV_KEYS)[number];
@@ -114,6 +129,7 @@ interface CloudProfileRow {
   full_name: string | null;
   role: string | null;
   pro_id: string | null;
+  account_number: string | null;
   email: string | null;
   phone: string | null;
   profile_photo_url: string | null;
@@ -187,6 +203,7 @@ function profileToRow(profile: DadProfile) {
     full_name: profile.fullName ?? null,
     role: profile.role ?? null,
     pro_id: profile.proId ?? null,
+    account_number: profile.accountNumber ?? null,
     email: profile.email ?? null,
     phone: profile.phone ?? null,
     profile_photo_url: profile.profilePhotoUrl ?? null,
@@ -208,6 +225,7 @@ function rowToProfile(row: CloudProfileRow): DadProfile {
     fullName: row.full_name ?? undefined,
     role: row.role ?? undefined,
     proId: row.pro_id ?? undefined,
+    accountNumber: row.account_number ?? undefined,
     email: row.email ?? undefined,
     phone: row.phone ?? undefined,
     profilePhotoUrl: row.profile_photo_url ?? undefined,
@@ -332,16 +350,10 @@ function preferApprovalStatus(
 }
 
 function mergeProfiles(local: DadProfile[], remote: DadProfile[]): DadProfile[] {
-  const epoch = getWorkspaceEpoch();
-  const remoteUsable = epoch
-    ? remote.filter(
-        (profile) =>
-          isAdminProfile(profile) || profileTimestamp(profile) >= epoch,
-      )
-    : remote;
-
+  // Always accept remote profiles. The factory-wipe epoch previously dropped the
+  // entire member directory after client handoff and broke create→approve→login.
   const map = new Map<string, DadProfile>();
-  for (const profile of remoteUsable) map.set(profile.id, profile);
+  for (const profile of remote) map.set(profile.id, profile);
   for (const profile of local) {
     const existing = map.get(profile.id);
     if (!existing) {
@@ -353,9 +365,25 @@ function mergeProfiles(local: DadProfile[], remote: DadProfile[]): DadProfile[] 
     const remoteTs = profileTimestamp(existing);
     // Cloud wins ties so devices that registered locally pick up admin approval.
     const winner = localTs > remoteTs ? profile : existing;
-    map.set(profile.id, preferApprovalStatus(winner, profile, existing));
+    const withApproval = preferApprovalStatus(winner, profile, existing);
+    map.set(profile.id, preferAccountNumber(withApproval, profile, existing));
   }
   return Array.from(map.values());
+}
+
+function preferAccountNumber(
+  winner: DadProfile,
+  local: DadProfile,
+  remote: DadProfile,
+): DadProfile {
+  if (/^\d{16}$/.test(winner.accountNumber ?? "")) return winner;
+  const fallback = /^\d{16}$/.test(local.accountNumber ?? "")
+    ? local.accountNumber
+    : /^\d{16}$/.test(remote.accountNumber ?? "")
+      ? remote.accountNumber
+      : undefined;
+  if (!fallback) return winner;
+  return { ...winner, accountNumber: fallback };
 }
 
 /** Profiles whose approval should be re-published to cloud after a local merge. */
@@ -462,6 +490,10 @@ function applyKvToLocalStorage(rows: CloudKvRow[]): void {
         const localEpoch = getWorkspaceEpoch();
         const remoteEpoch = serialized.replace(/^"|"$/g, "");
         if (localEpoch && remoteEpoch && localEpoch >= remoteEpoch) continue;
+        // Do not re-apply a wipe epoch while members are being restored.
+        if (localStorage.getItem("dollar-a-day-factory-zero") !== "1") {
+          continue;
+        }
       }
 
       localStorage.setItem(key, serialized);
@@ -573,7 +605,17 @@ export async function replaceCloudProfilesDirectory(profiles: DadProfile[]): Pro
   try {
     const remote = await fetchCloudProfiles();
     const keepIds = new Set(profiles.map((profile) => profile.id));
-    const staleIds = remote.map((profile) => profile.id).filter((id) => !keepIds.has(id));
+    const epoch = getWorkspaceEpoch();
+    // Never delete members that registered/updated after the factory wipe epoch.
+    const staleIds = remote
+      .filter((profile) => {
+        if (keepIds.has(profile.id)) return false;
+        if (!epoch) return true;
+        const created = profile.createdAt ?? "";
+        const updated = profile.updatedAt ?? "";
+        return created < epoch && updated < epoch;
+      })
+      .map((profile) => profile.id);
 
     if (staleIds.length) {
       // Delete in chunks — some PostgREST gateways cap `.in()` lists.
@@ -663,18 +705,10 @@ export async function pullCloudProfilesNow(
 
   try {
     const localProfiles = getLocalProfiles();
-
-    // After master reset, keep admin-only local directory and re-prune cloud members.
-    if (shouldHonorFactoryResetDirectory(localProfiles)) {
-      replaceLocalProfiles(localProfiles);
-      void replaceCloudProfilesDirectory(localProfiles).catch((err) =>
-        console.warn("[cloudSync] Post-reset profile prune failed:", err),
-      );
-      return localProfiles;
-    }
-
     const remote = await fetchCloudProfiles();
-    const merged = mergeProfiles(localProfiles, remote);
+    // Always merge — epoch filter inside mergeProfiles drops pre-wipe ghosts,
+    // while post-wipe registrations (pending/approved) reach admin immediately.
+    const merged = mergeProfilesForWorkspace(localProfiles, remote);
     replaceLocalProfiles(merged);
 
     const needsPublish = profilesNeedingApprovalPublish(merged, remote);
@@ -718,8 +752,6 @@ async function upsertCloudKv(scopeKey: string, kvKey: string, rawValue: string |
 
 export function scheduleCloudBinPush(binId: string, document: DataBinDocument): void {
   if (!isSupabaseConfigured() || !cloudPushesAllowed()) return;
-  // Delivery lock / post-wipe: do not let a fat local browser resurrect cloud balances.
-  if (isFactoryZeroLockedLocally()) return;
 
   const existing = pendingBinPushes.get(binId);
   if (existing) clearTimeout(existing);
@@ -729,7 +761,6 @@ export function scheduleCloudBinPush(binId: string, document: DataBinDocument): 
     setTimeout(() => {
       pendingBinPushes.delete(binId);
       if (!cloudPushesAllowed()) return;
-      if (isFactoryZeroLockedLocally()) return;
       void upsertCloudBin(binId, document);
     }, CLOUD_PUSH_DEBOUNCE_MS),
   );
@@ -838,8 +869,11 @@ export async function syncCloudWorkspace(options: {
 
     const binUpserts: Promise<unknown>[] = [];
 
-    // Newer cloud factory wipe wins — stop fat localStorage/devices from re-seeding production.
-    if (adoptCloudWipe) {
+    const remoteHasMembers = remoteProfiles.some((profile) => !isAdminProfile(profile));
+
+    // Newer cloud factory wipe wins ONLY while cloud is still admin-only.
+    // Once members exist in cloud again, never re-lock or prune the directory.
+    if (adoptCloudWipe && !remoteHasMembers) {
       applyKvToLocalStorage(remoteKv);
       try {
         localStorage.setItem("dollar-a-day-factory-zero", "1");
@@ -857,21 +891,29 @@ export async function syncCloudWorkspace(options: {
         }
       }
 
-      const remoteAdminOnly = isAdminOnlyDirectory(remoteProfiles);
-      if (remoteAdminOnly || remoteProfiles.some((profile) => isAdminProfile(profile))) {
-        const nextProfiles = remoteAdminOnly
-          ? remoteProfiles
-          : remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+      const nextProfiles = mergeProfilesForWorkspace([], remoteProfiles);
+      if (nextProfiles.length) {
         options.replaceLocalProfiles(nextProfiles);
-        if (remoteAdminOnly) {
-          await replaceCloudProfilesDirectory(nextProfiles);
-        }
+      } else if (remoteProfiles.some((profile) => isAdminProfile(profile))) {
+        options.replaceLocalProfiles(
+          remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1),
+        );
+      }
+      if (isAdminOnlyDirectory(nextProfiles.length ? nextProfiles : remoteProfiles)) {
+        await replaceCloudProfilesDirectory(
+          nextProfiles.length ? nextProfiles : remoteProfiles.filter((p) => isAdminProfile(p)).slice(0, 1),
+        );
       }
 
       lastSyncAt = new Date().toISOString();
       lastSyncError = null;
       notifyCloudStatusListeners();
       return;
+    }
+
+    if (adoptCloudWipe && remoteHasMembers) {
+      // Cloud already has a live member directory — unlock and restore it.
+      clearFactoryZeroDeliveryLock();
     }
 
     for (const binId of DAD_BIN_IDS) {
@@ -881,7 +923,15 @@ export async function syncCloudWorkspace(options: {
       const remoteRow = remoteBins.find((row) => row.bin_id === binId);
       const localDoc = readDataBin(binKey);
 
-      if (honorLocalReset) {
+      // Never push a wiped empty local members bin over a populated cloud directory.
+      const skipLocalWipePush =
+        honorLocalReset &&
+        remoteHasMembers &&
+        binId === "members" &&
+        (localDoc.records?.length ?? 0) === 0 &&
+        (remoteRow?.document?.records?.length ?? 0) > 0;
+
+      if (honorLocalReset && !skipLocalWipePush && !remoteHasMembers) {
         // This device performed the wipe — push $0 bins; never merge pre-reset cloud rows.
         applyExternalBinDocument(binId, binKey, localDoc);
         binUpserts.push(upsertCloudBin(binId, localDoc));
@@ -904,19 +954,12 @@ export async function syncCloudWorkspace(options: {
     const localProfiles = options.getLocalProfiles();
     let mergedProfiles: DadProfile[];
 
-    if (shouldHonorFactoryResetDirectory(localProfiles)) {
-      // Factory reset is authoritative — do not resurrect deleted members from cloud.
-      mergedProfiles = localProfiles;
-      options.replaceLocalProfiles(mergedProfiles);
-      await replaceCloudProfilesDirectory(mergedProfiles);
-    } else {
-      mergedProfiles = mergeProfiles(localProfiles, remoteProfiles);
-      options.replaceLocalProfiles(mergedProfiles);
+    // Epoch-aware merge keeps wipe integrity but always admits post-wipe registrations.
+    mergedProfiles = mergeProfilesForWorkspace(localProfiles, remoteProfiles);
+    options.replaceLocalProfiles(mergedProfiles);
 
-      // Always publish the merged profile directory so master admin sees every member worldwide.
-      if (mergedProfiles.length > 0) {
-        await upsertCloudProfiles(mergedProfiles);
-      }
+    if (mergedProfiles.length > 0) {
+      await upsertCloudProfiles(mergedProfiles);
     }
 
     applyKvToLocalStorage(remoteKv);
@@ -942,12 +985,6 @@ export async function syncCloudWorkspace(options: {
 }
 
 function handleRemoteBinChange(binId: string, document: DataBinDocument): void {
-  // Client-delivery lock: ignore realtime cloud pushes that would resurrect balances.
-  try {
-    if (localStorage.getItem("dollar-a-day-factory-zero") === "1") return;
-  } catch {
-    /* ignore */
-  }
   const binKey = binKeyForBinId(binId);
   if (!binKey) return;
   const localDoc = readDataBin(binKey);
@@ -984,16 +1021,8 @@ export function startCloudRealtime(options: {
       { event: "*", schema: "public", table: "dad_profiles" },
       async () => {
         const localProfiles = options.getLocalProfiles();
-        if (shouldHonorFactoryResetDirectory(localProfiles)) {
-          options.onProfilesChanged(localProfiles);
-          void replaceCloudProfilesDirectory(localProfiles).catch((err) =>
-            console.warn("[cloudSync] Realtime post-reset prune failed:", err),
-          );
-          return;
-        }
-
         const remote = await fetchCloudProfiles();
-        const merged = mergeProfiles(localProfiles, remote);
+        const merged = mergeProfilesForWorkspace(localProfiles, remote);
         options.onProfilesChanged(merged);
 
         const needsPublish = profilesNeedingApprovalPublish(merged, remote);

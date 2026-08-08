@@ -16,7 +16,6 @@ import {
   subscribeDadProfiles,
 } from "./dadProfileStorage";
 import { formatContributionDueLabel, formatEasternIsoDate } from "./dateTime";
-import { members as seedMembers } from "../data/mockData";
 import {
   appendDataRecord,
   beginBulkWrite,
@@ -110,25 +109,6 @@ function enrichMemberWithProfileStatus(
 }
 
 const NON_APPROVED_MEMBER_STATUSES = new Set(["pending", "declined", "denied"]);
-
-function isApprovedDirectoryMember(
-  member: Member,
-  profilesById?: Map<string, DadProfile>,
-): boolean {
-  if (isAdminMember(member)) return true;
-
-  if (member.profileId) {
-    const profile = profilesById
-      ? profilesById.get(member.profileId)
-      : getDadProfiles().find((item) => item.id === member.profileId);
-    if (!profile) return false;
-    return getProfileApprovalStatus(profile) === "approved";
-  }
-
-  const memberStatus = member.status?.trim().toLowerCase();
-  if (memberStatus && NON_APPROVED_MEMBER_STATUSES.has(memberStatus)) return false;
-  return true;
-}
 
 function payloadToMember(record: StoredRecord): Member | null {
   const payload = record.payload;
@@ -234,10 +214,6 @@ export function pruneDuplicateAdminMemberRecords(): void {
   });
 }
 
-function mergeMemberLists(stored: Member[], seeded: Member[]): Member[] {
-  return dedupeAdminMembers([...stored, ...seeded]);
-}
-
 function memberToPayload(member: Member): Record<string, unknown> {
   return {
     profileId: member.profileId ?? member.id,
@@ -318,19 +294,35 @@ export function getAllProfileMembers(): Member[] {
 
 /** Every dashboard profile merged with stored member stats (admin directory source of truth). */
 export function getRegisteredMembers(): Member[] {
+  const profiles = getDadProfiles();
+  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   const storedByProfileId = new Map<string, Member>();
   getStoredMembers().forEach((member) => {
     storedByProfileId.set(member.profileId ?? member.id, member);
   });
 
-  const fromProfiles = getDadProfiles()
+  const fromProfiles = profiles
     .filter((profile) => getProfileApprovalStatus(profile) === "approved")
     .map((profile) =>
-    mergeProfileWithStoredMember(profile, storedByProfileId.get(profile.id)),
-  );
+      mergeProfileWithStoredMember(profile, storedByProfileId.get(profile.id)),
+    );
+
+  const seen = new Set(fromProfiles.map((member) => member.profileId ?? member.id));
+
+  // After a wipe, profiles can lag while the members bin (or cloud pull) already
+  // has approved rows — keep those visible so the Members page is not empty.
+  const fromBinOnly = getStoredMembers().filter((member) => {
+    const id = member.profileId ?? member.id;
+    if (seen.has(id)) return false;
+    if (isAdminMember(member)) return true;
+    const profile = profilesById.get(id);
+    if (profile) return getProfileApprovalStatus(profile) === "approved";
+    const status = member.status?.trim().toLowerCase();
+    return !status || !NON_APPROVED_MEMBER_STATUSES.has(status);
+  });
 
   return dedupeAdminMembers(
-    fromProfiles.sort((a, b) => {
+    [...fromProfiles, ...fromBinOnly].sort((a, b) => {
       const aTime = new Date(a.joinedAt ?? 0).getTime();
       const bTime = new Date(b.joinedAt ?? 0).getTime();
       return bTime - aTime;
@@ -339,19 +331,7 @@ export function getRegisteredMembers(): Member[] {
 }
 
 export function getMembersList(): Member[] {
-  const profilesById = new Map(getDadProfiles().map((profile) => [profile.id, profile]));
-  const stored = getStoredMembers();
-  const storedProfileIds = new Set(
-    stored.map((member) => member.profileId ?? member.id),
-  );
-
-  const seeded = seedMembers.filter(
-    (member) => !storedProfileIds.has(member.id) && !stored.some((s) => s.id === member.id),
-  );
-
-  return mergeMemberLists(stored, seeded)
-    .map((member) => enrichMemberWithProfileStatus(member, profilesById))
-    .filter((member) => isApprovedDirectoryMember(member, profilesById));
+  return getRegisteredMembers();
 }
 
 export function useFeaturedMembers(limit = 3): Member[] {
@@ -388,28 +368,20 @@ export function useMembers(): Member[] {
   );
 
   return useMemo(() => {
+    void profileRevision;
     void dbRevision;
-    const profilesById = new Map(getDadProfiles().map((profile) => [profile.id, profile]));
-    const stored = getDatabaseSnapshot()
-      .bins.members.records.map(payloadToMember)
-      .filter((member): member is Member => member !== null);
-
-    const storedIds = new Set(stored.map((member) => member.id));
-    const storedProfileIds = new Set(
-      stored.map((member) => member.profileId ?? member.id),
-    );
-
-    const seeded = seedMembers.filter(
-      (member) => !storedIds.has(member.id) && !storedProfileIds.has(member.id),
-    );
-
-    return mergeMemberLists(stored, seeded)
-      .map((member) => enrichMemberWithProfileStatus(member, profilesById))
-      .filter((member) => isApprovedDirectoryMember(member, profilesById));
+    // Profiles are the source of truth for the member directory (approved members).
+    // The members bin may be empty after a wipe even when cloud profiles exist.
+    return getRegisteredMembers();
   }, [profileRevision, dbRevision]);
 }
 
 export function useRegisteredMembers(): Member[] {
+  const profileRevision = useSyncExternalStore(
+    subscribeDadProfiles,
+    getDadProfileRevision,
+    () => 0,
+  );
   const dbRevision = useSyncExternalStore(
     subscribeInternalDatabase,
     getDatabaseRevision,
@@ -417,9 +389,10 @@ export function useRegisteredMembers(): Member[] {
   );
 
   return useMemo(() => {
+    void profileRevision;
     void dbRevision;
     return getRegisteredMembers();
-  }, [dbRevision]);
+  }, [profileRevision, dbRevision]);
 }
 
 export function useAllProfileMembers(): Member[] {

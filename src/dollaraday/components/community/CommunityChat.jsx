@@ -19,6 +19,7 @@ import {
   useUnreadDmState,
 } from "../../lib/communityChat";
 import { consumePendingDmPartnerId } from "../../lib/communityDmNavigation";
+import CommunityBoardMessage from "./CommunityBoardMessage.jsx";
 
 function resolveChatPartner(selectedPartnerId, allProfiles) {
   if (!selectedPartnerId) return null;
@@ -453,6 +454,8 @@ export default function CommunityChat() {
         title={t("pages.community.title")}
         description={t("pages.community.description")}
       />
+
+      <CommunityBoardMessage />
 
       <div className="dda-community-chat">
         <div className="dda-community-chat__tabs" role="tablist">

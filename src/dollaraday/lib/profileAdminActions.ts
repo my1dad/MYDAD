@@ -146,6 +146,10 @@ export async function approveDadProfileByAdmin(profileId: string): Promise<Admin
     summary: "Membership approved by admin",
   });
 
+  void import("./supabase/cloudSync").then(({ clearFactoryZeroDeliveryLock }) => {
+    clearFactoryZeroDeliveryLock();
+  });
+
   try {
     const { pushCloudProfilesNow } = await import("./supabase/cloudSync");
     // Push the approved row immediately so the member can sign in from any device.

@@ -15,12 +15,12 @@ const LoginChrome = memo(function LoginChrome({ compact, sloganAria, educate, di
       <img
         src={DOLLARADAY_LOGO_URL}
         alt="My Dollar A Day"
-        width={208}
-        height={208}
+        width={288}
+        height={288}
         decoding="async"
         fetchPriority="low"
         className={cn(
-          "dda-login-logo mb-3 h-28 w-auto max-w-full object-contain sm:mb-4 sm:h-36",
+          "dda-login-logo mb-3 h-40 w-auto max-w-full object-contain sm:mb-4 sm:h-52",
           compact && "dda-login-logo--compact",
         )}
         draggable={false}

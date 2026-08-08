@@ -20,6 +20,7 @@ create table if not exists public.dad_profiles (
   full_name text,
   role text,
   pro_id text,
+  account_number text,
   email text,
   phone text,
   profile_photo_url text,
@@ -33,6 +34,14 @@ create table if not exists public.dad_profiles (
 
 create unique index if not exists dad_profiles_username_lower_idx
   on public.dad_profiles (lower(username));
+
+-- Existing projects: add account_number if the table already existed without it
+alter table public.dad_profiles
+  add column if not exists account_number text;
+
+create unique index if not exists dad_profiles_account_number_idx
+  on public.dad_profiles (account_number)
+  where account_number is not null;
 
 -- Global + per-profile key/value (app settings, notification read state, locale, etc.)
 create table if not exists public.dad_kv (

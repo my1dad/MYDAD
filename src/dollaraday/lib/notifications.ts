@@ -7,6 +7,7 @@ import {
   markDmThreadRead,
   subscribeDmRead,
 } from "./communityChat";
+import { getCommunityBoardMessage } from "./communityBoardMessage";
 import {
   getActiveDadProfile,
   getDadProfileRevision,
@@ -20,6 +21,7 @@ import { getProfileActivityEvents } from "./profileActivity";
 
 export type DdaNotificationKind =
   | "community_dm"
+  | "community_board"
   | "profile_pending"
   | "profile_approved"
   | "profile_denied"
@@ -288,6 +290,21 @@ function buildNotifications(profileId: string | undefined, isAdmin: boolean): Dd
           targetPage: approved ? "dashboard" : undefined,
         });
       });
+
+    // Master admin board posts — every signed-in profile sees each update.
+    const board = getCommunityBoardMessage();
+    if (board.body && board.updatedAt) {
+      const id = `community-board-${board.updatedAt}`;
+      items.push({
+        id,
+        kind: "community_board",
+        senderName: board.updatedByName ?? undefined,
+        messageBody: board.body,
+        occurredAt: board.updatedAt,
+        unread: !readIds.has(id),
+        targetPage: "community",
+      });
+    }
   }
 
   // Money alerts: admin sees platform-wide donations; members only see their own.

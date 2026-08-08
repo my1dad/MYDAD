@@ -20,6 +20,8 @@ export interface DadProfile {
   fullName?: string;
   role?: string;
   proId?: string;
+  /** Unique 16-digit member account number (digits only). */
+  accountNumber?: string;
   email?: string;
   phone?: string;
   profilePhotoUrl?: string;
@@ -135,6 +137,15 @@ if (typeof window !== "undefined") {
     profilesCache = null;
     notifyProfileListeners();
   });
+
+  // Backfill 16-digit account numbers for existing local profiles on boot.
+  queueMicrotask(() => {
+    try {
+      ensureProfileAccountNumbers();
+    } catch (err) {
+      console.warn("[dadProfileStorage] Account number backfill skipped:", err);
+    }
+  });
 }
 
 function createId() {
@@ -201,6 +212,84 @@ export function ensureProfileProIds(): void {
   if (changed) writeProfiles(next);
 }
 
+const ACCOUNT_NUMBER_LENGTH = 16;
+
+function isValidAccountNumber(value: string | undefined | null): value is string {
+  return typeof value === "string" && /^\d{16}$/.test(value);
+}
+
+/** Cryptographically random 16-digit account number (no leading zero). */
+export function generateAccountNumberDigits(taken?: Set<string>): string {
+  const used = taken ?? new Set(
+    readProfiles()
+      .map((profile) => profile.accountNumber)
+      .filter(isValidAccountNumber),
+  );
+
+  for (let attempt = 0; attempt < 64; attempt += 1) {
+    const bytes = new Uint8Array(ACCOUNT_NUMBER_LENGTH);
+    crypto.getRandomValues(bytes);
+    let digits = "";
+    for (let i = 0; i < ACCOUNT_NUMBER_LENGTH; i += 1) {
+      digits += String(bytes[i] % 10);
+    }
+    if (digits[0] === "0") {
+      digits = `${1 + (bytes[0] % 9)}${digits.slice(1)}`;
+    }
+    if (!used.has(digits)) {
+      used.add(digits);
+      return digits;
+    }
+  }
+
+  // Extremely unlikely fallback — timestamp + random padding.
+  const fallback = `${Date.now()}${Math.floor(Math.random() * 1e6)}`.replace(/\D/g, "").slice(-16).padStart(16, "1");
+  used.add(fallback);
+  return fallback;
+}
+
+/** Backfill unique 16-digit account numbers for profiles that lack one. */
+export function ensureProfileAccountNumbers(): void {
+  const profiles = readProfiles();
+  const taken = new Set(
+    profiles.map((profile) => profile.accountNumber).filter(isValidAccountNumber),
+  );
+  let changed = false;
+
+  const next = profiles.map((profile) => {
+    if (isValidAccountNumber(profile.accountNumber)) {
+      taken.add(profile.accountNumber);
+      return profile;
+    }
+    const accountNumber = generateAccountNumberDigits(taken);
+    changed = true;
+    return {
+      ...profile,
+      accountNumber,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  if (changed) writeProfiles(next, { stamp: false });
+}
+
+export function getProfileAccountNumber(profileId: string | null | undefined): string | null {
+  if (!profileId) return null;
+  const profile = findDadProfileById(profileId);
+  return isValidAccountNumber(profile?.accountNumber) ? profile.accountNumber : null;
+}
+
+export function formatMaskedAccountNumber(accountNumber: string | null | undefined): string {
+  if (!isValidAccountNumber(accountNumber)) return "•••• •••• •••• 0000";
+  return `•••• •••• •••• ${accountNumber.slice(-4)}`;
+}
+
+/** Group 16 digits as #### #### #### #### for display. */
+export function formatGroupedAccountNumber(accountNumber: string | null | undefined): string {
+  if (!isValidAccountNumber(accountNumber)) return "0000 0000 0000 0000";
+  return accountNumber.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+}
+
 export async function createDadProfile(input: {
   username: string;
   password: string;
@@ -225,6 +314,7 @@ export async function createDadProfile(input: {
 
   const now = new Date().toISOString();
   const proId = generateProId(username);
+  const accountNumber = generateAccountNumberDigits();
   const profile: DadProfile = {
     id: createId(),
     username,
@@ -236,6 +326,7 @@ export async function createDadProfile(input: {
     profilePhotoUrl: input.profilePhotoUrl?.trim() || undefined,
     role: MEMBER_PROFILE_TEMPLATE.role,
     proId,
+    accountNumber,
     approvalStatus: "pending",
     createdAt: now,
     lastLoginAt: now,
@@ -244,6 +335,16 @@ export async function createDadProfile(input: {
 
   const next = [...readProfiles(), profile];
   writeProfiles(next, { stamp: false, pushToCloud: false });
+
+  // New registrations reopen the platform — stop factory-zero pruning.
+  void import("./supabase/cloudSync").then(({ clearFactoryZeroDeliveryLock }) => {
+    clearFactoryZeroDeliveryLock();
+  });
+
+  // Email master admin that a new profile needs approval (never block signup).
+  void import("./signupAdminNotify").then(({ notifyAdminNewSignup }) => {
+    void notifyAdminNewSignup(profile);
+  });
 
   // Await cloud publish so master admin sees the new member on other devices immediately.
   try {
@@ -279,9 +380,13 @@ export async function authenticateDadProfile(
 
   const upgradedPassword =
     !isPasswordHash(profile.password) ? await hashPassword(password) : profile.password;
+  const accountNumber = isValidAccountNumber(profile.accountNumber)
+    ? profile.accountNumber
+    : generateAccountNumberDigits();
   const updated: DadProfile = {
     ...profile,
     password: upgradedPassword,
+    accountNumber,
     lastLoginAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -314,6 +419,7 @@ export async function ensureDadAdminProfile(): Promise<DadProfile> {
       fullName: ADMIN_ROLE,
       role: ADMIN_ROLE,
       proId: generateProId(ADMIN_USERNAME),
+      accountNumber: generateAccountNumberDigits(),
       approvalStatus: "approved",
       accountStatus: "active",
       createdAt: now,
@@ -330,6 +436,9 @@ export async function ensureDadAdminProfile(): Promise<DadProfile> {
     fullName: profile.fullName?.trim() || ADMIN_ROLE,
     displayName: profile.displayName?.trim() || ADMIN_WORKSPACE_NAME,
     proId: profile.proId || generateProId(ADMIN_USERNAME),
+    accountNumber: isValidAccountNumber(profile.accountNumber)
+      ? profile.accountNumber
+      : generateAccountNumberDigits(),
     approvalStatus: "approved",
     accountStatus: profile.accountStatus === "suspended" ? "suspended" : "active",
   };
@@ -340,7 +449,8 @@ export async function ensureDadAdminProfile(): Promise<DadProfile> {
     updated.displayName !== profile.displayName ||
     updated.approvalStatus !== profile.approvalStatus ||
     updated.accountStatus !== profile.accountStatus ||
-    updated.proId !== profile.proId
+    updated.proId !== profile.proId ||
+    updated.accountNumber !== profile.accountNumber
   ) {
     writeProfiles(
       profiles.map((item) => (item.id === profile!.id ? updated : item)),
@@ -495,4 +605,6 @@ export function findMasterAdminProfile(): DadProfile | undefined {
 /** Replace local cache from cloud without re-stamping or re-pushing. */
 export function replaceAllDadProfiles(profiles: DadProfile[]): void {
   writeProfiles(profiles, { stamp: false, pushToCloud: false });
+  // Backfill unique account numbers for any profiles that arrived without one.
+  ensureProfileAccountNumbers();
 }

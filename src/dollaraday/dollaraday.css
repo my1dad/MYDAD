@@ -381,7 +381,7 @@ body {
 }
 
 .dda-login-logo--compact {
-  height: 5.5rem !important;
+  height: 7.5rem !important;
   margin-bottom: 0.5rem !important;
 }
 
@@ -496,7 +496,7 @@ body {
   }
 
   .dda-login-logo--compact {
-    height: 6.5rem !important;
+    height: 9rem !important;
     margin-bottom: 1rem !important;
   }
 
@@ -1013,6 +1013,12 @@ select.dda-bank-transfer-route__select:focus {
   transform: translateY(0);
 }
 
+.dda-contribute-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
 .dda-contribute-panel {
   position: relative;
   overflow: hidden;
@@ -1027,6 +1033,16 @@ select.dda-bank-transfer-route__select:focus {
   box-shadow:
     0 14px 32px -18px rgba(var(--dda-accent-rgb), 0.14),
     0 8px 18px -14px rgba(0, 0, 0, 0.35);
+}
+
+.dda-contribute-panel__glow {
+  pointer-events: none;
+  position: absolute;
+  inset: auto -10% -40% 35%;
+  height: 70%;
+  border-radius: 999px;
+  background: radial-gradient(closest-side, rgba(var(--dda-accent-rgb), 0.18), transparent 72%);
+  opacity: 0.7;
 }
 
 .dda-member-bank {
@@ -1155,19 +1171,27 @@ select.dda-bank-transfer-route__select:focus {
 
 .dda-member-bank__top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.75rem 1rem;
+}
+
+.dda-member-bank__top .dda-home-greeting {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .dda-member-bank__brand {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex: 0 1 auto;
   gap: 0.75rem;
+  text-align: right;
 }
 
 .dda-member-bank__logo {
-  height: 2.75rem;
+  height: 3.5rem;
   width: auto;
   flex-shrink: 0;
   object-fit: contain;
@@ -1176,12 +1200,12 @@ select.dda-bank-transfer-route__select:focus {
 
 @media (min-width: 640px) {
   .dda-member-bank__logo {
-    height: 3.15rem;
+    height: 4rem;
   }
 }
 
 .dda-member-bank__brand-name {
-  font-size: 0.95rem;
+  font-size: 1.2rem;
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -1189,8 +1213,8 @@ select.dda-bank-transfer-route__select:focus {
 }
 
 .dda-member-bank__brand-sub {
-  margin-top: 0.2rem;
-  font-size: 0.62rem;
+  margin-top: 0.25rem;
+  font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.28em;
   text-transform: uppercase;
@@ -1212,7 +1236,6 @@ select.dda-bank-transfer-route__select:focus {
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 10px 24px -18px rgba(0, 0, 0, 0.55);
   transition:
-    transform 0.2s ease,
     box-shadow 0.2s ease,
     background 0.2s ease;
 }
@@ -1223,17 +1246,12 @@ select.dda-bank-transfer-route__select:focus {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 14px 28px -16px rgba(var(--dda-accent-rgb), 0.35);
-  transform: translateY(-1px);
 }
 
 .dda-member-bank__ledger--static {
   cursor: default;
   pointer-events: none;
   transition: none;
-}
-
-.dda-member-bank__ledger:is(button):not(:disabled):active {
-  transform: translateY(0);
 }
 
 .dda-member-bank__ledger:focus-visible {
@@ -1256,13 +1274,50 @@ select.dda-bank-transfer-route__select:focus {
   color: rgba(209, 213, 219, 0.9);
 }
 
-.dda-member-bank__account-mask {
+.dda-member-bank__account-mask-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   margin-top: 0.2rem;
+  min-width: 0;
+}
+
+.dda-member-bank__account-mask {
+  margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   color: rgba(255, 255, 255, 0.82);
+  min-width: 0;
+}
+
+.dda-member-bank__account-reveal {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dda-member-bank__account-reveal:hover,
+.dda-member-bank__account-reveal:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  outline: none;
+}
+
+.dda-member-bank__account-reveal:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
 }
 
 .dda-member-bank__roi {
@@ -1393,8 +1448,31 @@ select.dda-bank-transfer-route__select:focus {
   text-align: center;
 }
 
+.dda-contribute-panel__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.dda-contribute-panel__rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--dda-accent-light-rgb), 0.35);
+  background: rgba(var(--dda-accent-rgb), 0.14);
+  padding: 0.22rem 0.55rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-dda-green-light);
+}
+
 .dda-contribute-panel__title {
-  margin-top: 0.15rem;
+  margin-top: 0.35rem;
   font-size: 1rem;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -1412,6 +1490,12 @@ select.dda-bank-transfer-route__select:focus {
   font-size: 0.72rem;
   line-height: 1.35;
   color: rgba(209, 213, 219, 0.82);
+}
+
+.dda-contribute-panel__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
 }
 
 .dda-contribute-panel__presets {
@@ -1432,11 +1516,11 @@ select.dda-bank-transfer-route__select:focus {
   position: relative;
   isolation: isolate;
   display: flex;
-  min-height: 5rem;
+  min-height: 5.35rem;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.15rem;
+  gap: 0.12rem;
   overflow: hidden;
   border-radius: 0.9rem;
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -1453,7 +1537,7 @@ select.dda-bank-transfer-route__select:focus {
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     inset 0 -1px 0 rgba(255, 255, 255, 0.04),
     0 10px 20px -14px rgba(0, 0, 0, 0.55);
-  padding: 0.7rem 0.35rem 0.65rem;
+  padding: 0.65rem 0.35rem 0.55rem;
   text-align: center;
   transition:
     border-color 0.2s ease,
@@ -1479,9 +1563,23 @@ select.dda-bank-transfer-route__select:focus {
 
 .dda-contribute-preset__amount,
 .dda-contribute-preset__period,
-.dda-contribute-preset__hint {
+.dda-contribute-preset__hint,
+.dda-contribute-preset__rate {
   position: relative;
   z-index: 1;
+}
+
+.dda-contribute-preset__rate {
+  margin-top: 0.15rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.12rem 0.4rem;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.78);
 }
 
 .dda-contribute-preset--weekly {
@@ -1711,26 +1809,25 @@ select.dda-bank-transfer-route__select:focus {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 0.55rem;
+  gap: 0.85rem 1.75rem;
+  padding: 1.25rem 0.5rem;
 }
 
 .dda-contribute-panel__pay-label {
-  font-size: 0.58rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: rgba(156, 163, 175, 0.9);
 }
 
-.dda-contribute-panel .dda-text-kicker {
+.dda-contribute-section .dda-text-kicker {
   font-size: 0.6rem;
   letter-spacing: 0.14em;
 }
 
-.dda-contribute-panel .dda-home-payment-logo {
-  height: 1.15rem;
+.dda-contribute-section .dda-home-payment-logo {
+  height: 1.85rem;
 }
 
 .dda-home-payment-logos {
@@ -1745,15 +1842,248 @@ select.dda-bank-transfer-route__select:focus {
 .dda-home-payment-logos--inline {
   width: auto;
   padding-top: 0;
-  gap: 1rem;
+  gap: 1.1rem;
+}
+
+.dda-home-payment-logos--inline .dda-contribute-panel__pay-label {
+  flex-shrink: 0;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .dda-home-payment-logo-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
   line-height: 0;
   text-decoration: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+.dda-apple-pay-sms__logo {
+  height: 1.35rem;
+  width: auto;
+  object-fit: contain;
+  filter: brightness(1.08);
+}
+
+.dda-apple-pay-sms__steps {
+  margin: 0;
+  padding: 0.85rem 0.95rem 0.85rem 1.85rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  list-style: decimal;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: rgba(209, 213, 219, 0.92);
+}
+
+.dda-apple-pay-sms__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.9);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-apple-pay-sms__copy:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.dda-apple-pay-sms__cta {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  border: 0;
+  border-radius: 0.85rem;
+  background: #000;
+  padding: 0.95rem 1.1rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-decoration: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 10px 24px -14px rgba(0, 0, 0, 0.65);
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dda-apple-pay-sms__cta:hover {
+  background: #111;
+}
+
+.dda-apple-pay-sms__cta:active {
+  transform: translateY(1px);
+}
+
+.dda-apple-pay-sms__cta--disabled {
+  pointer-events: none;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(156, 163, 175, 0.9);
+  box-shadow: none;
+}
+
+.dda-apple-pay-sms__cta--disabled:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dda-apple-pay-sms__cta-logo {
+  height: 1.15rem;
+  width: auto;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+
+.dda-zelle-pay__logo {
+  height: 1.35rem;
+  width: auto;
+  object-fit: contain;
+}
+
+.dda-zelle-pay__steps {
+  margin: 0;
+  padding: 0.85rem 0.95rem 0.85rem 1.85rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(109, 30, 212, 0.28);
+  background: rgba(109, 30, 212, 0.08);
+  list-style: decimal;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: rgba(209, 213, 219, 0.92);
+}
+
+.dda-zelle-pay__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.9);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-zelle-pay__copy:hover:not(:disabled) {
+  border-color: rgba(196, 181, 253, 0.45);
+  background: rgba(109, 30, 212, 0.18);
+  color: #fff;
+}
+
+.dda-zelle-pay__copy:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dda-zelle-pay__cta {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  border: 0;
+  border-radius: 0.85rem;
+  background: #6d1ed4;
+  padding: 0.95rem 1.1rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 10px 24px -14px rgba(109, 30, 212, 0.75);
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dda-zelle-pay__cta:hover:not(:disabled) {
+  background: #7c2ce8;
+}
+
+.dda-zelle-pay__cta:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.dda-zelle-pay__cta--disabled,
+.dda-zelle-pay__cta:disabled {
+  pointer-events: none;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(156, 163, 175, 0.9);
+  box-shadow: none;
+}
+
+.dda-zelle-pay__cta-logo {
+  height: 1.15rem;
+  width: auto;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+
+.dda-zelle-pay__secondary {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.75rem;
+  background: transparent;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: rgba(226, 232, 240, 0.9);
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-zelle-pay__secondary:hover {
+  border-color: rgba(196, 181, 253, 0.4);
+  background: rgba(109, 30, 212, 0.12);
+  color: #fff;
 }
 
 .dda-home-payment-logo {
@@ -2147,8 +2477,7 @@ select.dda-bank-transfer-route__select:focus {
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition:
     border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
+    box-shadow 0.2s ease;
 }
 
 .dda-pool-widget:hover .dda-pool-widget__card {
@@ -2157,11 +2486,6 @@ select.dda-bank-transfer-route__select:focus {
     0 18px 36px -18px rgba(var(--dda-accent-rgb), 0.2),
     0 10px 22px -14px rgba(var(--dda-gold-rgb), 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  transform: translateY(-1px);
-}
-
-.dda-pool-widget:active .dda-pool-widget__card {
-  transform: translateY(0);
 }
 
 .dda-pool-widget__glow {
@@ -2441,6 +2765,117 @@ select.dda-bank-transfer-route__select:focus {
   color: var(--color-dda-gold-light);
 }
 
+.dda-pool-widget__sleeves {
+  margin-top: 0.15rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dda-pool-widget__sleeves-kicker {
+  margin: 0 0 0.55rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.55);
+}
+
+.dda-pool-widget__sleeves-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.dda-pool-sleeve-donut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.28rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.16);
+  padding: 0.55rem 0.35rem 0.5rem;
+  color: inherit;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+  cursor: pointer;
+}
+
+.dda-pool-sleeve-donut:hover {
+  border-color: color-mix(in srgb, var(--sleeve-color) 45%, rgba(255, 255, 255, 0.16));
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-1px);
+}
+
+.dda-pool-sleeve-donut:focus-visible {
+  outline: 2px solid rgba(250, 204, 21, 0.55);
+  outline-offset: 2px;
+}
+
+.dda-pool-sleeve-donut__plot {
+  position: relative;
+  width: 3.35rem;
+  height: 3.35rem;
+}
+
+.dda-pool-sleeve-donut__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: conic-gradient(
+    var(--sleeve-color) 0 calc(var(--sleeve-pct) * 1%),
+    rgba(255, 255, 255, 0.08) 0
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+}
+
+.dda-pool-sleeve-donut__center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #f8fafc;
+}
+
+.dda-pool-sleeve-donut__label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.72);
+  text-align: center;
+  line-height: 1.15;
+}
+
+.dda-pool-sleeve-donut__value {
+  font-size: 0.72rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--sleeve-color) 80%, #fff 20%);
+}
+
+@media (min-width: 1024px) {
+  .dda-home-desktop__hero-pool .dda-pool-widget--sleeves .dda-pool-widget__body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .dda-home-desktop__hero-pool .dda-pool-widget--sleeves .dda-pool-widget__sleeves {
+    margin-top: auto;
+  }
+
+  .dda-home-desktop__hero-pool .dda-pool-widget--sleeves .dda-pool-widget__footer {
+    margin-top: 0.55rem;
+  }
+}
+
 .dda-home-welcome {
   line-height: 1.65;
 }
@@ -2627,6 +3062,60 @@ select.dda-bank-transfer-route__select:focus {
   gap: 0.5rem;
 }
 
+.dda-wallet-funding-tab-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.dda-wallet-funding-tab-wrap .dda-wallet-funding-tab {
+  width: 100%;
+}
+
+.dda-wallet-funding-coming-soon {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.45rem);
+  z-index: 5;
+  min-width: 7.5rem;
+  transform: translateX(-50%) translateY(0.2rem);
+  border-radius: 0.65rem;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  background: rgba(8, 14, 18, 0.96);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fde68a;
+  text-align: center;
+  box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.65);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    visibility 0.16s ease;
+}
+
+.dda-wallet-funding-coming-soon::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-top-color: rgba(8, 14, 18, 0.96);
+}
+
+.dda-wallet-funding-tab-wrap:hover .dda-wallet-funding-coming-soon,
+.dda-wallet-funding-tab-wrap:focus-within .dda-wallet-funding-coming-soon,
+.dda-wallet-funding-tab-wrap--tip-open .dda-wallet-funding-coming-soon {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
 .dda-wallet-funding-tab {
   position: relative;
   z-index: 0;
@@ -2642,6 +3131,10 @@ select.dda-bank-transfer-route__select:focus {
   line-height: 1.2;
   color: rgba(209, 213, 219, 0.88);
   cursor: pointer;
+}
+
+.dda-wallet-funding-tab--coming-soon {
+  cursor: default;
 }
 
 .dda-wallet-funding-tab__label {
@@ -5823,6 +6316,11 @@ select.dda-bank-transfer-route__select {
   background: rgba(74, 222, 128, 0.12);
 }
 
+.dda-notification-item__icon--community_board {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.14);
+}
+
 .dda-notification-item__icon--profile_pending {
   color: var(--color-dda-gold-light);
   background: rgba(var(--dda-gold-light-rgb), 0.12);
@@ -5871,6 +6369,167 @@ select.dda-bank-transfer-route__select {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-dda-gold-light);
+}
+
+/* Community board message (master-admin editable, visible to all) */
+.dda-community-board {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.03) 55%,
+    rgba(var(--dda-accent-rgb), 0.06) 100%
+  );
+  box-shadow: 0 12px 28px -18px rgba(0, 0, 0, 0.45);
+}
+
+.dda-community-board__inner {
+  padding: 0.9rem 1rem 1rem;
+}
+
+.dda-community-board__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.dda-community-board__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-dda-green-light);
+}
+
+.dda-community-board__edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.92);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-community-board__edit:hover {
+  border-color: rgba(var(--dda-accent-rgb), 0.45);
+  background: rgba(var(--dda-accent-rgb), 0.12);
+  color: #fff;
+}
+
+.dda-community-board__body {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.55;
+  color: rgba(226, 232, 240, 0.92);
+  white-space: pre-wrap;
+}
+
+.dda-community-board__body--empty {
+  color: rgba(156, 163, 175, 0.95);
+  font-style: italic;
+}
+
+.dda-community-board__meta {
+  margin: 0.65rem 0 0;
+  font-size: 0.68rem;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.dda-community-board__editor {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.dda-community-board__textarea {
+  width: 100%;
+  min-height: 7rem;
+  resize: vertical;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 0.75rem 0.85rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #fff;
+  outline: none;
+}
+
+.dda-community-board__textarea:focus {
+  border-color: rgba(var(--dda-accent-rgb), 0.5);
+}
+
+.dda-community-board__textarea::placeholder {
+  color: rgba(156, 163, 175, 0.85);
+}
+
+.dda-community-board__error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #fca5a5;
+}
+
+.dda-community-board__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.dda-community-board__secondary,
+.dda-community-board__primary {
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-community-board__secondary {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.dda-community-board__secondary:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dda-community-board__primary {
+  border: 0;
+  background: rgba(var(--dda-accent-rgb), 0.9);
+  color: #04120c;
+}
+
+.dda-community-board__primary:hover:not(:disabled) {
+  background: var(--color-dda-green-light);
+}
+
+.dda-community-board__secondary:disabled,
+.dda-community-board__primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* Community chat */
@@ -6255,4 +6914,645 @@ select.dda-bank-transfer-route__select {
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--color-dda-green-light);
+}
+
+/* —— Desktop home landscape dashboard (lg+) —— */
+.dda-home-desktop {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .dda-home-desktop {
+    display: flex;
+    flex-direction: column;
+    gap: 1.15rem;
+    width: 100%;
+    padding-bottom: 0.75rem;
+    animation: dda-home-desk-in 0.45s ease both;
+  }
+
+  @keyframes dda-home-desk-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .dda-home-desktop__intro {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .dda-home-desktop__title {
+    margin: 0.15rem 0 0;
+    font-size: clamp(1.55rem, 1.2rem + 0.8vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: #f8fafc;
+    line-height: 1.15;
+  }
+
+  .dda-home-desktop__subtitle {
+    margin: 0.35rem 0 0;
+    max-width: 36rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: rgba(226, 232, 240, 0.68);
+  }
+
+  .dda-home-desktop__pulse {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    border: 1px solid rgba(74, 222, 128, 0.28);
+    background: rgba(74, 222, 128, 0.08);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-dda-green-light);
+  }
+
+  .dda-home-desktop__pulse-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: var(--color-dda-green-light);
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55);
+    animation: dda-home-desk-pulse 1.8s ease-out infinite;
+  }
+
+  @keyframes dda-home-desk-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5);
+    }
+    70% {
+      box-shadow: 0 0 0 8px rgba(74, 222, 128, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
+    }
+  }
+
+  .dda-home-desktop__hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .dda-home-desktop__hero-equity,
+  .dda-home-desktop__hero-pool {
+    min-width: 0;
+    height: 100%;
+  }
+
+  .dda-home-desktop__hero-equity .dda-member-bank,
+  .dda-home-desktop__hero-pool .dda-pool-widget {
+    height: 100%;
+    margin: 0;
+  }
+
+  .dda-home-desktop__hero-pool .dda-pool-widget__card {
+    height: 100%;
+  }
+
+  .dda-home-desktop__rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(17rem, 0.85fr);
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .dda-home-desktop__rail .dda-contribute-section {
+    margin: 0;
+    min-width: 0;
+    height: 100%;
+  }
+
+  .dda-home-desktop__alerts {
+    min-width: 0;
+    height: 100%;
+  }
+
+  .dda-home-alerts {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background:
+      linear-gradient(160deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(0, 0, 0, 0.22) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 8px 22px rgba(0, 0, 0, 0.18);
+  }
+
+  .dda-home-alerts__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 1.05rem 1.05rem;
+    min-height: 0;
+  }
+
+  .dda-home-alerts__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .dda-home-alerts__title {
+    margin: 0.15rem 0 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #f8fafc;
+  }
+
+  .dda-home-alerts__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.3rem 0.6rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(226, 232, 240, 0.72);
+  }
+
+  .dda-home-alerts__badge--live {
+    border-color: rgba(250, 204, 21, 0.35);
+    background: rgba(250, 204, 21, 0.12);
+    color: var(--color-dda-gold-light);
+  }
+
+  .dda-home-alerts__empty {
+    margin: auto 0;
+    padding: 1rem 0.25rem;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: rgba(203, 213, 225, 0.68);
+  }
+
+  .dda-home-alerts__list {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .dda-home-alerts__item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.55rem;
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.18);
+    padding: 0.55rem 0.6rem;
+    text-align: left;
+    color: inherit;
+    transition:
+      border-color 0.18s ease,
+      background 0.18s ease,
+      transform 0.18s ease;
+    cursor: pointer;
+  }
+
+  .dda-home-alerts__item:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .dda-home-alerts__item:focus-visible {
+    outline: 2px solid rgba(250, 204, 21, 0.55);
+    outline-offset: 2px;
+  }
+
+  .dda-home-alerts__item--unread {
+    border-color: rgba(250, 204, 21, 0.28);
+    background: rgba(250, 204, 21, 0.06);
+  }
+
+  .dda-home-alerts__item-icon {
+    display: inline-flex;
+    height: 1.85rem;
+    width: 1.85rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-dda-gold-light);
+  }
+
+  .dda-home-alerts__item-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .dda-home-alerts__item-title {
+    font-size: 0.8125rem;
+    font-weight: 650;
+    color: #f1f5f9;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dda-home-alerts__item-body {
+    font-size: 0.72rem;
+    color: rgba(203, 213, 225, 0.75);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dda-home-alerts__time {
+    font-size: 0.65rem;
+    color: rgba(148, 163, 184, 0.85);
+  }
+
+  .dda-home-alerts__item-arrow {
+    margin-top: 0.15rem;
+    color: rgba(226, 232, 240, 0.4);
+  }
+
+  .dda-home-alerts__item:hover .dda-home-alerts__item-arrow {
+    color: var(--color-dda-gold-light);
+  }
+
+  .dda-home-desktop__contribute {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(13rem, 0.78fr) minmax(0, 1.55fr);
+    grid-template-areas:
+      "header actions"
+      "pay actions";
+    gap: 0.85rem 1.35rem;
+    align-items: center;
+    padding: 1.15rem 1.2rem 1.05rem;
+    overflow: hidden;
+    border-radius: 0.875rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background:
+      radial-gradient(90% 80% at 100% 0%, rgba(var(--dda-accent-rgb), 0.16), transparent 55%),
+      radial-gradient(70% 60% at 0% 100%, rgba(var(--dda-gold-rgb), 0.1), transparent 50%),
+      linear-gradient(
+        155deg,
+        rgba(255, 255, 255, 0.08) 0%,
+        rgba(10, 18, 22, 0.92) 48%,
+        rgba(6, 12, 16, 0.98) 100%
+      );
+    box-shadow:
+      0 14px 32px -18px rgba(var(--dda-accent-rgb), 0.14),
+      0 8px 18px -14px rgba(0, 0, 0, 0.35);
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel,
+  .dda-home-desktop__contribute .dda-contribute-panel__body {
+    display: contents;
+  }
+
+  .dda-home-desktop__contribute .dda-accent-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel__glow {
+    z-index: 0;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel__header {
+    position: relative;
+    z-index: 1;
+    grid-area: header;
+    margin: 0;
+    text-align: left;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel__eyebrow {
+    justify-content: flex-start;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel__title {
+    margin-top: 0.45rem;
+    font-size: clamp(1.35rem, 1.1rem + 0.55vw, 1.7rem);
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel__subtitle {
+    margin-top: 0.4rem;
+    max-width: 18rem;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: rgba(203, 213, 225, 0.78);
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel__actions {
+    position: relative;
+    z-index: 1;
+    grid-area: actions;
+    gap: 0.65rem;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel__presets {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+    padding: 0.45rem;
+    border-radius: 1.15rem;
+    border-color: rgba(255, 255, 255, 0.12);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(0, 0, 0, 0.28) 100%);
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-preset {
+    min-height: 6.4rem;
+    gap: 0.18rem;
+    padding: 0.75rem 0.5rem 0.7rem;
+    border-radius: 0.95rem;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-preset__period {
+    order: 1;
+    font-size: 0.68rem;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-preset__amount {
+    order: 2;
+    font-size: 1.55rem;
+    letter-spacing: -0.04em;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-preset__hint {
+    order: 3;
+    font-size: 0.65rem;
+    color: rgba(203, 213, 225, 0.72);
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-preset__rate {
+    order: 4;
+    margin-top: 0.25rem;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-custom {
+    min-height: 3.15rem;
+    border-radius: 0.95rem;
+    padding: 0.65rem 0.85rem;
+    background:
+      linear-gradient(120deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-custom__label {
+    font-size: 0.8125rem;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-custom__action {
+    font-size: 0.72rem;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel__payments {
+    position: relative;
+    z-index: 1;
+    grid-area: pay;
+    justify-content: flex-start;
+    align-self: end;
+    margin: 0;
+    padding: 0.15rem 0 0;
+    gap: 0.55rem;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel__pay-label {
+    font-size: 0.625rem;
+  }
+
+  .dda-home-desktop__widgets {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .dda-home-desk-tile {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 5.5rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background:
+      linear-gradient(155deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.18) 100%);
+    padding: 0.9rem 0.95rem;
+    text-align: left;
+    color: inherit;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 8px 22px rgba(0, 0, 0, 0.18);
+    transition:
+      border-color 0.2s ease,
+      transform 0.2s ease,
+      box-shadow 0.2s ease,
+      background 0.2s ease;
+    cursor: pointer;
+  }
+
+  .dda-home-desk-tile:hover {
+    border-color: rgba(255, 255, 255, 0.22);
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 14px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  .dda-home-desk-tile:active {
+    transform: translateY(0);
+  }
+
+  .dda-home-desk-tile:focus-visible {
+    outline: 2px solid rgba(250, 204, 21, 0.55);
+    outline-offset: 2px;
+  }
+
+  .dda-home-desk-tile__icon {
+    display: inline-flex;
+    height: 2.35rem;
+    width: 2.35rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.8rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: #e2e8f0;
+  }
+
+  .dda-home-desk-tile--green .dda-home-desk-tile__icon {
+    color: var(--color-dda-green-light);
+    border-color: rgba(74, 222, 128, 0.28);
+    background: rgba(74, 222, 128, 0.1);
+  }
+
+  .dda-home-desk-tile--gold .dda-home-desk-tile__icon,
+  .dda-home-desk-tile--amber .dda-home-desk-tile__icon {
+    color: var(--color-dda-gold-light);
+    border-color: rgba(250, 204, 21, 0.28);
+    background: rgba(250, 204, 21, 0.1);
+  }
+
+  .dda-home-desk-tile--emerald .dda-home-desk-tile__icon,
+  .dda-home-desk-tile--lime .dda-home-desk-tile__icon {
+    color: #86efac;
+    border-color: rgba(134, 239, 172, 0.28);
+    background: rgba(134, 239, 172, 0.1);
+  }
+
+  .dda-home-desk-tile--sky .dda-home-desk-tile__icon {
+    color: #7dd3fc;
+    border-color: rgba(125, 211, 252, 0.28);
+    background: rgba(125, 211, 252, 0.1);
+  }
+
+  .dda-home-desk-tile--violet .dda-home-desk-tile__icon {
+    color: #c4b5fd;
+    border-color: rgba(196, 181, 253, 0.28);
+    background: rgba(196, 181, 253, 0.1);
+  }
+
+  .dda-home-desk-tile__copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.12rem;
+  }
+
+  .dda-home-desk-tile__title {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(226, 232, 240, 0.62);
+  }
+
+  .dda-home-desk-tile__value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #f8fafc;
+    line-height: 1.2;
+  }
+
+  .dda-home-desk-tile__meta {
+    font-size: 0.72rem;
+    color: rgba(203, 213, 225, 0.72);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dda-home-desk-tile__arrow {
+    color: rgba(226, 232, 240, 0.45);
+    transition: color 0.2s ease, transform 0.2s ease;
+  }
+
+  .dda-home-desk-tile:hover .dda-home-desk-tile__arrow {
+    color: var(--color-dda-gold-light);
+    transform: translate(1px, -1px);
+  }
+
+  .dda-home-desktop__pulse--member {
+    border-color: rgba(52, 211, 153, 0.35);
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--color-dda-green-light);
+  }
+
+  .dda-home-desktop--member .dda-home-desktop__title {
+    background: linear-gradient(120deg, #fff 20%, var(--color-dda-green-soft) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .dda-home-desktop__widgets--member {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .dda-home-desk-tile--member:hover {
+    border-color: color-mix(in srgb, var(--color-dda-green-light) 40%, rgba(255, 255, 255, 0.18));
+  }
+
+  .dda-home-desktop--member .dda-home-desktop__contribute {
+    border-color: rgba(52, 211, 153, 0.18);
+    background:
+      radial-gradient(90% 80% at 100% 0%, rgba(16, 185, 129, 0.18), transparent 55%),
+      radial-gradient(70% 60% at 0% 100%, rgba(52, 211, 153, 0.08), transparent 50%),
+      linear-gradient(
+        155deg,
+        rgba(255, 255, 255, 0.08) 0%,
+        rgba(8, 20, 16, 0.94) 48%,
+        rgba(5, 14, 12, 0.98) 100%
+      );
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .dda-home-desktop__hero {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dda-home-desktop__rail {
+    grid-template-columns: minmax(0, 1.35fr) minmax(15rem, 0.9fr);
+  }
+
+  .dda-home-desktop__widgets {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dda-home-desktop__widgets--member {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dda-home-desktop__contribute {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "header"
+      "actions"
+      "pay";
+    gap: 0.85rem;
+  }
+
+  .dda-home-desktop__contribute .dda-contribute-panel__presets {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

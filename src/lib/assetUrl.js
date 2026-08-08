@@ -11,7 +11,7 @@ export const APPLE_PAY_LEARN_URL =
 export const ZELLE_LOGO_URL = `${BASE}payments/zelle.png`;
 export const ZELLE_URL = "https://www.zelle.com";
 export const TERMS_OF_SERVICE_URL = `${BASE}my-dollar-a-day-terms-of-service.pdf`;
-export const HOME_URL = "https://www.mydollaraday.com";
+export const HOME_URL = "https://my1dad.com";
 export const OVERDRIVE_LOGO_URL = `${BASE}over-drive-logo-transparent.png`;
 
 export function buildInviteHomeUrl(referralProId) {

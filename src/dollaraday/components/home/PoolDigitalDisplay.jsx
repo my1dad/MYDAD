@@ -4,6 +4,11 @@ import { cn } from "@/lib/utils";
 import { formatPoolCurrency } from "../../data/mockData";
 import { useLocale } from "../../i18n/LocaleContext";
 import { usePoolState } from "../../lib/poolState";
+import {
+  ALLOCATION_SLEEVE_META,
+  summarizeSleeveAllocations,
+} from "../../lib/allocationSleeves";
+import { useAllocationPositions } from "../../lib/allocationPositions";
 
 function formatPoolTotal(amount) {
   return new Intl.NumberFormat("en-US", {
@@ -14,17 +19,77 @@ function formatPoolTotal(amount) {
   }).format(amount);
 }
 
+function formatCompactMoney(amount) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(amount) || 0);
+}
+
 const TABS = [
   { id: "overview", labelKey: "poolTabOverview" },
   { id: "interest", labelKey: "poolTabInterest" },
   { id: "compound", labelKey: "poolTabCompound" },
 ];
 
-export default function PoolDigitalDisplay({ amount, memberCount, dailyInflow, ytdGrowthPct, onClick }) {
+const SLEEVE_LABEL_KEYS = {
+  treasury: "buyTreasury",
+  bonds: "buyBonds",
+  stocks: "buyStocks",
+};
+
+function SleeveDonut({ sleeveKey, principal, percent, onClick, t }) {
+  const meta = ALLOCATION_SLEEVE_META[sleeveKey];
+  const pct = Math.max(0, Math.min(100, Number(percent) || 0));
+  const label = t(`pages.investments.${SLEEVE_LABEL_KEYS[sleeveKey] ?? "buyTreasury"}`);
+
+  return (
+    <button
+      type="button"
+      className="dda-pool-sleeve-donut"
+      onClick={onClick}
+      aria-label={t("pages.dashboard.poolSleeveDonutAria", {
+        sleeve: label,
+        amount: formatCompactMoney(principal),
+        percent: Math.round(pct),
+      })}
+      style={{
+        "--sleeve-color": meta?.color ?? "#86efac",
+        "--sleeve-pct": String(pct),
+      }}
+    >
+      <span className="dda-pool-sleeve-donut__plot" aria-hidden="true">
+        <span className="dda-pool-sleeve-donut__ring" />
+        <span className="dda-pool-sleeve-donut__center">
+          {pct > 0 ? `${Math.round(pct)}%` : "0%"}
+        </span>
+      </span>
+      <span className="dda-pool-sleeve-donut__label">{label}</span>
+      <span className="dda-pool-sleeve-donut__value">{formatCompactMoney(principal)}</span>
+    </button>
+  );
+}
+
+export default function PoolDigitalDisplay({
+  amount,
+  memberCount,
+  dailyInflow,
+  ytdGrowthPct,
+  onClick,
+  showSleeveDonuts = false,
+  onSleeveClick,
+}) {
   const { t } = useLocale();
   const { poolSummary } = usePoolState();
   const [activeTab, setActiveTab] = useState("overview");
   const formatted = useMemo(() => formatPoolTotal(amount), [amount]);
+  const positions = useAllocationPositions();
+  const sleeveSummaries = useMemo(
+    () => (showSleeveDonuts ? summarizeSleeveAllocations(positions) : []),
+    [showSleeveDonuts, positions],
+  );
 
   const poolApy = Number(poolSummary?.poolApy) || 0;
   const ytd = ytdGrowthPct ?? poolSummary?.ytdGrowthPct ?? 0;
@@ -53,9 +118,14 @@ export default function PoolDigitalDisplay({ amount, memberCount, dailyInflow, y
     };
   }, [balance, ytd]);
 
+  const openSleeves = onSleeveClick ?? onClick;
+
   return (
     <section
-      className="dda-pool-widget group w-full text-left"
+      className={cn(
+        "dda-pool-widget group w-full text-left",
+        showSleeveDonuts && "dda-pool-widget--sleeves",
+      )}
       aria-label={t("pages.dashboard.poolScreenLabel", { amount: formatted })}
     >
       <div className="dda-pool-widget__card">
@@ -73,11 +143,7 @@ export default function PoolDigitalDisplay({ amount, memberCount, dailyInflow, y
             <span className="dda-pool-widget__live">{t("pages.dashboard.poolScreenLive")}</span>
           </div>
 
-          <button
-            type="button"
-            onClick={onClick}
-            className="dda-pool-widget__balance"
-          >
+          <button type="button" onClick={onClick} className="dda-pool-widget__balance">
             <p className="dda-pool-widget__amount" aria-live="polite">
               {formatted}
             </p>
@@ -209,6 +275,29 @@ export default function PoolDigitalDisplay({ amount, memberCount, dailyInflow, y
               </div>
             ) : null}
           </div>
+
+          {showSleeveDonuts ? (
+            <div
+              className="dda-pool-widget__sleeves"
+              aria-label={t("pages.dashboard.poolSleevesLabel")}
+            >
+              <p className="dda-pool-widget__sleeves-kicker">
+                {t("pages.dashboard.poolSleevesKicker")}
+              </p>
+              <div className="dda-pool-widget__sleeves-grid">
+                {sleeveSummaries.map((sleeve) => (
+                  <SleeveDonut
+                    key={sleeve.sleeveKey}
+                    sleeveKey={sleeve.sleeveKey}
+                    principal={sleeve.principal}
+                    percent={sleeve.percent}
+                    onClick={openSleeves}
+                    t={t}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <button type="button" onClick={onClick} className="dda-pool-widget__footer">
             <span>{t("pages.dashboard.poolScreenHint")}</span>

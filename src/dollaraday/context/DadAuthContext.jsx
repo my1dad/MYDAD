@@ -19,7 +19,11 @@ import { clearPendingDmPartnerId } from "../lib/communityDmNavigation";
 
 async function syncProfilesBeforeAuth() {
   try {
-    const { pullCloudProfilesNow } = await import("../lib/supabase/cloudSync");
+    const { pullCloudProfilesNow, clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
+      "../lib/supabase/cloudSync"
+    );
+    clearFactoryZeroDeliveryLock();
+    pauseCloudPushes(0);
     await pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
   } catch (err) {
     console.warn("[auth] Cloud profile pull before auth skipped:", err);

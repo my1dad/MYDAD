@@ -7,10 +7,10 @@ import { useDadAuth } from "../context/DadAuthContext.jsx";
 
 /**
  * Keep the UI free. Background work is minimal and delayed:
- * 1) Immediate profile pull so admin sees pending members to approve
- * 2) Light local pool hydrate (no member reconcile storm)
- * 3) Full cloud sync later — never on every visibility flip
- * 4) No recurring automations on login — those run on-demand in Accounts
+ * 1) Unlock delivery lock + pull profiles so admin sees members immediately
+ * 2) Rebuild member registry from profiles
+ * 3) Light local pool hydrate
+ * 4) Full cloud sync later
  */
 export default function PostAuthWorkspace({ children }) {
   const { isAuthenticated } = useDadAuth();
@@ -21,17 +21,27 @@ export default function PostAuthWorkspace({ children }) {
     let alive = true;
     const cleanups = [];
 
-    // Profiles first — admin must see new pending members without waiting 12s.
-    const profilePullTimer = window.setTimeout(() => {
+    // Immediately reopen member sync after any factory-zero delivery lock.
+    const unlockTimer = window.setTimeout(() => {
       void import("../lib/supabase/cloudSync")
-        .then(({ pullCloudProfilesNow }) => {
-          if (!alive) return;
+        .then(({ clearFactoryZeroDeliveryLock, pauseCloudPushes, pullCloudProfilesNow }) => {
+          if (!alive) return null;
+          clearFactoryZeroDeliveryLock();
+          // Cancel the 24h pause that blocked member/bin cloud sync after wipe.
+          pauseCloudPushes(0);
           return pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
         })
-        .catch((err) => console.warn("[PostAuthWorkspace] Profile pull skipped:", err));
-    }, 300);
+        .then(() => {
+          if (!alive) return null;
+          return import("../lib/profileRegistry").then(({ syncAllProfilesToMemberRegistry }) => {
+            if (!alive) return;
+            syncAllProfilesToMemberRegistry();
+          });
+        })
+        .catch((err) => console.warn("[PostAuthWorkspace] Profile restore skipped:", err));
+    }, 50);
 
-    // Light local hydrate after first paint — no cloud, no registry rebuild.
+    // Light local hydrate after first paint.
     const localTimer = window.setTimeout(() => {
       void import("../lib/poolState")
         .then(({ hydratePoolStateFromStorage }) => {
@@ -41,14 +51,19 @@ export default function PostAuthWorkspace({ children }) {
         .catch((err) => console.warn("[PostAuthWorkspace] Local hydrate skipped:", err));
     }, 800);
 
-    // Full cloud sync once, deferred — never on every visibility flip.
+    // Full cloud sync once, deferred.
     const cloudTimer = window.setTimeout(() => {
       if (!alive || document.visibilityState !== "visible") return;
 
       void (async () => {
         try {
-          const { initCloudSync } = await import("../lib/supabase/cloudSync");
+          const { initCloudSync, clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
+            "../lib/supabase/cloudSync"
+          );
           if (!alive) return;
+
+          clearFactoryZeroDeliveryLock();
+          pauseCloudPushes(0);
 
           const cleanupCloud = await initCloudSync({
             getLocalProfiles: getDadProfiles,
@@ -56,8 +71,10 @@ export default function PostAuthWorkspace({ children }) {
               replaceAllDadProfiles(profiles);
             },
             onProfilesChanged: (profiles) => {
-              // Profiles only — never rebuild every member row mid-session.
               replaceAllDadProfiles(profiles);
+              void import("../lib/profileRegistry").then(({ syncAllProfilesToMemberRegistry }) => {
+                syncAllProfilesToMemberRegistry();
+              });
             },
           });
 
@@ -67,7 +84,11 @@ export default function PostAuthWorkspace({ children }) {
           }
           if (typeof cleanupCloud === "function") cleanups.push(cleanupCloud);
 
-          // Optional deep reconcile once, far after cloud settle.
+          void import("../lib/profileRegistry").then(({ syncAllProfilesToMemberRegistry }) => {
+            if (!alive) return;
+            syncAllProfilesToMemberRegistry();
+          });
+
           window.setTimeout(() => {
             if (!alive || document.visibilityState !== "visible") return;
             void import("../lib/poolState").then(({ hydratePoolStateFromStorage }) => {
@@ -79,11 +100,11 @@ export default function PostAuthWorkspace({ children }) {
           console.warn("[PostAuthWorkspace] Cloud sync deferred:", err);
         }
       })();
-    }, 12_000);
+    }, 4_000);
 
     return () => {
       alive = false;
-      window.clearTimeout(profilePullTimer);
+      window.clearTimeout(unlockTimer);
       window.clearTimeout(localTimer);
       window.clearTimeout(cloudTimer);
       while (cleanups.length) {
