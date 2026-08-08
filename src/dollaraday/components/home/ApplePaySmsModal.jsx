@@ -37,12 +37,47 @@ function formatUsd(amount) {
   });
 }
 
-/** Build a cross-platform sms: URL with a prefilled Apple Cash request body. */
+function isAppleMobile() {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+/** Digits only, US country code kept (e.g. 15613379411). */
+export function normalizeSmsPhoneDigits(phoneE164) {
+  const digits = String(phoneE164 ?? "").replace(/\D/g, "");
+  if (digits.length === 10) return `1${digits}`;
+  return digits;
+}
+
+/**
+ * Build a cross-platform sms: URL with recipient + prefilled Apple Cash body.
+ * iOS: sms:/open?addresses=...&body= (most reliable for Messages compose)
+ * Android/other: sms:+E164?body=
+ */
 export function buildApplePaySmsHref(phoneE164, message) {
-  const digits = String(phoneE164).replace(/[^\d+]/g, "");
-  const body = encodeURIComponent(message);
-  const isApple = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  return `sms:${digits}${isApple ? "&" : "?"}body=${body}`;
+  const digits = normalizeSmsPhoneDigits(phoneE164);
+  const body = encodeURIComponent(String(message ?? ""));
+  if (!digits) return `sms:?body=${body}`;
+  if (isAppleMobile()) {
+    return `sms:/open?addresses=${digits}&body=${body}`;
+  }
+  return `sms:+${digits}?body=${body}`;
+}
+
+/** Open Messages with the compose deep link; falls back to window.open. */
+export function launchApplePaySms(smsHref) {
+  if (!smsHref || typeof window === "undefined") return false;
+  try {
+    window.location.assign(smsHref);
+    return true;
+  } catch {
+    try {
+      window.open(smsHref, "_blank");
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
@@ -128,9 +163,16 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
     }
   };
 
-  if (!open || typeof document === "undefined") return null;
-
   const canSend = amount > 0;
+
+  const handleLaunchSms = (event) => {
+    event.preventDefault();
+    if (!canSend) return;
+    launchApplePaySms(smsHref);
+    window.setTimeout(() => onClose?.(), 250);
+  };
+
+  if (!open || typeof document === "undefined") return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -270,14 +312,9 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
         <div className="border-t border-white/10 px-5 py-4">
           <a
             href={canSend ? smsHref : undefined}
+            role="button"
             aria-disabled={!canSend}
-            onClick={(event) => {
-              if (!canSend) {
-                event.preventDefault();
-                return;
-              }
-              window.setTimeout(() => onClose?.(), 250);
-            }}
+            onClick={handleLaunchSms}
             className={cn("dda-apple-pay-sms__cta", !canSend && "dda-apple-pay-sms__cta--disabled")}
           >
             <img
