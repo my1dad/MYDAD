@@ -19,6 +19,11 @@ import {
   computeMemberStatsFromContributions,
   sumPlatformMemberDonations,
 } from "../../lib/memberContributionStats";
+import {
+  getCompletedContributionCapital,
+  getTotalAdminFundedMemberCapital,
+  getTotalMemberDepositCapitalFromLedgers,
+} from "../../lib/memberEscrowTotals";
 import { findStoredMemberByProfileId } from "../../lib/memberRegistry";
 import { usePoolState } from "../../lib/poolState";
 import { getProfileMemberRoi } from "../../lib/profileRegistry";
@@ -40,10 +45,10 @@ function formatBankCurrency(amount) {
 export default function PlatformEquityCard({ onClick, className, wallet = false }) {
   const { t } = useLocale();
   const { profile, isAdmin } = useDadAuth();
-  const { currentMember } = usePoolState();
+  const { currentMember, poolSummary } = usePoolState();
   const [accountVisible, setAccountVisible] = useState(false);
   const profileId = profile?.id ?? currentMember?.id;
-  const positions = useAllocationPositions(profileId);
+  const positions = useAllocationPositions(isAdmin ? undefined : profileId);
   const ledger = useMemberAccounts(profileId);
   const dbRevision = useSyncExternalStore(
     subscribeInternalDatabase,
@@ -73,26 +78,53 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
       ? computeMemberStatsFromContributions(profileId)
       : null;
     const balancesLocked = stored?.adminBalancesLocked === true;
+    const personalDonated = Number(contributionStats?.donated) || 0;
+    const donated = isAdmin ? sumPlatformMemberDonations() : personalDonated;
+    const invested = positions.reduce((sum, position) => sum + getPositionAllocatedValue(position), 0);
+    const checking = Number(ledger?.checkingBalance) || 0;
+    const escrow = Number(ledger?.escrowBalance) || 0;
+    const walletBalance = checking + escrow;
+
+    if (isAdmin) {
+      // Master admin card shows platform-wide deposits / liquidity, not the admin wallet alone.
+      const poolTotal = Number(poolSummary?.totalBalance) || 0;
+      const poolEscrow = Number(poolSummary?.escrowBalance) || 0;
+      const depositCapital = Math.max(
+        getTotalMemberDepositCapitalFromLedgers(),
+        getTotalAdminFundedMemberCapital(),
+        getCompletedContributionCapital(),
+      );
+      const investments = Math.max(0, poolTotal, depositCapital, poolEscrow, invested);
+      const deposited = Math.max(0, depositCapital);
+      const contributed = Math.max(deposited, donated);
+      const memberRoi = getProfileMemberRoi({ contributed, equity: investments });
+      return {
+        equity: investments,
+        contributed,
+        donated,
+        deposited,
+        invested,
+        investments,
+        wallet: Math.max(poolEscrow, depositCapital),
+        checking,
+        escrow: poolEscrow,
+        balance: investments,
+        roiAmount: memberRoi.amount,
+        roiPct: memberRoi.pct,
+      };
+    }
+
     const contributed = balancesLocked
       ? Number(stored?.contributed) || 0
       : Number(contributionStats?.contributed ?? stored?.contributed ?? currentMember?.totalContributed) ||
         0;
-    const personalDonated = Number(contributionStats?.donated) || 0;
-    const donated = isAdmin ? sumPlatformMemberDonations() : personalDonated;
     const deposited = Number(contributionStats?.deposited) || 0;
     const equity = balancesLocked
       ? Number(stored?.equity) || 0
       : Number(contributionStats?.equity ?? stored?.equity ?? currentMember?.equityValue) || 0;
-    const invested = positions.reduce((sum, position) => sum + getPositionAllocatedValue(position), 0);
     const memberRoi = getProfileMemberRoi({ contributed, equity });
-    const checking = Number(ledger?.checkingBalance) || 0;
-    const escrow = Number(ledger?.escrowBalance) || 0;
-    const walletBalance = checking + escrow;
     // Hero "Investments" = member stake (admin equity/checking), never donations.
-    const investments = isAdmin
-      ? Math.max(0, escrow)
-      : Math.max(0, equity, invested, checking);
-    const balance = investments;
+    const investments = Math.max(0, equity, invested, checking);
 
     return {
       equity,
@@ -101,14 +133,14 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
       deposited,
       invested,
       investments,
-      wallet: isAdmin ? escrow : walletBalance,
+      wallet: walletBalance,
       checking,
       escrow,
-      balance,
+      balance: investments,
       roiAmount: memberRoi.amount,
       roiPct: memberRoi.pct,
     };
-  }, [profileId, currentMember, positions, ledger, dbRevision, isAdmin]);
+  }, [profileId, currentMember, positions, ledger, dbRevision, isAdmin, poolSummary]);
 
   const roiPositive = stats.roiAmount >= 0;
   const RoiIcon = roiPositive ? TrendingUp : TrendingDown;
