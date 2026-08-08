@@ -1,17 +1,32 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { lockBodyScroll } from "@/lib/modalBodyLock";
+import { formatPoolCurrency } from "../../data/mockData";
 import { useLocale } from "../../i18n/LocaleContext";
+import { formatEasternDateTime } from "../../lib/dateTime";
 import { DATA_BIN_BY_KEY } from "../../lib/dataBins";
-import { readDataBin } from "../../lib/internalDatabase";
 import {
-  adminSetMemberWalletBalances,
+  appendDataRecord,
+  getDatabaseRevision,
+  readDataBin,
+  subscribeInternalDatabase,
+} from "../../lib/internalDatabase";
+import {
+  depositToMemberAccount,
   getMemberAccountLedger,
 } from "../../lib/memberAccounts";
-import { adminSetMemberDirectoryBalances } from "../../lib/memberRegistry";
-import { getDadProfiles } from "../../lib/dadProfileStorage";
+import {
+  adminSetMemberDirectoryBalances,
+  findStoredMemberByProfileId,
+} from "../../lib/memberRegistry";
+import { findDadProfileById, getDadProfiles } from "../../lib/dadProfileStorage";
+import { logProfileActivity } from "../../lib/profileActivity";
+import { syncMemberEscrowToLiquidityPool, syncPoolInflowMetrics } from "../../lib/poolState";
 import { pushCloudBinsNow } from "../../lib/supabase/cloudSync";
+
+const ADMIN_POPUP_DEPOSIT_SOURCE = "admin-member-deposit";
+const ADMIN_POPUP_DEPOSIT_MEMO = "Admin deposit";
 
 function parseMoneyInput(value) {
   const cleaned = String(value ?? "").replace(/,/g, "").replace(/[^0-9.]/g, "");
@@ -44,22 +59,89 @@ function resolveMemberLabel(profileId, member) {
   return profile?.displayName || profile?.fullName || member?.handle || "Member";
 }
 
+function roundMoney(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function readCurrentBalance(profileId) {
+  const wallet = getMemberAccountLedger(profileId);
+  return roundMoney(
+    Math.max(Number(wallet.checkingBalance) || 0, Number(wallet.escrowBalance) || 0),
+  );
+}
+
+function isAdminPopupDeposit(record, profileId) {
+  const payload = record.payload ?? {};
+  const ownerId = String(payload.profileId ?? payload.memberId ?? "");
+  if (ownerId !== profileId) return false;
+
+  const amount = Number(payload.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  if (String(payload.status ?? "completed") !== "completed") return false;
+
+  return (
+    String(payload.source ?? "") === ADMIN_POPUP_DEPOSIT_SOURCE ||
+    String(payload.memo ?? "") === ADMIN_POPUP_DEPOSIT_MEMO ||
+    (record.source === "wallet-deposit" && String(payload.memo ?? "") === ADMIN_POPUP_DEPOSIT_MEMO)
+  );
+}
+
+function readAdminPopupDeposits(profileId) {
+  if (!profileId) return [];
+
+  return readDataBin("contributions")
+    .records.filter((record) => isAdminPopupDeposit(record, profileId))
+    .map((record) => {
+      const payload = record.payload ?? {};
+      const contributedAt = String(
+        payload.contributedAt ?? record.createdAt ?? record.updatedAt ?? "",
+      );
+      return {
+        id: record.id,
+        amount: roundMoney(payload.amount),
+        contributedAt,
+        memo: String(payload.memo ?? ADMIN_POPUP_DEPOSIT_MEMO),
+      };
+    })
+    .sort((a, b) => b.contributedAt.localeCompare(a.contributedAt));
+}
+
 export default function AdminMemberBalanceModal({ member, open, onClose }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const profileId = member?.profileId ?? member?.id ?? "";
-  const [checkingInput, setCheckingInput] = useState("0.00");
+  const [depositInput, setDepositInput] = useState("");
+  const [currentBalance, setCurrentBalance] = useState(0);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lastDeposit, setLastDeposit] = useState(0);
+
+  const dbRevision = useSyncExternalStore(
+    subscribeInternalDatabase,
+    getDatabaseRevision,
+    () => 0,
+  );
+
+  const depositLog = useMemo(() => {
+    void dbRevision;
+    if (!open || !profileId) return [];
+    return readAdminPopupDeposits(profileId);
+  }, [dbRevision, open, profileId]);
+
+  const depositLogTotal = useMemo(
+    () => roundMoney(depositLog.reduce((sum, entry) => sum + entry.amount, 0)),
+    [depositLog],
+  );
 
   useEffect(() => {
     if (!open || !profileId) return;
 
-    const wallet = getMemberAccountLedger(profileId);
-    setCheckingInput(formatMoneyAmount(wallet.checkingBalance));
+    setCurrentBalance(readCurrentBalance(profileId));
+    setDepositInput("");
     setError("");
     setSaved(false);
     setSaving(false);
+    setLastDeposit(0);
   }, [open, profileId]);
 
   useEffect(() => {
@@ -80,32 +162,85 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
 
   const displayName = resolveMemberLabel(profileId, member);
   const handle = member.handle || (member.username ? `@${member.username}` : "");
+  const profile = findDadProfileById(profileId);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
     setSaved(false);
 
-    const checking = parseMoneyInput(checkingInput);
-    if (!Number.isFinite(checking) || checking < 0) {
-      setError(t("pages.admin.memberDetailBalancesInvalid"));
+    const amount = parseMoneyInput(depositInput);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError(t("pages.admin.memberBalanceDepositInvalid"));
       return;
     }
 
     setSaving(true);
     try {
-      // Wallet checking is the admin-managed member balance; mirror it to the
-      // directory contributed/equity fields so Members list + profile cards update.
-      adminSetMemberWalletBalances(profileId, { checking });
+      const note = ADMIN_POPUP_DEPOSIT_MEMO;
+      const checkingLedger = depositToMemberAccount(profileId, "checking", amount, note);
+      if (!checkingLedger) {
+        setError(t("pages.admin.memberDetailBalancesFailed"));
+        return;
+      }
+
+      // Mirror into escrow so community liquidity / pool totals pick up the deposit.
+      const afterChecking = getMemberAccountLedger(profileId);
+      const escrowGap = roundMoney(
+        Math.max(
+          0,
+          (Number(afterChecking.checkingBalance) || 0) - (Number(afterChecking.escrowBalance) || 0),
+        ),
+      );
+      if (escrowGap > 0) {
+        depositToMemberAccount(profileId, "escrow", escrowGap, note);
+      }
+
+      const stored = findStoredMemberByProfileId(profileId);
+      const nextContributed = roundMoney((Number(stored?.contributed) || 0) + amount);
+      const nextEquity = roundMoney((Number(stored?.equity) || currentBalance) + amount);
       const directory = adminSetMemberDirectoryBalances(profileId, {
-        contributed: checking,
-        equity: checking,
+        contributed: nextContributed,
+        equity: Math.max(nextEquity, nextContributed),
       });
       if (!directory) {
         setError(t("pages.admin.memberDetailBalancesFailed"));
         return;
       }
-      setCheckingInput(formatMoneyAmount(checking));
+
+      appendDataRecord("contributions", "wallet-deposit", {
+        type: "wallet-deposit",
+        source: ADMIN_POPUP_DEPOSIT_SOURCE,
+        amount,
+        reminderEnabled: false,
+        recurringEnabled: false,
+        profileId,
+        memberId: profileId,
+        memberName: displayName,
+        handle: handle || `@${profile?.username ?? "member"}`,
+        contributedAt: new Date().toISOString(),
+        status: "completed",
+        memo: note,
+      });
+
+      if (profile) {
+        logProfileActivity({
+          profileId: profile.id,
+          proId: profile.proId,
+          type: "donation",
+          summary: `Admin deposit of $${amount.toFixed(2)}`,
+          payload: { amount, source: ADMIN_POPUP_DEPOSIT_SOURCE },
+        });
+      }
+
+      syncPoolInflowMetrics();
+      syncMemberEscrowToLiquidityPool();
+
+      const balance = readCurrentBalance(profileId);
+      setCurrentBalance(balance);
+      setLastDeposit(amount);
+      setDepositInput("");
+      setSaved(true);
 
       try {
         const { clearFactoryZeroDeliveryLock } = await import("../../lib/supabase/cloudSync");
@@ -114,15 +249,13 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
           [
             { binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") },
             { binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") },
+            { binId: DATA_BIN_BY_KEY.contributions.binId, document: readDataBin("contributions") },
           ],
           { force: true },
         );
       } catch {
-        // Local save already succeeded; cloud push can retry later.
+        // Local deposit already succeeded; cloud push can retry later.
       }
-
-      setSaved(true);
-      onClose();
     } catch {
       setError(t("pages.admin.memberDetailBalancesFailed"));
     } finally {
@@ -171,9 +304,18 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
             {t("pages.admin.memberBalanceNote")}
           </p>
 
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              {t("pages.admin.memberBalanceCurrent")}
+            </p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-white">
+              {formatPoolCurrency(currentBalance)}
+            </p>
+          </div>
+
           <div className="dda-admin-member-balance-card">
             <label htmlFor="member-balance-checking" className="dda-admin-member-balance-card__label">
-              {t("pages.admin.memberDetailBalanceChecking")}
+              {t("pages.admin.memberBalanceDepositAmount")}
             </label>
             <div className="dda-admin-member-balance-card__field">
               <span className="dda-admin-member-balance-card__currency" aria-hidden="true">
@@ -184,20 +326,20 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
-                value={checkingInput}
+                value={depositInput}
+                placeholder="0.00"
                 onFocus={(event) => {
                   event.target.select();
                 }}
                 onChange={(event) => {
-                  setCheckingInput(sanitizeMoneyTyping(event.target.value));
+                  setDepositInput(sanitizeMoneyTyping(event.target.value));
                   setSaved(false);
                 }}
                 onBlur={() => {
-                  const amount = parseMoneyInput(checkingInput);
+                  const amount = parseMoneyInput(depositInput);
+                  if (!depositInput.trim()) return;
                   if (Number.isFinite(amount) && amount >= 0) {
-                    setCheckingInput(formatMoneyAmount(amount));
-                  } else {
-                    setCheckingInput("0.00");
+                    setDepositInput(formatMoneyAmount(amount));
                   }
                 }}
                 className="dda-admin-member-balance-card__input"
@@ -208,8 +350,56 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
 
           {error ? <p className="text-sm text-red-400">{error}</p> : null}
           {saved ? (
-            <p className="text-sm text-dda-green-light">{t("pages.admin.memberDetailBalancesSaved")}</p>
+            <p className="text-sm text-dda-green-light">
+              {t("pages.admin.memberBalanceDepositSaved", {
+                amount: formatPoolCurrency(lastDeposit),
+                balance: formatPoolCurrency(currentBalance),
+              })}
+            </p>
           ) : null}
+
+          <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t("pages.admin.memberBalanceDepositLog")}
+                </p>
+                <p className="mt-1 text-xs text-gray-400">
+                  {depositLog.length
+                    ? t("pages.admin.memberBalanceDepositLogTotal", {
+                        count: depositLog.length.toLocaleString(),
+                        amount: formatPoolCurrency(depositLogTotal),
+                      })
+                    : t("pages.admin.memberBalanceDepositLogEmpty")}
+                </p>
+              </div>
+            </div>
+
+            {depositLog.length ? (
+              <ul className="dda-scroll max-h-48 divide-y divide-white/5 overflow-y-auto">
+                {depositLog.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="flex items-center justify-between gap-3 px-4 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-white">
+                        {formatPoolCurrency(entry.amount)}
+                      </p>
+                      <p className="truncate text-[11px] text-gray-500">
+                        {entry.contributedAt
+                          ? formatEasternDateTime(entry.contributedAt, locale)
+                          : "—"}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-dda-green-light">
+                      {t("pages.admin.memberBalanceDepositAction")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
           <div className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
             <button
@@ -220,7 +410,7 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
               {t("pages.admin.profileEditCancel")}
             </button>
             <button type="submit" disabled={saving} className="dda-btn-primary flex-1 sm:flex-none">
-              {saving ? t("pages.admin.memberBalanceSaving") : t("pages.admin.memberDetailBalancesSave")}
+              {saving ? t("pages.admin.memberBalanceSaving") : t("pages.admin.memberBalanceDepositAction")}
             </button>
           </div>
         </form>

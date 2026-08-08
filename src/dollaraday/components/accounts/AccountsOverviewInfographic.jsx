@@ -44,7 +44,6 @@ function segmentLabelKey(segmentId, isAdmin = true) {
   if (isAdmin && (segmentId === "checking" || segmentId === "escrow" || segmentId === "liquidity")) {
     return "overviewLiquidity";
   }
-  if (segmentId === "deposits" && isAdmin) return "overviewDonations";
   if (segmentId === "recurringIncome" && !isAdmin) return "overviewRecurringDonations";
   return SEGMENT_META[segmentId]?.labelKey ?? segmentId;
 }

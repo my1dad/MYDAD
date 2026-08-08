@@ -82,7 +82,7 @@ function AlertTime({ occurredAt }) {
   return <span className="dda-home-alerts__time">{label}</span>;
 }
 
-export default function HomeAlertsWidget({ onNavigate, className }) {
+export default function HomeAlertsWidget({ onNavigate, className, embedded = false }) {
   const { t } = useLocale();
   const { profile, isAdmin } = useDadAuth();
   const { notifications, unreadCount } = useNotifications(isAdmin, profile?.id);
@@ -103,71 +103,86 @@ export default function HomeAlertsWidget({ onNavigate, className }) {
     onNavigate?.(item.targetPage || (isAdmin ? "members" : "accounts"));
   };
 
+  const body = (
+    <div className="dda-home-alerts__body">
+      <header className="dda-home-alerts__head">
+        <div className="min-w-0">
+          <p className="dda-text-kicker">{t("pages.dashboard.deskAlertsKicker")}</p>
+          <h2 className="dda-home-alerts__title">{t("pages.dashboard.deskAlertsTitle")}</h2>
+        </div>
+        <span
+          className={cn(
+            "dda-home-alerts__badge",
+            unreadCount > 0 && "dda-home-alerts__badge--live",
+          )}
+        >
+          <Bell className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
+          {unreadCount > 0
+            ? t("pages.dashboard.deskAlertsUnread", { count: unreadCount })
+            : t("pages.dashboard.deskAlertsClear")}
+        </span>
+      </header>
+
+      {items.length === 0 ? (
+        <p className="dda-home-alerts__empty">{t("pages.dashboard.deskAlertsEmpty")}</p>
+      ) : (
+        <ul className="dda-home-alerts__list">
+          {items.map((item) => {
+            const Icon = kindIcons[item.kind] ?? Bell;
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className={cn(
+                    "dda-home-alerts__item",
+                    item.unread && "dda-home-alerts__item--unread",
+                  )}
+                  onClick={() => openItem(item)}
+                >
+                  <span className="dda-home-alerts__item-icon" aria-hidden="true">
+                    <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  </span>
+                  <span className="dda-home-alerts__item-copy">
+                    <span className="dda-home-alerts__item-title">
+                      {getNotificationTitle(item, t, isAdmin)}
+                    </span>
+                    <span className="dda-home-alerts__item-body">
+                      {getNotificationBody(item, t, isAdmin)}
+                    </span>
+                    <AlertTime occurredAt={item.occurredAt} />
+                  </span>
+                  <ArrowUpRight
+                    className="dda-home-alerts__item-arrow h-3.5 w-3.5"
+                    strokeWidth={2.25}
+                    aria-hidden="true"
+                  />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <div
+        className={cn("dda-home-alerts", "dda-home-alerts--embedded", className)}
+        aria-label={t("pages.dashboard.deskAlertsAria")}
+      >
+        {body}
+      </div>
+    );
+  }
+
   return (
     <section
       className={cn("dda-home-alerts", className)}
       aria-label={t("pages.dashboard.deskAlertsAria")}
     >
       <div className="dda-accent-bar" />
-      <div className="dda-home-alerts__body">
-        <header className="dda-home-alerts__head">
-          <div className="min-w-0">
-            <p className="dda-text-kicker">{t("pages.dashboard.deskAlertsKicker")}</p>
-            <h2 className="dda-home-alerts__title">{t("pages.dashboard.deskAlertsTitle")}</h2>
-          </div>
-          <span
-            className={cn(
-              "dda-home-alerts__badge",
-              unreadCount > 0 && "dda-home-alerts__badge--live",
-            )}
-          >
-            <Bell className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
-            {unreadCount > 0
-              ? t("pages.dashboard.deskAlertsUnread", { count: unreadCount })
-              : t("pages.dashboard.deskAlertsClear")}
-          </span>
-        </header>
-
-        {items.length === 0 ? (
-          <p className="dda-home-alerts__empty">{t("pages.dashboard.deskAlertsEmpty")}</p>
-        ) : (
-          <ul className="dda-home-alerts__list">
-            {items.map((item) => {
-              const Icon = kindIcons[item.kind] ?? Bell;
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className={cn(
-                      "dda-home-alerts__item",
-                      item.unread && "dda-home-alerts__item--unread",
-                    )}
-                    onClick={() => openItem(item)}
-                  >
-                    <span className="dda-home-alerts__item-icon" aria-hidden="true">
-                      <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
-                    </span>
-                    <span className="dda-home-alerts__item-copy">
-                      <span className="dda-home-alerts__item-title">
-                        {getNotificationTitle(item, t, isAdmin)}
-                      </span>
-                      <span className="dda-home-alerts__item-body">
-                        {getNotificationBody(item, t, isAdmin)}
-                      </span>
-                      <AlertTime occurredAt={item.occurredAt} />
-                    </span>
-                    <ArrowUpRight
-                      className="dda-home-alerts__item-arrow h-3.5 w-3.5"
-                      strokeWidth={2.25}
-                      aria-hidden="true"
-                    />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      {body}
     </section>
   );
 }

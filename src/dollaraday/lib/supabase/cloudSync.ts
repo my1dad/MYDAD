@@ -17,8 +17,108 @@ const GLOBAL_KV_SCOPE = "global";
 /** Marks a factory reset so sync cannot resurrect wiped members/data. */
 export const WORKSPACE_EPOCH_KEY = "dollar-a-day-workspace-epoch";
 
+/** Profile IDs admin permanently deleted — block cloud merge from resurrecting them. */
+const DELETED_PROFILES_KEY = "dollar-a-day-deleted-profiles";
+
 let lastFullSyncAt = 0;
 let cloudPushPausedUntil = 0;
+
+function readDeletedProfileIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_PROFILES_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((id): id is string => typeof id === "string" && id.length > 0));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeDeletedProfileIds(ids: Set<string>): void {
+  try {
+    localStorage.setItem(DELETED_PROFILES_KEY, JSON.stringify([...ids]));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function rememberDeletedProfileId(profileId: string): void {
+  if (!profileId) return;
+  const ids = readDeletedProfileIds();
+  ids.add(profileId);
+  writeDeletedProfileIds(ids);
+}
+
+export function forgetDeletedProfileId(profileId: string): void {
+  if (!profileId) return;
+  const ids = readDeletedProfileIds();
+  if (!ids.delete(profileId)) return;
+  writeDeletedProfileIds(ids);
+}
+
+export function isDeletedProfileId(profileId: string): boolean {
+  return Boolean(profileId) && readDeletedProfileIds().has(profileId);
+}
+
+function excludeDeletedProfiles(profiles: DadProfile[]): DadProfile[] {
+  const deleted = readDeletedProfileIds();
+  if (!deleted.size) return profiles;
+  return profiles.filter((profile) => !deleted.has(profile.id));
+}
+
+/**
+ * Permanently remove one member from Supabase `dad_profiles` and push cleaned bins.
+ */
+export async function deleteCloudMemberProfile(profileId: string): Promise<boolean> {
+  if (!profileId) return false;
+  if (!isSupabaseConfigured()) return true;
+
+  const supabase = getSupabaseClient();
+  if (!supabase) return true;
+
+  rememberDeletedProfileId(profileId);
+  pauseCloudPushes(0);
+
+  const { error } = await supabase.from("dad_profiles").delete().eq("id", profileId);
+  if (error) {
+    console.warn("[cloudSync] Failed to delete cloud member profile:", error.message);
+    return false;
+  }
+
+  // Verify the row is gone — retry once if it still appears.
+  try {
+    const stillThere = (await fetchCloudProfiles()).some((profile) => profile.id === profileId);
+    if (stillThere) {
+      const { error: retryError } = await supabase.from("dad_profiles").delete().eq("id", profileId);
+      if (retryError) {
+        console.warn("[cloudSync] Retry delete cloud member failed:", retryError.message);
+        return false;
+      }
+    }
+  } catch (err) {
+    console.warn("[cloudSync] Could not verify member cloud delete:", err);
+  }
+
+  // Push members + settings bins so remote ledger/member rows do not linger.
+  try {
+    await pushCloudBinsNow(
+      [
+        { binId: "dollar-a-day-members", document: readDataBin("members") },
+        { binId: "dollar-a-day-settings", document: readDataBin("settings") },
+        { binId: "dollar-a-day-contributions", document: readDataBin("contributions") },
+        { binId: "dollar-a-day-community-posts", document: readDataBin("communityPosts") },
+        { binId: "dollar-a-day-admin-captures", document: readDataBin("adminCaptures") },
+        { binId: "dollar-a-day-allocations", document: readDataBin("allocations") },
+      ],
+      { force: true },
+    );
+  } catch (err) {
+    console.warn("[cloudSync] Bin push after member delete failed:", err);
+  }
+
+  return true;
+}
 
 /** Pause outbound cloud pushes during the interactive window after login. */
 export function pauseCloudPushes(ms = 15_000): void {
@@ -99,7 +199,7 @@ function profileSurvivesFactoryEpoch(profile: DadProfile): boolean {
 
 /** Merge local/remote profiles while dropping pre-wipe members; reopen delivery lock when new members appear. */
 function mergeProfilesForWorkspace(local: DadProfile[], remote: DadProfile[]): DadProfile[] {
-  const merged = mergeProfiles(local, remote);
+  const merged = excludeDeletedProfiles(mergeProfiles(local, remote));
   if (merged.some((profile) => !isAdminProfile(profile) && profileSurvivesFactoryEpoch(profile))) {
     clearFactoryZeroDeliveryLock();
   }

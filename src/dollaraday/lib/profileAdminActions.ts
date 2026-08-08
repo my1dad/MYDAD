@@ -13,10 +13,14 @@ import {
   type DadProfile,
 } from "./dadProfileStorage";
 import { hashPassword } from "./passwordHash";
-import { removeDataRecord, removeDataRecordsByPayload } from "./internalDatabase";
+import { ALLOCATION_POSITIONS_ID } from "./allocationPositions";
+import { removeDataRecord, removeDataRecordsByPayload, upsertDataRecord, readDataBin } from "./internalDatabase";
+import { invalidateMemberAccountsCache } from "./memberAccounts";
 import { formatPhoneInput } from "./phoneFormat";
 import { logProfileActivity } from "./profileActivity";
 import { syncProfileToMemberRegistry } from "./profileRegistry";
+import { RECURRING_SCHEDULES_ID } from "./recurringContributions";
+import { buildHandle } from "./memberRegistry";
 
 type AdminActionResult = { ok: true; profile?: DadProfile } | { ok: false; error: string };
 
@@ -40,10 +44,67 @@ function clearProfileSession(profileId: string): void {
   }
 }
 
-function purgeProfileData(profileId: string): void {
+function purgeProfileData(profile: DadProfile): void {
+  const profileId = profile.id;
+  const handle = buildHandle(profile.username);
+  const displayName = profile.displayName?.trim() || "";
+
   removeDataRecord("members", memberRecordId(profileId));
   removeDataRecord("settings", `member-accounts-${profileId}`);
   removeDataRecordsByPayload("contributions", (payload) => payload.profileId === profileId);
+  removeDataRecordsByPayload("allocations", (payload) => payload.profileId === profileId);
+  removeDataRecordsByPayload(
+    "adminCaptures",
+    (payload) =>
+      payload.profileId === profileId ||
+      payload.fromProfileId === profileId ||
+      payload.toProfileId === profileId,
+  );
+  removeDataRecordsByPayload(
+    "communityPosts",
+    (payload) =>
+      payload.profileId === profileId ||
+      payload.authorProfileId === profileId ||
+      payload.handle === handle ||
+      payload.handle === profile.username ||
+      (Boolean(displayName) && payload.author === displayName),
+  );
+
+  // Drop recurring subscription for this member.
+  const schedulesRecord = readDataBin("settings").records.find(
+    (item) => item.id === RECURRING_SCHEDULES_ID,
+  );
+  if (schedulesRecord) {
+    const subscriptions = Array.isArray(schedulesRecord.payload?.subscriptions)
+      ? (schedulesRecord.payload.subscriptions as Array<{ profileId?: string }>)
+      : [];
+    const nextSubs = subscriptions.filter((item) => item.profileId !== profileId);
+    if (nextSubs.length !== subscriptions.length) {
+      upsertDataRecord("settings", RECURRING_SCHEDULES_ID, "recurring-schedules", {
+        ...schedulesRecord.payload,
+        subscriptions: nextSubs,
+      });
+    }
+  }
+
+  // Drop allocation positions owned by this member.
+  const positionsRecord = readDataBin("settings").records.find(
+    (item) => item.id === ALLOCATION_POSITIONS_ID,
+  );
+  if (positionsRecord) {
+    const positions = Array.isArray(positionsRecord.payload?.positions)
+      ? (positionsRecord.payload.positions as Array<{ profileId?: string }>)
+      : [];
+    const nextPositions = positions.filter((item) => item.profileId !== profileId);
+    if (nextPositions.length !== positions.length) {
+      upsertDataRecord("settings", ALLOCATION_POSITIONS_ID, "allocation-positions", {
+        ...positionsRecord.payload,
+        positions: nextPositions,
+      });
+    }
+  }
+
+  invalidateMemberAccountsCache(profileId);
 }
 
 export function suspendDadProfileByAdmin(profileId: string): AdminActionResult {
@@ -97,11 +158,27 @@ export function unsuspendDadProfileByAdmin(profileId: string): AdminActionResult
   return { ok: true, profile: updated };
 }
 
-export function deleteDadProfileByAdmin(profileId: string): AdminActionResult {
+export async function deleteDadProfileByAdmin(profileId: string): Promise<AdminActionResult> {
   const profile = findDadProfileById(profileId);
+
+  // Allow retrying cloud wipe after a prior local delete left the row in Supabase.
+  if (!profile) {
+    try {
+      const { deleteCloudMemberProfile, rememberDeletedProfileId } = await import("./supabase/cloudSync");
+      rememberDeletedProfileId(profileId);
+      const cloudOk = await deleteCloudMemberProfile(profileId);
+      if (!cloudOk) {
+        return { ok: false, error: "Cloud delete failed. Try again." };
+      }
+      return { ok: true };
+    } catch (err) {
+      console.warn("[profileAdmin] Cloud-only member delete failed:", err);
+      return { ok: false, error: "Profile not found." };
+    }
+  }
+
   const blocked = guardProtectedProfile(profile);
   if (blocked) return blocked;
-  if (!profile) return { ok: false, error: "Profile not found." };
 
   logProfileActivity({
     profileId: profile.id,
@@ -110,11 +187,30 @@ export function deleteDadProfileByAdmin(profileId: string): AdminActionResult {
     summary: "Account permanently deleted by admin",
   });
 
+  try {
+    const { rememberDeletedProfileId } = await import("./supabase/cloudSync");
+    rememberDeletedProfileId(profileId);
+  } catch {
+    /* local-only tombstone fallback below still applies via cloud helper */
+  }
+
   clearProfileSession(profileId);
-  purgeProfileData(profileId);
+  purgeProfileData(profile);
 
   if (!removeDadProfileRecord(profileId)) {
     return { ok: false, error: "Profile not found." };
+  }
+
+  try {
+    const { deleteCloudMemberProfile } = await import("./supabase/cloudSync");
+    const cloudOk = await deleteCloudMemberProfile(profileId);
+    if (!cloudOk) {
+      console.warn(
+        "[profileAdmin] Member removed locally and blocked from sync; cloud row delete failed — retry delete or Cloud sync.",
+      );
+    }
+  } catch (err) {
+    console.warn("[profileAdmin] Permanent delete cloud step failed:", err);
   }
 
   return { ok: true };

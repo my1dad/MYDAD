@@ -17,9 +17,8 @@ import {
 } from "../../lib/internalDatabase";
 import { formatPoolCurrency } from "../../data/mockData";
 import PlatformEquityCard from "./PlatformEquityCard.jsx";
-import ContributeTodaySection from "./ContributeTodaySection.jsx";
 import PoolDigitalDisplay from "./PoolDigitalDisplay.jsx";
-import HomeAlertsWidget from "./HomeAlertsWidget.jsx";
+import HomeDesktopPayAlertsRail from "./HomeDesktopPayAlertsRail.jsx";
 
 function formatMoney(amount) {
   return new Intl.NumberFormat("en-US", {
@@ -58,10 +57,6 @@ export default function MemberHomeDesktopDashboard({
   poolMemberCount,
   poolDailyInflow,
   poolYtdGrowthPct,
-  onContributeWeekly,
-  onContributeMonthly,
-  onContributeYearly,
-  onContributeOther,
   onNavigate,
 }) {
   const { t } = useLocale();
@@ -120,15 +115,9 @@ export default function MemberHomeDesktopDashboard({
       </div>
 
       <div className="dda-home-desktop__rail">
-        <ContributeTodaySection
-          className="dda-home-desktop__contribute"
-          onContributeWeekly={onContributeWeekly}
-          onContributeMonthly={onContributeMonthly}
-          onContributeYearly={onContributeYearly}
-          onContributeOther={onContributeOther}
-        />
-        <HomeAlertsWidget
-          className="dda-home-desktop__alerts"
+        <HomeDesktopPayAlertsRail
+          className="dda-home-desktop__pay-alerts"
+          memberTone
           onNavigate={onNavigate}
         />
       </div>

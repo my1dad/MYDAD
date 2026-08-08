@@ -345,10 +345,11 @@ export default function AdminMemberDetailModal({
   const isPending = approvalStatus === "pending";
   const isDenied = approvalStatus === "denied";
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!window.confirm(t("pages.admin.profileDeleteConfirm", { name: record.name }))) return;
     if (!window.confirm(t("pages.admin.profileDeleteConfirmFinal", { name: record.name }))) return;
-    const result = deleteDadProfileByAdmin(activeProfileId || profileId);
+    setActionError("");
+    const result = await deleteDadProfileByAdmin(activeProfileId || profileId);
     if (!result.ok) {
       setActionError(result.error);
       return;

@@ -505,22 +505,66 @@ export function redeemToMemberProfile(
   toProfileId: string,
   amount: number,
   memo?: string,
+  options: { allowLiquidityPool?: boolean; liquidityAvailable?: number } = {},
 ): boolean {
   if (fromProfileId === toProfileId) return false;
   if (!Number.isFinite(amount) || amount <= 0) return false;
 
   const senderLedger = hydrateMemberAccounts(fromProfileId);
-  if (amount > senderLedger.checkingBalance) return false;
+  const walletAvailable =
+    (Number(senderLedger.checkingBalance) || 0) + (Number(senderLedger.escrowBalance) || 0);
+  const poolAvailable = Math.max(0, Number(options.liquidityAvailable) || 0);
+  const available = options.allowLiquidityPool
+    ? Math.max(walletAvailable, poolAvailable)
+    : walletAvailable;
+  if (amount > available) return false;
 
   const note = memo?.trim() || undefined;
-  const spent = spendFromMemberAccount(fromProfileId, "checking", amount, note);
-  if (!spent) return false;
+  let remaining = Math.round(amount * 100) / 100;
 
-  const deposited = depositToMemberAccount(toProfileId, "checking", amount, note);
-  if (!deposited) {
-    depositToMemberAccount(fromProfileId, "checking", amount, "Redemption reversal");
+  // Spend checking first, then escrow (liquidity).
+  if (remaining > 0 && senderLedger.checkingBalance > 0) {
+    const take = Math.min(remaining, senderLedger.checkingBalance);
+    if (!spendFromMemberAccount(fromProfileId, "checking", take, note)) return false;
+    remaining = Math.round((remaining - take) * 100) / 100;
+  }
+  if (remaining > 0) {
+    const fresh = hydrateMemberAccounts(fromProfileId);
+    if (fresh.escrowBalance > 0) {
+      const take = Math.min(remaining, fresh.escrowBalance);
+      if (!spendFromMemberAccount(fromProfileId, "escrow", take, note)) {
+        if (amount - remaining > 0) {
+          depositToMemberAccount(fromProfileId, "checking", amount - remaining, "Redemption reversal");
+        }
+        return false;
+      }
+      remaining = Math.round((remaining - take) * 100) / 100;
+    }
+  }
+
+  // Non-admin transfers must fully debit the sender wallet.
+  if (remaining > 0 && !options.allowLiquidityPool) {
+    const spent = Math.round((amount - remaining) * 100) / 100;
+    if (spent > 0) {
+      depositToMemberAccount(fromProfileId, "checking", spent, "Redemption reversal");
+    }
     return false;
   }
+
+  // Admin liquidity transfer: credit recipient even when sender wallet was empty
+  // (funds are allocated from community liquidity totals).
+  const deposited = depositToMemberAccount(toProfileId, "checking", amount, note);
+  if (!deposited) {
+    depositToMemberAccount(fromProfileId, "checking", amount - remaining, "Redemption reversal");
+    return false;
+  }
+
+  // Mirror into recipient escrow so pool/member balances stay aligned.
+  const recipient = hydrateMemberAccounts(toProfileId);
+  persistLedger(toProfileId, {
+    ...recipient,
+    escrowBalance: Math.max(recipient.escrowBalance, recipient.checkingBalance),
+  });
 
   return true;
 }

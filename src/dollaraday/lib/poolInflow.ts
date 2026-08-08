@@ -189,6 +189,28 @@ function buildAllocationComparisonCurrent(
   };
 }
 
+/**
+ * Number of completed deposits/contributions recorded for the Eastern calendar day.
+ * Used by Members → Daily contributors (not total member headcount).
+ */
+export function countTodaysDeposits(today = formatEasternIsoDate()): number {
+  const contributionCount = readContributionRows().filter((row) => {
+    if (!isCountableDonation(row)) return false;
+    return contributionYmd(row.contributedAt) === today;
+  }).length;
+
+  if (contributionCount > 0) return contributionCount;
+
+  // Fallback: wallet deposit credits when contribution rows are not present.
+  return collectMemberAccountTransactions().filter((transaction) => {
+    if (!transaction.createdAt || transaction.type !== "deposit") return false;
+    if (transaction.direction !== "credit") return false;
+    const amount = Number(transaction.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return false;
+    return formatEasternIsoDate(transaction.createdAt) === today;
+  }).length;
+}
+
 export function computePoolInflowMetrics(today = formatEasternIsoDate()): PoolInflowMetrics {
   const contributionRows = readContributionRows();
 

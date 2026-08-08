@@ -1,16 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, CheckCircle2, Gift } from "lucide-react";
+import { isAdminProfile } from "../../../config/admin";
 import DashboardCard from "../layout/DashboardCard";
 import { formatPoolCurrency } from "../../data/mockData";
+import { useDadAuth } from "../../context/DadAuthContext";
 import { useLocale } from "../../i18n/LocaleContext";
-import { getActiveDadProfile, getDadProfiles } from "../../lib/dadProfileStorage";
-import { findStoredMemberByProfileId } from "../../lib/memberRegistry";
+import { getActiveDadProfile } from "../../lib/dadProfileStorage";
+import {
+  getCompletedContributionCapital,
+  getTotalAdminFundedMemberCapital,
+  getTotalMemberDepositCapitalFromLedgers,
+} from "../../lib/memberEscrowTotals";
 import { logProfileActivity } from "../../lib/profileActivity";
+import { useAdminMemberRecords } from "../../lib/profileRegistry";
 import {
   redeemToMemberProfile,
   resolveMemberProfileId,
   useMemberAccounts,
 } from "../../lib/memberAccounts";
+import { syncMemberEscrowToLiquidityPool } from "../../lib/poolState";
 
 function sanitizeMoneyInput(value) {
   const cleaned = String(value).replace(/[^0-9.]/g, "");
@@ -47,24 +55,39 @@ function handleAmountChange(value, setAmount) {
   setAmount(formatMoneyInput(stripped));
 }
 
+function getLiquidityAvailable() {
+  return Math.max(
+    getTotalMemberDepositCapitalFromLedgers(),
+    getTotalAdminFundedMemberCapital(),
+    getCompletedContributionCapital(),
+  );
+}
+
 export default function RedemptionsCard() {
   const { t } = useLocale();
+  const { profile, isAdmin } = useDadAuth();
   const fromProfileId = resolveMemberProfileId();
   const senderLedger = useMemberAccounts(fromProfileId);
+  const savedMembers = useAdminMemberRecords();
 
   const recipientOptions = useMemo(() => {
-    return getDadProfiles()
-      .filter((profile) => profile.id !== fromProfileId)
-      .map((profile) => {
-        const member = findStoredMemberByProfileId(profile.id);
-        return {
-          id: profile.id,
-          label: profile.displayName,
-          handle: member?.handle ?? `@${profile.username}`,
-        };
+    return savedMembers
+      .filter((member) => {
+        const id = member.profileId ?? member.id;
+        if (!id || id === fromProfileId) return false;
+        if (member.username?.trim().toLowerCase() === "admin") return false;
+        // Keep every saved member profile (approved + pending); skip denied.
+        if (member.status === "declined" || member.status === "denied") return false;
+        return true;
       })
+      .map((member) => ({
+        id: member.profileId ?? member.id,
+        label: member.name || member.username || "Member",
+        handle: member.handle || (member.username ? `@${member.username}` : ""),
+        status: member.status,
+      }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [fromProfileId]);
+  }, [savedMembers, fromProfileId]);
 
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [amount, setAmount] = useState("");
@@ -84,10 +107,15 @@ export default function RedemptionsCard() {
 
   const recipientLedger = useMemberAccounts(selectedProfileId || fromProfileId);
   const selectedRecipient = recipientOptions.find((option) => option.id === selectedProfileId);
-  const senderBalance = senderLedger.checkingBalance;
+  const walletAvailable =
+    (Number(senderLedger.checkingBalance) || 0) + (Number(senderLedger.escrowBalance) || 0);
+  const senderBalance = isAdmin
+    ? Math.max(walletAvailable, getLiquidityAvailable())
+    : walletAvailable;
   const recipientBalance =
     selectedProfileId && selectedProfileId !== fromProfileId
-      ? recipientLedger.checkingBalance
+      ? (Number(recipientLedger.checkingBalance) || 0) +
+        (Number(recipientLedger.escrowBalance) || 0)
       : 0;
 
   const handleSubmit = (event) => {
@@ -112,17 +140,22 @@ export default function RedemptionsCard() {
         profile: recipientLabel,
       });
 
-    const ok = redeemToMemberProfile(fromProfileId, selectedProfileId, parsed, redemptionMemo);
+    const ok = redeemToMemberProfile(fromProfileId, selectedProfileId, parsed, redemptionMemo, {
+      allowLiquidityPool: isAdmin || isAdminProfile(profile),
+      liquidityAvailable: senderBalance,
+    });
     if (!ok) {
       setError(t("pages.accounts.redemptionFailed"));
       return;
     }
 
-    const profile = getActiveDadProfile();
-    if (profile) {
+    syncMemberEscrowToLiquidityPool();
+
+    const active = getActiveDadProfile();
+    if (active) {
       logProfileActivity({
-        profileId: profile.id,
-        proId: profile.proId,
+        profileId: active.id,
+        proId: active.proId,
         type: "redemption",
         summary: `Sent ${formatPoolCurrency(parsed)} to ${recipientLabel}`,
         payload: { recipientProfileId: selectedProfileId, amount: parsed, memo: redemptionMemo },
@@ -156,7 +189,7 @@ export default function RedemptionsCard() {
                 {t("pages.accounts.from")}
               </p>
               <p className="mt-1 text-sm font-semibold text-white">
-                {t("pages.accounts.checkingTab")}
+                {t("pages.dashboard.liquidityTitle")}
               </p>
               <p className="text-xs tabular-nums text-gray-400">
                 {formatPoolCurrency(senderBalance)}
@@ -182,7 +215,8 @@ export default function RedemptionsCard() {
               >
                 {recipientOptions.map((option) => (
                   <option key={option.id} value={option.id} className="bg-dda-bg text-white">
-                    {option.label} ({option.handle})
+                    {option.label}
+                    {option.handle ? ` (${option.handle})` : ""}
                   </option>
                 ))}
               </select>

@@ -1,4 +1,4 @@
-import { useMemo, useState, lazy, Suspense, startTransition } from "react";
+import { useMemo, useState, lazy, Suspense, startTransition, useSyncExternalStore } from "react";
 import { Activity, Star, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
@@ -6,9 +6,11 @@ import DashboardCard from "../components/layout/DashboardCard";
 import { getMemberInitials } from "../lib/memberDetails";
 import { useDadAuth } from "../context/DadAuthContext";
 import { isMemberProfile } from "../../config/memberProfile";
+import { countTodaysDeposits } from "../lib/poolInflow";
 import { useMembers } from "../lib/memberRegistry";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
+import { getDatabaseRevision, subscribeInternalDatabase } from "../lib/internalDatabase";
 import { usePoolState } from "../lib/poolState";
 
 const MemberDetailModal = lazy(() => import("../components/members/MemberDetailModal"));
@@ -73,8 +75,20 @@ export default function MembersPage() {
   const { translateStatus } = useLocalizedData();
   const [selectedMember, setSelectedMember] = useState(null);
   const [balanceMember, setBalanceMember] = useState(null);
-  const { poolSummary } = usePoolState();
+  const { dailyAllocationSummary } = usePoolState();
   const members = useMembers();
+  const dbRevision = useSyncExternalStore(
+    subscribeInternalDatabase,
+    getDatabaseRevision,
+    () => 0,
+  );
+
+  // Count completed deposits/contributions recorded for today's Eastern date only.
+  const todaysDepositCount = useMemo(() => {
+    void dbRevision;
+    void dailyAllocationSummary.lastUpdatedAt;
+    return countTodaysDeposits();
+  }, [dbRevision, dailyAllocationSummary.lastUpdatedAt]);
 
   // Member directory shows member profiles only (master admin is never listed).
   const memberDirectory = useMemo(
@@ -143,7 +157,7 @@ export default function MembersPage() {
       bg: "rgba(56, 189, 248, 0.22)",
       bgDeep: "rgba(8, 47, 73, 0.72)",
       border: "rgba(56, 189, 248, 0.38)",
-      value: (summary) => summary.memberCount.toLocaleString(),
+      value: () => todaysDepositCount.toLocaleString(),
     },
     {
       key: "score",
@@ -222,7 +236,7 @@ export default function MembersPage() {
             bg={bg}
             bgDeep={bgDeep}
             border={border}
-            value={value(poolSummary)}
+            value={value()}
           />
         ))}
       </section>
