@@ -529,6 +529,24 @@ export function getMemberAccountLedger(profileId = resolveMemberProfileId()): Me
   return hydrateMemberAccounts(profileId);
 }
 
+/** Admin override: set checking / escrow wallet balances for a member. */
+export function adminSetMemberWalletBalances(
+  profileId: string,
+  balances: { checking: number; escrow: number },
+): MemberAccountLedger {
+  if (!profileId) {
+    throw new Error("profileId is required");
+  }
+  const ledger = hydrateMemberAccounts(profileId);
+  const next: MemberAccountLedger = {
+    ...ledger,
+    checkingBalance: Math.max(0, Math.round((Number(balances.checking) || 0) * 100) / 100),
+    escrowBalance: Math.max(0, Math.round((Number(balances.escrow) || 0) * 100) / 100),
+  };
+  persistLedger(profileId, next);
+  return next;
+}
+
 export function subscribeMemberAccounts(listener: () => void): () => void {
   listeners.add(listener);
   const unsubscribeDb = subscribeInternalDatabase(listener);

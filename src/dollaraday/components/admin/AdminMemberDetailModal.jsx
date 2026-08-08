@@ -21,6 +21,9 @@ import {
   getProfileApprovalStatus,
   subscribeDadProfiles,
 } from "../../lib/dadProfileStorage";
+import { getDatabaseRevision, subscribeInternalDatabase } from "../../lib/internalDatabase";
+import { adminSetMemberWalletBalances, useMemberAccounts } from "../../lib/memberAccounts";
+import { adminSetMemberDirectoryBalances } from "../../lib/memberRegistry";
 import { buildAdminMemberDetail, getProfileMemberRoi } from "../../lib/profileRegistry";
 
 function DetailSection({ title, children }) {
@@ -58,25 +61,60 @@ function formatWhen(iso) {
   }
 }
 
+function moneyInputValue(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "0";
+  return String(amount);
+}
+
 export default function AdminMemberDetailModal({ profileId, open, onClose, onProfileDeleted }) {
   const { t } = useLocale();
   const [editOpen, setEditOpen] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [balanceError, setBalanceError] = useState("");
+  const [balanceSaved, setBalanceSaved] = useState(false);
+  const [checkingInput, setCheckingInput] = useState("0");
+  const [escrowInput, setEscrowInput] = useState("0");
+  const [contributedInput, setContributedInput] = useState("0");
+  const [equityInput, setEquityInput] = useState("0");
   const profileRevision = useSyncExternalStore(
     subscribeDadProfiles,
     getDadProfileRevision,
     getDadProfileRevision,
   );
+  const databaseRevision = useSyncExternalStore(
+    subscribeInternalDatabase,
+    getDatabaseRevision,
+    () => 0,
+  );
   const detail = useMemo(
     () => (open && profileId ? buildAdminMemberDetail(profileId) : null),
-    [open, profileId, profileRevision],
+    [open, profileId, profileRevision, databaseRevision],
   );
+  const wallet = useMemberAccounts(profileId || "");
 
   useEffect(() => {
     if (!open) return;
     setActionError("");
+    setBalanceError("");
+    setBalanceSaved(false);
     setEditOpen(false);
   }, [open, profileId]);
+
+  useEffect(() => {
+    if (!open || !detail) return;
+    setCheckingInput(moneyInputValue(wallet.checkingBalance));
+    setEscrowInput(moneyInputValue(wallet.escrowBalance));
+    setContributedInput(moneyInputValue(detail.record.contributed));
+    setEquityInput(moneyInputValue(detail.record.equity));
+  }, [
+    open,
+    profileId,
+    detail?.record.contributed,
+    detail?.record.equity,
+    wallet.checkingBalance,
+    wallet.escrowBalance,
+  ]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -95,7 +133,31 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, onClose, editOpen]);
 
-  if (!open || !detail) return null;
+  if (!open) return null;
+
+  if (!detail) {
+    return createPortal(
+      <div className="fixed inset-0 z-[120] flex items-end justify-center p-0 sm:items-center sm:p-4">
+        <button
+          type="button"
+          aria-label={t("common.close")}
+          className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+          onClick={onClose}
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="relative w-full max-w-md rounded-t-3xl border border-white/10 bg-dda-bg p-5 shadow-2xl sm:rounded-2xl"
+        >
+          <p className="text-sm text-red-400">{t("pages.admin.memberDetailMissing")}</p>
+          <button type="button" onClick={onClose} className="dda-btn-primary mt-4">
+            {t("common.close")}
+          </button>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   const { record, contributions, posts, activity, transactions, profile } = detail;
   const isProtected = isAdminProfile(profile);
@@ -150,6 +212,35 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
       return;
     }
     onClose();
+  };
+
+  const handleBalanceSave = (event) => {
+    event.preventDefault();
+    setBalanceError("");
+    setBalanceSaved(false);
+
+    const checking = Number(checkingInput);
+    const escrow = Number(escrowInput);
+    const contributed = Number(contributedInput);
+    const equity = Number(equityInput);
+
+    if ([checking, escrow, contributed, equity].some((value) => !Number.isFinite(value) || value < 0)) {
+      setBalanceError(t("pages.admin.memberDetailBalancesInvalid"));
+      return;
+    }
+
+    try {
+      // Lock directory totals first so escrow/pool sync cannot wipe them.
+      const updated = adminSetMemberDirectoryBalances(profileId, { contributed, equity });
+      if (!updated) {
+        setBalanceError(t("pages.admin.memberDetailBalancesFailed"));
+        return;
+      }
+      adminSetMemberWalletBalances(profileId, { checking, escrow });
+      setBalanceSaved(true);
+    } catch {
+      setBalanceError(t("pages.admin.memberDetailBalancesFailed"));
+    }
   };
 
   const sessionEvents = activity;
@@ -366,6 +457,95 @@ export default function AdminMemberDetailModal({ profileId, open, onClose, onPro
                 </p>
               </div>
             </div>
+          </DetailSection>
+
+          <DetailSection title={t("pages.admin.memberDetailBalances")}>
+            <form onSubmit={handleBalanceSave} className="space-y-3">
+              <p className="text-[11px] leading-relaxed text-gray-500">
+                {t("pages.admin.memberDetailBalancesNote")}
+              </p>
+              <div className="dda-admin-member-detail__balance-grid">
+                <div>
+                  <label htmlFor="admin-balance-checking" className="mb-1.5 block text-xs font-semibold text-gray-400">
+                    {t("pages.admin.memberDetailBalanceChecking")}
+                  </label>
+                  <input
+                    id="admin-balance-checking"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={checkingInput}
+                    onChange={(event) => {
+                      setCheckingInput(event.target.value);
+                      setBalanceSaved(false);
+                    }}
+                    className="dda-input"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="admin-balance-escrow" className="mb-1.5 block text-xs font-semibold text-gray-400">
+                    {t("pages.admin.memberDetailBalanceEscrow")}
+                  </label>
+                  <input
+                    id="admin-balance-escrow"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={escrowInput}
+                    onChange={(event) => {
+                      setEscrowInput(event.target.value);
+                      setBalanceSaved(false);
+                    }}
+                    className="dda-input"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="admin-balance-contributed" className="mb-1.5 block text-xs font-semibold text-gray-400">
+                    {t("pages.admin.memberDetailContributed")}
+                  </label>
+                  <input
+                    id="admin-balance-contributed"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={contributedInput}
+                    onChange={(event) => {
+                      setContributedInput(event.target.value);
+                      setBalanceSaved(false);
+                    }}
+                    className="dda-input"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="admin-balance-equity" className="mb-1.5 block text-xs font-semibold text-gray-400">
+                    {t("common.equity")}
+                  </label>
+                  <input
+                    id="admin-balance-equity"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={equityInput}
+                    onChange={(event) => {
+                      setEquityInput(event.target.value);
+                      setBalanceSaved(false);
+                    }}
+                    className="dda-input"
+                  />
+                </div>
+              </div>
+              {balanceError ? <p className="text-sm text-red-400">{balanceError}</p> : null}
+              {balanceSaved ? (
+                <p className="text-sm text-dda-green-light">{t("pages.admin.memberDetailBalancesSaved")}</p>
+              ) : null}
+              <button type="submit" className="dda-btn-primary">
+                {t("pages.admin.memberDetailBalancesSave")}
+              </button>
+            </form>
           </DetailSection>
 
           <DetailSection title={t("pages.admin.memberDetailDonations", { count: contributions.length })}>

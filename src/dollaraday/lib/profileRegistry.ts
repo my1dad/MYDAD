@@ -90,6 +90,7 @@ function memberToRegistryPayload(record: AdminMemberRecord): Record<string, unkn
     createdAt: record.createdAt,
     lastLoginAt: record.lastLoginAt,
     lastLogoutAt: record.lastLogoutAt,
+    adminBalancesLocked: record.adminBalancesLocked === true,
   };
 }
 
@@ -100,10 +101,13 @@ export function syncProfileToMemberRegistry(
   const stored = findStoredMemberByProfileId(profile.id);
   const record = toAdminMemberRecord(profile, stored);
   const contributionStats = computeMemberStatsFromContributions(profile.id);
+  const balancesLocked = stored?.adminBalancesLocked === true;
 
-  // Contributions bin is the worldwide source of truth for member capital metrics.
-  record.contributed = contributionStats.contributed;
-  record.equity = contributionStats.equity;
+  // Contributions bin is the worldwide source of truth unless an admin locked balances.
+  if (!balancesLocked) {
+    record.contributed = contributionStats.contributed;
+    record.equity = contributionStats.equity;
+  }
   record.days = contributionStats.days;
   record.streak = contributionStats.streak;
   if (contributionStats.days > 0) {

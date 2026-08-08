@@ -72,14 +72,17 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
     const contributionStats = profileId
       ? computeMemberStatsFromContributions(profileId)
       : null;
-    const contributed =
-      Number(contributionStats?.contributed ?? stored?.contributed ?? currentMember?.totalContributed) ||
-      0;
+    const balancesLocked = stored?.adminBalancesLocked === true;
+    const contributed = balancesLocked
+      ? Number(stored?.contributed) || 0
+      : Number(contributionStats?.contributed ?? stored?.contributed ?? currentMember?.totalContributed) ||
+        0;
     const personalDonated = Number(contributionStats?.donated) || 0;
     const donated = isAdmin ? sumPlatformMemberDonations() : personalDonated;
     const deposited = Number(contributionStats?.deposited) || 0;
-    const equity =
-      Number(contributionStats?.equity ?? stored?.equity ?? currentMember?.equityValue) || 0;
+    const equity = balancesLocked
+      ? Number(stored?.equity) || 0
+      : Number(contributionStats?.equity ?? stored?.equity ?? currentMember?.equityValue) || 0;
     const invested = positions.reduce((sum, position) => sum + getPositionAllocatedValue(position), 0);
     const memberRoi = getProfileMemberRoi({ contributed, equity });
     const checking = Number(ledger?.checkingBalance) || 0;

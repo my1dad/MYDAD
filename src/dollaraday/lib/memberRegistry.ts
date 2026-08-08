@@ -55,6 +55,8 @@ export interface Member {
   profilePhotoUrl?: string;
   referredByProId?: string;
   lastLogoutAt?: string;
+  /** When true, contribution reconcile keeps admin-set contributed/equity. */
+  adminBalancesLocked?: boolean;
 }
 
 export function buildHandle(username: string): string {
@@ -140,6 +142,7 @@ function payloadToMember(record: StoredRecord): Member | null {
     referredByProId:
       typeof payload.referredByProId === "string" ? payload.referredByProId : undefined,
     lastLogoutAt: typeof payload.lastLogoutAt === "string" ? payload.lastLogoutAt : undefined,
+    adminBalancesLocked: payload.adminBalancesLocked === true,
   };
 }
 
@@ -228,6 +231,7 @@ function memberToPayload(member: Member): Record<string, unknown> {
     streak: member.streak,
     status: member.status,
     joinedAt: member.joinedAt,
+    adminBalancesLocked: member.adminBalancesLocked === true,
   };
 }
 
@@ -267,6 +271,7 @@ function mergeProfileWithStoredMember(profile: DadProfile, stored?: Member): Mem
     phone: profile.phone ?? stored.phone,
     profilePhotoUrl: profile.profilePhotoUrl ?? stored.profilePhotoUrl,
     referredByProId: profile.referredByProId ?? stored.referredByProId,
+    adminBalancesLocked: stored.adminBalancesLocked === true,
   };
 }
 
@@ -512,20 +517,31 @@ export function applyMemberStatsFromContributions(profileId: string): boolean {
 
   if (!existing) return false;
 
-  if (memberStatsEqual(existing, stats)) {
-    return false;
-  }
+  const contributed = existing.adminBalancesLocked ? existing.contributed : stats.contributed;
+  const equity = existing.adminBalancesLocked ? existing.equity : stats.equity;
 
   const updated: Member = {
     ...existing,
     profileId: existing.profileId ?? profileId,
     id: existing.profileId ?? profileId,
-    contributed: stats.contributed,
-    equity: stats.equity,
+    contributed,
+    equity,
     days: stats.days,
     streak: stats.streak,
     score: Math.min(100, Math.max(existing.score, stats.days > 0 ? 50 + stats.days : existing.score)),
   };
+
+  if (
+    memberStatsEqual(existing, {
+      contributed: updated.contributed,
+      equity: updated.equity,
+      days: updated.days,
+      streak: updated.streak,
+    }) &&
+    existing.score === updated.score
+  ) {
+    return false;
+  }
 
   upsertDataRecord(
     "members",
@@ -535,6 +551,41 @@ export function applyMemberStatsFromContributions(profileId: string): boolean {
   );
   refreshPoolSessionFromMember(updated);
   return true;
+}
+
+/** Admin override: set directory contributed / equity for a member. */
+export function adminSetMemberDirectoryBalances(
+  profileId: string,
+  balances: { contributed: number; equity: number },
+): Member | null {
+  if (!profileId) return null;
+
+  const existing =
+    findStoredMemberByProfileId(profileId) ??
+    (() => {
+      const profile = findDadProfileById(profileId);
+      return profile ? profileToMember(profile) : undefined;
+    })();
+
+  if (!existing) return null;
+
+  const updated: Member = {
+    ...existing,
+    profileId: existing.profileId ?? profileId,
+    id: existing.profileId ?? profileId,
+    contributed: Math.max(0, Math.round((Number(balances.contributed) || 0) * 100) / 100),
+    equity: Math.max(0, Math.round((Number(balances.equity) || 0) * 100) / 100),
+    adminBalancesLocked: true,
+  };
+
+  upsertDataRecord(
+    "members",
+    memberRecordId(profileId),
+    "admin-balance-override",
+    memberToPayload(updated),
+  );
+  refreshPoolSessionFromMember(updated);
+  return updated;
 }
 
 /** Reconcile every member that has contribution history (and repair zeroed cloud rows). */
