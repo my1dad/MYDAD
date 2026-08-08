@@ -19,22 +19,15 @@ import {
 } from "../lib/dadProfileStorage";
 import { clearPendingDmPartnerId } from "../lib/communityDmNavigation";
 
-/** Keep auth sync snappy — full directory pulls happen after login. */
-const AUTH_SYNC_TIMEOUT_MS = 4_000;
+/** Member login needs cloud approval status — allow enough time for mobile PBKDF2 + fetch. */
+const AUTH_SYNC_TIMEOUT_MS = 10_000;
 
 async function syncUsernameBeforeAuth(username) {
   try {
-    const {
-      pullCloudProfileForAuth,
-      pauseCloudPushes,
-      isFactoryZeroLocked,
-    } = await import("../lib/supabase/cloudSync");
+    const { pullCloudProfileForAuth, pauseCloudPushes } = await import("../lib/supabase/cloudSync");
 
-    // Master reset hard-lock: do not unlock or pull the wiped member directory.
-    if (isFactoryZeroLocked()) {
-      return { ok: true };
-    }
-
+    // Always pull this username from Supabase. Skipping here left approved members
+    // stuck as "pending" on devices that still had a factory-zero lock.
     pauseCloudPushes(0);
     const pull = pullCloudProfileForAuth(username, getDadProfiles, replaceAllDadProfiles);
     const timeout = new Promise((_, reject) => {
@@ -164,14 +157,20 @@ export function DadAuthProvider({ children }) {
       return { ok: false, error: "Invalid username or password." };
     }
 
-    const existing = findDadProfileByUsername(normalizedUsername);
+    // Re-read after cloud sync — approval may have changed from pending → approved.
+    let existing = findDadProfileByUsername(normalizedUsername);
+    if (existing?.username && isProfilePendingApproval(existing)) {
+      // One more forced pull so a just-approved member is not blocked by a stale local row.
+      await syncUsernameBeforeAuth(normalizedUsername);
+      existing = findDadProfileByUsername(normalizedUsername);
+    }
+
     if (existing) {
       if (isAdminProfile(existing)) {
         return { ok: false, error: "Invalid username or password." };
       }
       if (isProfilePendingApproval(existing)) {
         if (await profilePasswordMatches(existing, normalizedPassword)) {
-          if (!sync.ok) return { ok: false, error: sync.error };
           return { ok: false, error: "pendingApproval" };
         }
         return { ok: false, error: "Invalid username or password." };
@@ -192,7 +191,9 @@ export function DadAuthProvider({ children }) {
 
     const matched = await authenticateDadProfile(normalizedUsername, normalizedPassword);
     if (!matched) {
-      if (!sync.ok && !existing) return { ok: false, error: sync.error };
+      if (!existing && !sync.ok) return { ok: false, error: sync.error };
+      // Profile missing locally after a failed sync — tell the member to retry, not "invalid password".
+      if (!existing && sync.ok === false) return { ok: false, error: sync.error };
       return { ok: false, error: "Invalid username or password." };
     }
     if (isAdminProfile(matched) || !isProfileLoginAllowed(matched)) {

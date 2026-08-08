@@ -191,7 +191,7 @@ export function isProfileLoginAllowed(profile: DadProfile | null | undefined): b
   }
   if (isProfileSuspended(profile)) return false;
   // Members may sign in only after master admin approval — never on create/pending.
-  return profile.approvalStatus === "approved";
+  return getProfileApprovalStatus(profile) === "approved";
 }
 
 export function findDadProfileByUsername(username: string): DadProfile | undefined {

@@ -975,9 +975,29 @@ export async function pullCloudProfileForAuth(
   const remoteProfile = await fetchCloudProfileByUsername(username);
   if (!remoteProfile) return localProfiles;
 
-  const merged = mergeProfilesForWorkspace(localProfiles, [remoteProfile]);
-  replaceLocalProfiles(merged);
-  return merged;
+  // Cloud approval/password wins for this username so members can sign in right after approve.
+  const remoteId = remoteProfile.id;
+  const withoutStale = localProfiles.filter(
+    (profile) =>
+      profile.id !== remoteId &&
+      profile.username.trim().toLowerCase() !== remoteProfile.username.trim().toLowerCase(),
+  );
+  const merged = mergeProfilesForWorkspace([...withoutStale, remoteProfile], [remoteProfile]);
+  // Ensure the cloud approval status is not lost to a newer stale local pending row.
+  const next = merged.map((profile) =>
+    profile.id === remoteId ||
+    profile.username.trim().toLowerCase() === remoteProfile.username.trim().toLowerCase()
+      ? {
+          ...profile,
+          ...remoteProfile,
+          approvalStatus: remoteProfile.approvalStatus ?? profile.approvalStatus,
+          accountStatus: remoteProfile.accountStatus ?? profile.accountStatus,
+          password: remoteProfile.password || profile.password,
+        }
+      : profile,
+  );
+  replaceLocalProfiles(next);
+  return next;
 }
 
 async function upsertCloudKv(scopeKey: string, kvKey: string, rawValue: string | null): Promise<void> {
