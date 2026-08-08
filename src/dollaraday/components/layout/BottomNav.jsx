@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LogOut, MoreHorizontal } from "lucide-react";
+import { LogOut, MoreHorizontal, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logoutDollarADay } from "../../lib/logout";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
@@ -136,23 +136,37 @@ export default function BottomNav({ activePage, onNavigate, onPrefetch }) {
                       </button>
                     );
                   })}
-                  {isAdmin ? (
-                    <>
-                      <div className="my-1 border-t border-white/10" />
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setMoreOpen(false);
-                          logoutDollarADay();
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-red-400 hover:bg-red-400/10"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        {t("nav.logout")}
-                      </button>
-                    </>
-                  ) : null}
+                  <div className="my-1 border-t border-white/10" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onPointerDown={() => warm("profile")}
+                    onClick={() => {
+                      onNavigate("profile");
+                      setMoreOpen(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2 px-3 py-2.5 text-sm",
+                      activePage === "profile"
+                        ? "dda-nav-active"
+                        : "text-gray-300 hover:bg-white/5",
+                    )}
+                  >
+                    <UserRound className="h-4 w-4" />
+                    {t("nav.profile")}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      logoutDollarADay();
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-red-400 hover:bg-red-400/10"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    {t("nav.logout")}
+                  </button>
                 </div>
               ) : null}
             </div>

@@ -19,26 +19,36 @@ import { clearPendingDmPartnerId } from "../lib/communityDmNavigation";
 
 const AUTH_SYNC_TIMEOUT_MS = 12_000;
 
+async function pullProfilesOnce() {
+  const { pullCloudProfilesNow, clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
+    "../lib/supabase/cloudSync"
+  );
+  clearFactoryZeroDeliveryLock();
+  pauseCloudPushes(0);
+  const pull = pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+  const timeout = new Promise((_, reject) => {
+    window.setTimeout(() => reject(new Error("AUTH_SYNC_TIMEOUT")), AUTH_SYNC_TIMEOUT_MS);
+  });
+  await Promise.race([pull, timeout]);
+}
+
 async function syncProfilesBeforeAuth() {
   try {
-    const { pullCloudProfilesNow, clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
-      "../lib/supabase/cloudSync"
-    );
-    clearFactoryZeroDeliveryLock();
-    pauseCloudPushes(0);
-    const pull = pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
-    const timeout = new Promise((_, reject) => {
-      window.setTimeout(() => reject(new Error("AUTH_SYNC_TIMEOUT")), AUTH_SYNC_TIMEOUT_MS);
-    });
-    await Promise.race([pull, timeout]);
+    await pullProfilesOnce();
     return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err ?? "");
-    console.warn("[auth] Cloud profile pull before auth failed:", err);
-    return {
-      ok: false,
-      error: message === "AUTH_SYNC_TIMEOUT" ? "syncTimeout" : "syncFailed",
-    };
+  } catch (firstErr) {
+    console.warn("[auth] Cloud profile pull before auth failed, retrying once:", firstErr);
+    try {
+      await pullProfilesOnce();
+      return { ok: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err ?? "");
+      console.warn("[auth] Cloud profile pull before auth failed after retry:", err);
+      return {
+        ok: false,
+        error: message === "AUTH_SYNC_TIMEOUT" ? "syncTimeout" : "syncFailed",
+      };
+    }
   }
 }
 

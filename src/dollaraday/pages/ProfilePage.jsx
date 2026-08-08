@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, LogOut } from "lucide-react";
 import PageHeader from "../components/layout/PageHeader";
 import { useDadAuth } from "../context/DadAuthContext.jsx";
 import { useLocale } from "../i18n/LocaleContext";
@@ -9,6 +9,7 @@ import {
   formatMaskedAccountNumber,
   getProfileAccountNumber,
 } from "../lib/dadProfileStorage";
+import { logoutDollarADay } from "../lib/logout";
 
 const MemberSettingsCard = lazy(() => import("../components/members/MemberSettingsCard"));
 const AdminSettingsCard = lazy(() => import("../components/admin/AdminSettingsCard"));
@@ -97,6 +98,17 @@ export default function ProfilePage() {
       <Suspense fallback={<PanelSlot />}>
         {isAdmin ? <AdminSettingsCard /> : <MemberSettingsCard embedded />}
       </Suspense>
+
+      {!isAdmin ? (
+        <button
+          type="button"
+          onClick={() => logoutDollarADay()}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300 transition hover:bg-red-500/15"
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          {t("nav.logout")}
+        </button>
+      ) : null}
     </div>
   );
 }

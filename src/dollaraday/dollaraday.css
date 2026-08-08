@@ -6026,9 +6026,12 @@ select.dda-bank-transfer-route__select {
 }
 
 .dda-mobile-topbar {
+  position: relative;
+  z-index: 40;
   min-height: 3.25rem;
   padding-top: 0.55rem;
   padding-bottom: 0.55rem;
+  overflow: visible;
 }
 
 .dda-header-actions--bar {

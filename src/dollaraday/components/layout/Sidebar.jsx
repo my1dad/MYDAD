@@ -57,11 +57,11 @@ export const mobileMoreItems = [
 ];
 
 const ADMIN_NAV_IDS = ["dashboard", "allocations", "members", "pool", "investments", "accounts", "loans", "community", "admin"];
-const MEMBER_NAV_IDS = ["dashboard", "pool", "accounts", "loans", "community"];
+const MEMBER_NAV_IDS = ["dashboard", "members", "pool", "accounts", "loans", "community"];
 const ADMIN_MOBILE_NAV_IDS = ["dashboard", "pool", "investments", "accounts"];
-const MEMBER_MOBILE_NAV_IDS = ["dashboard", "pool", "accounts", "community", "loans"];
+const MEMBER_MOBILE_NAV_IDS = ["dashboard", "pool", "accounts", "community"];
 const ADMIN_MOBILE_MORE_IDS = ["allocations", "members", "loans", "community", "admin"];
-const MEMBER_MOBILE_MORE_IDS = [];
+const MEMBER_MOBILE_MORE_IDS = ["members", "loans"];
 
 const mobileNavLabels = {
   dashboard: "home",

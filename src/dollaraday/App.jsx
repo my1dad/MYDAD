@@ -120,8 +120,7 @@ export default function App() {
     if (
       activePage === "admin-bins" ||
       activePage === "investments" ||
-      activePage === "allocations" ||
-      activePage === "members"
+      activePage === "allocations"
     ) {
       goTo("dashboard");
     }
