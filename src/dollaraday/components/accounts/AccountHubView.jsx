@@ -1,17 +1,10 @@
 import { useEffect, useState } from "react";
 import { lazy, Suspense } from "react";
-import { ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { formatPoolCurrency } from "../../data/mockData";
 import { useDadAuth } from "../../context/DadAuthContext";
-import { useLocale } from "../../i18n/LocaleContext";
-import { maskAccountNumber, resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
+import { resolveMemberProfileId } from "../../lib/memberAccounts";
 import { reconcileMemberEscrowFromContributions } from "../../lib/poolEscrowReconcile";
 import { processRecurringCashflows } from "../../lib/recurringCashflow";
 import PlatformEquityCard from "../home/PlatformEquityCard";
-import BankAccountLogo from "./BankAccountLogo";
-import { getVisibleBankAccounts } from "./bankAccounts";
-import { getAccountDisplay } from "./accountDisplay";
 
 const AccountsOverviewInfographic = lazy(() => import("./AccountsOverviewInfographic"));
 const RecurringCashflowPanel = lazy(() => import("./RecurringCashflowPanel"));
@@ -23,14 +16,9 @@ function PanelSlot({ className = "min-h-[120px]" }) {
   return <div className={`dda-glass animate-pulse rounded-2xl ${className}`} aria-hidden="true" />;
 }
 
-export default function AccountHubView({ onSelectAccount }) {
-  const { t } = useLocale();
+export default function AccountHubView() {
   const { isAdmin } = useDadAuth();
-  const visibleAccounts = getVisibleBankAccounts(isAdmin).filter(
-    (account) => !(isAdmin && account.id === "checking"),
-  );
   const profileId = resolveMemberProfileId();
-  const ledger = useMemberAccounts(profileId);
   const [walletOverlayOpen, setWalletOverlayOpen] = useState(false);
 
   useEffect(() => {
@@ -53,54 +41,8 @@ export default function AccountHubView({ onSelectAccount }) {
       {/* Same equity card as Home — keeps Donations / wallet totals in sync. */}
       <PlatformEquityCard
         wallet
-        onClick={
-          isAdmin
-            ? () => onSelectAccount("escrow")
-            : () => setWalletOverlayOpen(true)
-        }
+        onClick={isAdmin ? undefined : () => setWalletOverlayOpen(true)}
       />
-
-      {isAdmin ? (
-        <div className="dda-accounts-hub">
-          {visibleAccounts.map(({ id }) => {
-            const display = getAccountDisplay(id, isAdmin, t);
-            const balance = id === "checking" ? ledger.checkingBalance : ledger.escrowBalance;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => onSelectAccount(id)}
-                className="dda-accounts-hub__card"
-              >
-                <span className="flex min-w-0 flex-1 items-center gap-3">
-                  <span className="dda-accounts-hub__icon dda-bank-logo-wrap">
-                    <BankAccountLogo accountId={id} />
-                  </span>
-                  <span className="min-w-0 text-left">
-                    <span className="dda-accounts-tab__label block truncate">
-                      {display.title}
-                    </span>
-                    <span className="dda-accounts-tab__type">
-                      ({display.type}) · {maskAccountNumber(profileId, id)}
-                    </span>
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="text-right">
-                    <span className="block text-[10px] uppercase tracking-wide text-gray-500">
-                      {t("pages.accounts.availableBalance")}
-                    </span>
-                    <span className="block text-base font-bold tabular-nums text-white sm:text-lg">
-                      {formatPoolCurrency(balance)}
-                    </span>
-                  </span>
-                  <ChevronRight className={cn("h-5 w-5 text-gray-500")} />
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
 
       <Suspense fallback={<PanelSlot className="min-h-[200px]" />}>
         <AccountsOverviewInfographic />
