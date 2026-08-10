@@ -7,11 +7,10 @@ import { useDadAuth } from "../context/DadAuthContext.jsx";
 
 /**
  * Keep the UI free. Background work is minimal and delayed:
- * 1) Unlock delivery lock + pull profiles so admin sees members immediately
- *    (skipped while factory-zero lock is active after master reset)
+ * 1) Pull cloud profiles (never re-upload stale local members onto a wipe)
  * 2) Rebuild member registry from profiles
  * 3) Light local pool hydrate
- * 4) Full cloud sync later
+ * 4) Full cloud sync later — skipped while factory-zero lock is active
  */
 export default function PostAuthWorkspace({ children }) {
   const { isAuthenticated } = useDadAuth();
@@ -32,21 +31,24 @@ export default function PostAuthWorkspace({ children }) {
         }) => {
           if (!alive) return;
 
-          const locals = getDadProfiles();
-          const members = locals.filter(
+          // Pull first. A newer admin-only cloud wipe replaces stale local members
+          // and keeps the factory-zero lock — do not unlock just because local cache
+          // still has pre-wipe people.
+          await pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+          if (!alive) return;
+
+          const afterPull = getDadProfiles();
+          const liveMembers = afterPull.filter(
             (profile) => profile.username?.trim().toLowerCase() !== "admin",
           );
 
-          // Unlock delivery so pulls can restore members — do not re-push the whole
-          // directory on every login (that raced and janked first paint).
-          if (members.length || !isFactoryZeroLocked()) {
+          if (liveMembers.length && !isFactoryZeroLocked()) {
             clearFactoryZeroDeliveryLock();
+            pauseCloudPushes(0);
+          } else if (!isFactoryZeroLocked() && !liveMembers.length) {
             pauseCloudPushes(0);
           }
 
-          // Pull cloud profiles so approved members return after logout/login.
-          await pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
-          if (!alive) return;
           const { syncAllProfilesToMemberRegistry } = await import("../lib/profileRegistry");
           if (!alive) return;
           syncAllProfilesToMemberRegistry();
@@ -78,21 +80,18 @@ export default function PostAuthWorkspace({ children }) {
           } = await import("../lib/supabase/cloudSync");
           if (!alive) return;
 
-          // If members already exist, drop the reset lock so profile sync can run.
-          // Still avoid pulling pre-reset liquidity when the lock remains and there
-          // are no members yet (fresh wipe).
-          const localMembers = getDadProfiles().filter(
+          // After pull, only skip full bin sync while wipe lock is still active
+          // and the directory is still admin-only (blank backtest platform).
+          const liveMembers = getDadProfiles().filter(
             (profile) => profile.username?.trim().toLowerCase() !== "admin",
           );
-          if (localMembers.length) {
-            clearFactoryZeroDeliveryLock();
-          } else if (isFactoryZeroLocked()) {
-            // Fresh wipe with no members — skip full bin sync to keep liquidity at $0.
-            // Profiles were already pulled above.
+          if (isFactoryZeroLocked() && !liveMembers.length) {
             return;
           }
 
-          clearFactoryZeroDeliveryLock();
+          if (liveMembers.length) {
+            clearFactoryZeroDeliveryLock();
+          }
           pauseCloudPushes(0);
 
           const cleanupCloud = await initCloudSync({
