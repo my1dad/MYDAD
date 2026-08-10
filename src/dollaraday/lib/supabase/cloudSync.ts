@@ -19,11 +19,20 @@ const GLOBAL_KV_SCOPE = "global";
 /** Marks a factory reset so sync cannot resurrect wiped members/data. */
 export const WORKSPACE_EPOCH_KEY = "dollar-a-day-workspace-epoch";
 
+/**
+ * Cloud-wide blank lock. While set, every client must show $0 / admin-only and
+ * refuse to upload stale local backtest data — even from other IPs/devices.
+ * Cleared only when a real post-wipe member is intentionally persisted.
+ */
+export const PLATFORM_BLANK_KEY = "dollar-a-day-platform-blank";
+
 /** Profile IDs admin permanently deleted — block cloud merge from resurrecting them. */
 const DELETED_PROFILES_KEY = "dollar-a-day-deleted-profiles";
 
 let lastFullSyncAt = 0;
 let cloudPushPausedUntil = 0;
+let blankPlatformCache: { value: boolean; checkedAt: number } | null = null;
+const BLANK_PLATFORM_CACHE_MS = 3_000;
 
 function readDeletedProfileIds(): Set<string> {
   try {
@@ -144,6 +153,7 @@ export const SYNCED_KV_KEYS = [
   "dollar-a-day-dm-read",
   "dda-locale",
   WORKSPACE_EPOCH_KEY,
+  PLATFORM_BLANK_KEY,
 ] as const;
 
 export function bumpWorkspaceEpoch(): string {
@@ -199,18 +209,39 @@ function profileSurvivesFactoryEpoch(profile: DadProfile): boolean {
   return profileTimestamp(profile) >= epoch;
 }
 
+function isPlatformBlankFlagValue(value: unknown): boolean {
+  if (value === true || value === 1 || value === "1") return true;
+  if (typeof value === "string") {
+    const trimmed = value.trim().replace(/^"|"$/g, "");
+    return trimmed === "1" || trimmed === "true";
+  }
+  return false;
+}
+
+function isPlatformBlankFromKv(remoteKv: CloudKvRow[]): boolean {
+  const row = remoteKv.find(
+    (item) => item.scope_key === GLOBAL_KV_SCOPE && item.kv_key === PLATFORM_BLANK_KEY,
+  );
+  return isPlatformBlankFlagValue(row?.value);
+}
+
 /**
- * Blank / factory-zero cloud wins whenever remote is admin-only.
- * Epoch comparison used to skip adopt when local epoch was newer — that left
- * stale browser caches showing old members/liquidity on an empty cloud.
+ * Hard blank lock from dad_kv. While set, every device formats to $0 and cloud
+ * fat uploads are scrubbed. Cleared only by persistMembersToCloud (real members).
  */
-function shouldAdoptRemoteAdminOnlyWipe(remoteProfiles: DadProfile[]): boolean {
+function shouldAdoptRemoteBlankPlatform(remoteKv: CloudKvRow[] = []): boolean {
+  return isPlatformBlankFromKv(remoteKv);
+}
+
+/** Admin-only directory: never paint stale local members/bins, but do not re-lock. */
+function shouldFormatLocalToAdminOnly(remoteProfiles: DadProfile[]): boolean {
   return isAdminOnlyDirectory(remoteProfiles);
 }
 
 function lockLocalToRemoteWipe(remoteEpoch: string | null): void {
   try {
     localStorage.setItem("dollar-a-day-factory-zero", "1");
+    localStorage.setItem(PLATFORM_BLANK_KEY, "1");
     if (remoteEpoch) {
       localStorage.setItem(WORKSPACE_EPOCH_KEY, remoteEpoch);
     } else {
@@ -220,23 +251,118 @@ function lockLocalToRemoteWipe(remoteEpoch: string | null): void {
     /* ignore */
   }
   pauseCloudPushes(24 * 60 * 60_000);
+  blankPlatformCache = { value: true, checkedAt: Date.now() };
 }
 
 function emptyWipeBinDocument(binKey: DataBinKey, stamp: string): DataBinDocument {
   return { version: 1, binKey, updatedAt: stamp, records: [] };
 }
 
-/** Replace local bins with blank-cloud documents (or empty if a bin row is missing). */
-function applyAdminOnlyRemoteBins(remoteBins: CloudBinRow[]): void {
+function zeroSettingsWipeDocument(stamp: string): DataBinDocument {
+  return {
+    version: 1,
+    binKey: "settings",
+    updatedAt: stamp,
+    records: [
+      {
+        id: "pool-live-state",
+        createdAt: stamp,
+        updatedAt: stamp,
+        source: "platform-blank",
+        payload: {
+          poolSummary: {
+            totalBalance: 0,
+            escrowBalance: 0,
+            availableToDeploy: 0,
+            deployedCapital: 0,
+            memberCount: 1,
+            dailyInflow: 0,
+            monthlyInflow: 0,
+            poolApy: 0,
+            lastAudit: "",
+            reserveRatio: 0,
+            ytdGrowthPct: 0,
+          },
+          poolComposition: [
+            { key: "deployed", name: "Deployed", value: 0, color: "#86efac" },
+            { key: "escrow", name: "Escrow", value: 0, color: "#38bdf8" },
+            { key: "available", name: "Available", value: 0, color: "#a78bfa" },
+          ],
+          poolBalanceHistory: {
+            "1d": [{ label: "Now", balance: 0 }],
+            "1w": [{ label: "Today", balance: 0 }],
+            "1m": [{ label: "Start", balance: 0 }],
+            "1y": [{ label: "Start", balance: 0 }],
+          },
+          dailyAllocationSummary: {
+            dateLabel: "",
+            lastUpdated: "",
+            lastUpdatedAt: stamp,
+            totalDonations: 0,
+            totalAmount: 0,
+            averageDonation: 0,
+            largestDonation: 0,
+          },
+          todaysDonations: [],
+          allocationComparisons: [],
+          currentMember: {
+            id: "guest",
+            name: "Guest",
+            handle: "@guest",
+            avatarInitials: "?",
+            tier: "Member",
+            memberSince: "",
+            dailyContribution: 0,
+            totalContributed: 0,
+            equityValue: 0,
+            streakDays: 0,
+            loanEligibilityScore: 0,
+            loanStatus: "pending",
+            nextContributionDue: "—",
+          },
+          activeEasternDay: stamp.slice(0, 10),
+        },
+      },
+    ],
+  };
+}
+
+function blankDocumentForBin(binKey: DataBinKey, stamp: string): DataBinDocument {
+  return binKey === "settings" ? zeroSettingsWipeDocument(stamp) : emptyWipeBinDocument(binKey, stamp);
+}
+
+function isBlankPlatformDocument(binId: string, document: DataBinDocument): boolean {
+  const binKey = binKeyForBinId(binId);
+  const records = Array.isArray(document?.records) ? document.records : [];
+  if (!binKey) return records.length === 0;
+  if (binKey !== "settings") return records.length === 0;
+
+  if (records.length === 0) return true;
+  if (records.length > 1) return false;
+  const only = records[0];
+  if (only?.id !== "pool-live-state") return false;
+  const summary = (only.payload as { poolSummary?: Record<string, unknown> } | undefined)?.poolSummary;
+  if (!summary || typeof summary !== "object") return false;
+  const numericKeys = [
+    "totalBalance",
+    "escrowBalance",
+    "availableToDeploy",
+    "deployedCapital",
+    "dailyInflow",
+    "monthlyInflow",
+  ] as const;
+  return numericKeys.every((key) => Number(summary[key] ?? 0) === 0);
+}
+
+/** Force local bins to $0 — never copy fat remote bins while platform is blank. */
+function applyForcedBlankBins(): void {
   const stamp = new Date().toISOString();
   beginBulkWrite();
   try {
     for (const binId of DAD_BIN_IDS) {
       const binKey = binKeyForBinId(binId);
       if (!binKey) continue;
-      const remoteRow = remoteBins.find((row) => row.bin_id === binId);
-      const document = remoteRow?.document ?? emptyWipeBinDocument(binKey, stamp);
-      applyExternalBinDocument(binId, binKey, document);
+      applyExternalBinDocument(binId, binKey, blankDocumentForBin(binKey, stamp));
     }
   } finally {
     endBulkWrite();
@@ -252,6 +378,75 @@ function refreshUiAfterLocalWipe(): void {
       })
       .catch(() => {});
   });
+}
+
+async function setCloudPlatformBlank(epoch: string): Promise<void> {
+  blankPlatformCache = { value: true, checkedAt: Date.now() };
+  try {
+    localStorage.setItem(PLATFORM_BLANK_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+  await upsertCloudKv(GLOBAL_KV_SCOPE, PLATFORM_BLANK_KEY, "1");
+  await upsertCloudKv(GLOBAL_KV_SCOPE, WORKSPACE_EPOCH_KEY, JSON.stringify(epoch));
+}
+
+export async function clearCloudPlatformBlank(): Promise<void> {
+  blankPlatformCache = { value: false, checkedAt: Date.now() };
+  try {
+    localStorage.removeItem(PLATFORM_BLANK_KEY);
+  } catch {
+    /* ignore */
+  }
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("dad_kv")
+    .delete()
+    .eq("workspace_id", DAD_WORKSPACE_ID)
+    .eq("scope_key", GLOBAL_KV_SCOPE)
+    .eq("kv_key", PLATFORM_BLANK_KEY);
+  if (error) {
+    console.warn("[cloudSync] Failed to clear platform blank lock:", error.message);
+  }
+}
+
+async function isCloudPlatformBlank(): Promise<boolean> {
+  if (blankPlatformCache && Date.now() - blankPlatformCache.checkedAt < BLANK_PLATFORM_CACHE_MS) {
+    return blankPlatformCache.value;
+  }
+  try {
+    const [remoteProfiles, remoteKv] = await Promise.all([fetchCloudProfiles(), fetchCloudKv()]);
+    const blank = isPlatformBlankFromKv(remoteKv) || isAdminOnlyDirectory(remoteProfiles);
+    blankPlatformCache = { value: blank, checkedAt: Date.now() };
+    return blank;
+  } catch {
+    const fallback = localStorage.getItem(PLATFORM_BLANK_KEY) === "1" || isFactoryZeroLocked();
+    blankPlatformCache = { value: fallback, checkedAt: Date.now() };
+    return fallback;
+  }
+}
+
+/** Overwrite cloud bins/profiles back to blank whenever a stale device raced a wipe. */
+async function reassertBlankCloud(admin: DadProfile | null, epoch: string | null): Promise<void> {
+  const stamp = epoch || new Date().toISOString();
+  await setCloudPlatformBlank(stamp);
+
+  if (admin) {
+    try {
+      await replaceCloudProfilesDirectory([admin], { force: true });
+    } catch (err) {
+      console.warn("[cloudSync] Blank profile reassert failed:", err);
+    }
+  }
+
+  await Promise.all(
+    DAD_BIN_IDS.map(async (binId) => {
+      const binKey = binKeyForBinId(binId);
+      if (!binKey) return;
+      await upsertCloudBin(binId, blankDocumentForBin(binKey, stamp), { blankWrite: true });
+    }),
+  );
 }
 
 /** Merge local/remote profiles while dropping pre-wipe members; reopen delivery lock when new members appear. */
@@ -748,9 +943,24 @@ function applyKvToLocalStorage(rows: CloudKvRow[]): void {
   }
 }
 
-async function upsertCloudBin(binId: string, document: DataBinDocument): Promise<void> {
+async function upsertCloudBin(
+  binId: string,
+  document: DataBinDocument,
+  options: { blankWrite?: boolean } = {},
+): Promise<void> {
   const supabase = getSupabaseClient();
   if (!supabase) return;
+
+  // Hard block: stale browsers must never rewrite fat ledgers onto a blank platform.
+  if (!options.blankWrite) {
+    const blank = await isCloudPlatformBlank();
+    if (blank && !isBlankPlatformDocument(binId, document)) {
+      console.warn(
+        `[cloudSync] Blocked fat bin push for ${binId} onto blank platform (stale device cache).`,
+      );
+      return;
+    }
+  }
 
   const row = {
     workspace_id: DAD_WORKSPACE_ID,
@@ -828,13 +1038,21 @@ async function upsertCloudProfiles(
     return false;
   }
 
-  // Stale browsers must not re-upload wiped members onto an admin-only cloud wipe.
-  if (isAdminOnlyDirectory(remoteProfiles) && !options.force) {
+  // Stale browsers must not re-upload wiped members while the cloud blank lock is set.
+  // force=true is NOT enough — blank lock must be cleared first (persistMembersToCloud).
+  // Note: admin-only alone is NOT used here, or first post-wipe signup could never land.
+  let remoteKv: CloudKvRow[] = [];
+  try {
+    remoteKv = await fetchCloudKv();
+  } catch {
+    remoteKv = [];
+  }
+  if (isPlatformBlankFromKv(remoteKv)) {
     const skipped = publishProfiles.filter((profile) => !isAdminProfile(profile));
     publishProfiles = publishProfiles.filter((profile) => isAdminProfile(profile));
     if (skipped.length) {
       console.warn(
-        `[cloudSync] Blocked ${skipped.length} stale member push(es) onto admin-only cloud wipe.`,
+        `[cloudSync] Blocked ${skipped.length} stale member push(es) onto blank platform.`,
       );
     }
     if (!publishProfiles.length) return true;
@@ -932,8 +1150,11 @@ export async function persistMembersToCloud(profiles: DadProfile[]): Promise<boo
   if (!isSupabaseConfigured()) return true;
   if (!profiles.length) return true;
 
+  // Intentional post-wipe member write — open the platform blank lock first.
   clearFactoryZeroDeliveryLock();
+  await clearCloudPlatformBlank();
   pauseCloudPushes(0);
+  blankPlatformCache = { value: false, checkedAt: Date.now() };
 
   const pushed = await pushCloudProfilesNow(profiles, { force: true });
   if (!pushed) return false;
@@ -1076,28 +1297,9 @@ export async function wipeCloudWorkspaceExceptAdmin(admin: DadProfile): Promise<
     );
   }
 
-  // 2) Hard-empty every bin. Settings keeps only the $0 pool seed record.
-  const wipedAt = new Date().toISOString();
-  await Promise.all(
-    DATA_BIN_DEFINITIONS.map((definition) => {
-      const local = readDataBin(definition.key);
-      const localRecords = Array.isArray(local.records) ? local.records : [];
-      const document: DataBinDocument = {
-        version: 1,
-        binKey: definition.key,
-        updatedAt: wipedAt,
-        records:
-          definition.key === "settings"
-            ? localRecords.filter((record) => record.id === "pool-live-state")
-            : [],
-      };
-      return upsertCloudBin(definition.binId, document);
-    }),
-  );
-
-  // 3) Clear synced kv noise (notifications, etc.), then publish reset epoch.
+  // 2) Clear synced kv noise, then set cloud-wide blank lock + epoch.
   for (const key of SYNCED_KV_KEYS) {
-    if (key === WORKSPACE_EPOCH_KEY) continue;
+    if (key === WORKSPACE_EPOCH_KEY || key === PLATFORM_BLANK_KEY) continue;
     const { error } = await supabase
       .from("dad_kv")
       .delete()
@@ -1110,7 +1312,17 @@ export async function wipeCloudWorkspaceExceptAdmin(admin: DadProfile): Promise<
   }
 
   const epoch = getWorkspaceEpoch() ?? bumpWorkspaceEpoch();
-  await upsertCloudKv(GLOBAL_KV_SCOPE, WORKSPACE_EPOCH_KEY, JSON.stringify(epoch));
+  await setCloudPlatformBlank(epoch);
+
+  // 3) Force-write blank bins (blankWrite bypasses the blank-platform push guard).
+  const wipedStamp = new Date().toISOString();
+  await Promise.all(
+    DATA_BIN_DEFINITIONS.map((definition) =>
+      upsertCloudBin(definition.binId, blankDocumentForBin(definition.key, wipedStamp), {
+        blankWrite: true,
+      }),
+    ),
+  );
 }
 
 /**
@@ -1125,18 +1337,26 @@ export async function pullCloudProfilesNow(
 
   // Always pull member profiles — factory-zero must not hide approved members after login.
   const localProfiles = getLocalProfiles();
-  const [remote, remoteKv, remoteBins] = await Promise.all([
-    fetchCloudProfiles(),
-    fetchCloudKv(),
-    fetchCloudBins(),
-  ]);
+  const [remote, remoteKv] = await Promise.all([fetchCloudProfiles(), fetchCloudKv()]);
   const remoteEpoch = getRemoteWorkspaceEpoch(remoteKv);
 
-  // Blank cloud (admin-only) always formats this browser to $0 — no stale members/bins.
-  if (shouldAdoptRemoteAdminOnlyWipe(remote)) {
+  // Hard blank lock: format this browser to $0 and scrub any raced fat cloud uploads.
+  if (shouldAdoptRemoteBlankPlatform(remoteKv)) {
     applyKvToLocalStorage(remoteKv);
     lockLocalToRemoteWipe(remoteEpoch);
-    applyAdminOnlyRemoteBins(remoteBins);
+    applyForcedBlankBins();
+    const adminOnly = remote.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+    replaceLocalProfiles(adminOnly);
+    refreshUiAfterLocalWipe();
+    void reassertBlankCloud(adminOnly[0] ?? null, remoteEpoch).catch((err) =>
+      console.warn("[cloudSync] Blank cloud reassert after pull failed:", err),
+    );
+    return adminOnly;
+  }
+
+  // Admin-only cloud without blank lock: still never resurrect local stale caches.
+  if (shouldFormatLocalToAdminOnly(remote)) {
+    applyForcedBlankBins();
     const adminOnly = remote.filter((profile) => isAdminProfile(profile)).slice(0, 1);
     replaceLocalProfiles(adminOnly);
     refreshUiAfterLocalWipe();
@@ -1352,25 +1572,34 @@ export async function syncCloudWorkspace(options: {
 
     const binUpserts: Promise<unknown>[] = [];
 
-    // Blank cloud always formats this device to $0 / admin-only (stale local cache ignored).
-    if (shouldAdoptRemoteAdminOnlyWipe(remoteProfiles)) {
+    // Hard blank lock: format every device to $0 and scrub any raced fat uploads.
+    if (shouldAdoptRemoteBlankPlatform(remoteKv)) {
       applyKvToLocalStorage(remoteKv);
       lockLocalToRemoteWipe(remoteEpoch);
-      applyAdminOnlyRemoteBins(remoteBins);
+      applyForcedBlankBins();
 
       const adminOnly = remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1);
       options.replaceLocalProfiles(adminOnly);
       refreshUiAfterLocalWipe();
 
-      // Ensure cloud stays admin-only (prune any race re-uploads from other tabs).
-      if (adminOnly.length) {
-        try {
-          await replaceCloudProfilesDirectory(adminOnly, { force: true });
-        } catch (err) {
-          console.warn("[cloudSync] Admin-only wipe reassert failed:", err);
-        }
+      try {
+        await reassertBlankCloud(adminOnly[0] ?? null, remoteEpoch);
+      } catch (err) {
+        console.warn("[cloudSync] Blank cloud reassert failed:", err);
       }
 
+      lastSyncAt = new Date().toISOString();
+      lastSyncError = null;
+      notifyCloudStatusListeners();
+      return;
+    }
+
+    // Admin-only without blank lock: keep local UI empty; do not push stale fat bins.
+    if (shouldFormatLocalToAdminOnly(remoteProfiles)) {
+      applyForcedBlankBins();
+      const adminOnly = remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+      options.replaceLocalProfiles(adminOnly);
+      refreshUiAfterLocalWipe();
       lastSyncAt = new Date().toISOString();
       lastSyncError = null;
       notifyCloudStatusListeners();

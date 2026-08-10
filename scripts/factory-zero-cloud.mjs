@@ -196,6 +196,19 @@ async function wipeOnce(pass) {
   );
   if (epochErr) throw epochErr;
 
+  // Cloud-wide blank lock — every device must stay at $0 until a real member is added.
+  const { error: blankErr } = await sb.from("dad_kv").upsert(
+    {
+      workspace_id: WORKSPACE,
+      scope_key: "global",
+      kv_key: "dollar-a-day-platform-blank",
+      value: "1",
+      updated_at: stamp,
+    },
+    { onConflict: "workspace_id,scope_key,kv_key" },
+  );
+  if (blankErr) throw blankErr;
+
   return stamp;
 }
 
@@ -222,12 +235,21 @@ async function verify() {
     .eq("bin_id", "dollar-a-day-members")
     .maybeSingle();
 
+  const { data: blankRow } = await sb
+    .from("dad_kv")
+    .select("value")
+    .eq("workspace_id", WORKSPACE)
+    .eq("scope_key", "global")
+    .eq("kv_key", "dollar-a-day-platform-blank")
+    .maybeSingle();
+
   return {
     profiles: profiles || [],
     poolTotal: Number(summary?.totalBalance) || 0,
     poolInflow: Number(summary?.dailyInflow) || 0,
     contributionRecords: contributions?.document?.records?.length ?? -1,
     memberRecords: members?.document?.records?.length ?? -1,
+    platformBlank: blankRow?.value === "1" || blankRow?.value === 1 || blankRow?.value === true,
   };
 }
 
@@ -243,7 +265,8 @@ for (let pass = 1; pass <= passes; pass += 1) {
     state.poolTotal === 0 &&
     state.poolInflow === 0 &&
     state.contributionRecords === 0 &&
-    state.memberRecords === 0
+    state.memberRecords === 0 &&
+    state.platformBlank
   ) {
     console.log("\nFACTORY ZERO STABLE");
     process.exit(0);

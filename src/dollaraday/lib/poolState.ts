@@ -377,7 +377,9 @@ export function hydratePoolStateFromStorage(options: { reconcile?: boolean } = {
       syncMemberEscrowToLiquidityPool();
       if (!escrowChanged && !membersChanged) return;
 
-      const { pushCloudBinsNow } = await import("./supabase/cloudSync");
+      const { isFactoryZeroLocked, pushCloudBinsNow } = await import("./supabase/cloudSync");
+      if (isFactoryZeroLocked()) return;
+
       const { DATA_BIN_BY_KEY } = await import("./dataBins");
       const bins: { binId: string; document: ReturnType<typeof readDataBin> }[] = [];
       if (escrowChanged) {
