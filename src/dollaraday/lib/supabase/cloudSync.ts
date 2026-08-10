@@ -199,40 +199,74 @@ function profileSurvivesFactoryEpoch(profile: DadProfile): boolean {
   return profileTimestamp(profile) >= epoch;
 }
 
-/** Remote wipe wins when cloud is admin-only and its epoch is newer than local. */
-function shouldAdoptRemoteAdminOnlyWipe(
-  remoteProfiles: DadProfile[],
-  remoteEpoch: string | null,
-  localEpoch: string | null = getWorkspaceEpoch(),
-): boolean {
-  if (!remoteEpoch) return false;
-  if (localEpoch && !(remoteEpoch > localEpoch)) return false;
+/**
+ * Blank / factory-zero cloud wins whenever remote is admin-only.
+ * Epoch comparison used to skip adopt when local epoch was newer — that left
+ * stale browser caches showing old members/liquidity on an empty cloud.
+ */
+function shouldAdoptRemoteAdminOnlyWipe(remoteProfiles: DadProfile[]): boolean {
   return isAdminOnlyDirectory(remoteProfiles);
+}
+
+function lockLocalToRemoteWipe(remoteEpoch: string | null): void {
+  try {
+    localStorage.setItem("dollar-a-day-factory-zero", "1");
+    if (remoteEpoch) {
+      localStorage.setItem(WORKSPACE_EPOCH_KEY, remoteEpoch);
+    } else {
+      bumpWorkspaceEpoch();
+    }
+  } catch {
+    /* ignore */
+  }
+  pauseCloudPushes(24 * 60 * 60_000);
+}
+
+function emptyWipeBinDocument(binKey: DataBinKey, stamp: string): DataBinDocument {
+  return { version: 1, binKey, updatedAt: stamp, records: [] };
+}
+
+/** Replace local bins with blank-cloud documents (or empty if a bin row is missing). */
+function applyAdminOnlyRemoteBins(remoteBins: CloudBinRow[]): void {
+  const stamp = new Date().toISOString();
+  beginBulkWrite();
+  try {
+    for (const binId of DAD_BIN_IDS) {
+      const binKey = binKeyForBinId(binId);
+      if (!binKey) continue;
+      const remoteRow = remoteBins.find((row) => row.bin_id === binId);
+      const document = remoteRow?.document ?? emptyWipeBinDocument(binKey, stamp);
+      applyExternalBinDocument(binId, binKey, document);
+    }
+  } finally {
+    endBulkWrite();
+  }
+}
+
+function refreshUiAfterLocalWipe(): void {
+  queueMicrotask(() => {
+    void Promise.all([import("../memberAccounts"), import("../poolState")])
+      .then(([{ invalidateMemberAccountsCache }, { hydratePoolStateFromStorage }]) => {
+        invalidateMemberAccountsCache();
+        hydratePoolStateFromStorage();
+      })
+      .catch(() => {});
+  });
 }
 
 /** Merge local/remote profiles while dropping pre-wipe members; reopen delivery lock when new members appear. */
 function mergeProfilesForWorkspace(local: DadProfile[], remote: DadProfile[]): DadProfile[] {
+  // Admin-only cloud = blank platform. Never keep local-only members.
+  if (isAdminOnlyDirectory(remote)) {
+    const adminRemote = remote.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+    return adminRemote.length
+      ? adminRemote
+      : local.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+  }
+
   const merged = excludeDeletedProfiles(mergeProfiles(local, remote)).filter(
     (profile) => isAdminProfile(profile) || profileSurvivesFactoryEpoch(profile),
   );
-  // Admin-only cloud must never keep local-only pre-wipe members in the directory.
-  if (isAdminOnlyDirectory(remote) && (isFactoryZeroLocked() || getWorkspaceEpoch())) {
-    const remoteIds = new Set(remote.map((profile) => profile.id));
-    const adminRemote = remote.filter((profile) => isAdminProfile(profile)).slice(0, 1);
-    const postWipeLocal = merged.filter(
-      (profile) =>
-        !isAdminProfile(profile) &&
-        profileSurvivesFactoryEpoch(profile) &&
-        // Allow in-flight local signup not yet mirrored, but never resurrect missing cloud ids when locked.
-        (!isFactoryZeroLocked() || remoteIds.has(profile.id)),
-    );
-    if (isFactoryZeroLocked()) {
-      return adminRemote.length ? adminRemote : merged.filter((profile) => isAdminProfile(profile)).slice(0, 1);
-    }
-    return excludeDeletedProfiles(
-      mergeProfiles(postWipeLocal, adminRemote.length ? adminRemote : remote),
-    );
-  }
   if (merged.some((profile) => !isAdminProfile(profile) && profileSurvivesFactoryEpoch(profile))) {
     clearFactoryZeroDeliveryLock();
   }
@@ -1090,41 +1124,33 @@ export async function pullCloudProfilesNow(
   if (!isSupabaseConfigured()) return getLocalProfiles();
 
   // Always pull member profiles — factory-zero must not hide approved members after login.
-  // Liquidity/bin restoration is gated separately in syncCloudWorkspace.
   const localProfiles = getLocalProfiles();
-  const [remote, remoteKv] = await Promise.all([fetchCloudProfiles(), fetchCloudKv()]);
+  const [remote, remoteKv, remoteBins] = await Promise.all([
+    fetchCloudProfiles(),
+    fetchCloudKv(),
+    fetchCloudBins(),
+  ]);
   const remoteEpoch = getRemoteWorkspaceEpoch(remoteKv);
-  const localEpoch = getWorkspaceEpoch();
 
-  if (shouldAdoptRemoteAdminOnlyWipe(remote, remoteEpoch, localEpoch) || isAdminOnlyDirectory(remote)) {
-    if (remoteEpoch && (!localEpoch || remoteEpoch > localEpoch)) {
-      try {
-        localStorage.setItem("dollar-a-day-factory-zero", "1");
-        localStorage.setItem(WORKSPACE_EPOCH_KEY, remoteEpoch);
-      } catch {
-        /* ignore */
-      }
-      pauseCloudPushes(24 * 60 * 60_000);
-    }
-    // Admin-only cloud: drop stale local members so they cannot be republished.
-    if (isAdminOnlyDirectory(remote) && (isFactoryZeroLocked() || shouldAdoptRemoteAdminOnlyWipe(remote, remoteEpoch, localEpoch))) {
-      const adminOnly = remote.filter((profile) => isAdminProfile(profile)).slice(0, 1);
-      replaceLocalProfiles(adminOnly);
-      return adminOnly;
-    }
+  // Blank cloud (admin-only) always formats this browser to $0 — no stale members/bins.
+  if (shouldAdoptRemoteAdminOnlyWipe(remote)) {
+    applyKvToLocalStorage(remoteKv);
+    lockLocalToRemoteWipe(remoteEpoch);
+    applyAdminOnlyRemoteBins(remoteBins);
+    const adminOnly = remote.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+    replaceLocalProfiles(adminOnly);
+    refreshUiAfterLocalWipe();
+    return adminOnly;
   }
 
   const merged = mergeProfilesForWorkspace(localProfiles, remote);
   replaceLocalProfiles(merged);
 
-  // Never force-publish local approvals onto an admin-only wipe directory.
-  if (!isAdminOnlyDirectory(remote)) {
-    const needsPublish = profilesNeedingApprovalPublish(merged, remote);
-    if (needsPublish.length > 0) {
-      void upsertCloudProfiles(needsPublish, { force: true }).catch((err) =>
-        console.warn("[cloudSync] Approval re-publish after pull failed:", err),
-      );
-    }
+  const needsPublish = profilesNeedingApprovalPublish(merged, remote);
+  if (needsPublish.length > 0) {
+    void upsertCloudProfiles(needsPublish, { force: true }).catch((err) =>
+      console.warn("[cloudSync] Approval re-publish after pull failed:", err),
+    );
   }
 
   return merged;
@@ -1316,46 +1342,25 @@ export async function syncCloudWorkspace(options: {
     const remoteEpoch = getRemoteWorkspaceEpoch(remoteKv);
     const localEpoch = getWorkspaceEpoch();
     const adoptCloudWipe = Boolean(remoteEpoch && (!localEpoch || remoteEpoch > localEpoch));
+    const remoteHasMembers = remoteProfiles.some((profile) => !isAdminProfile(profile));
+    // Never push fat local bins over a blank admin-only cloud.
     const honorLocalReset =
-      Boolean(localEpoch) && (!remoteEpoch || localEpoch! >= remoteEpoch) && !adoptCloudWipe;
+      Boolean(localEpoch) &&
+      (!remoteEpoch || localEpoch! >= remoteEpoch) &&
+      !adoptCloudWipe &&
+      remoteHasMembers;
 
     const binUpserts: Promise<unknown>[] = [];
 
-    const remoteHasMembers = remoteProfiles.some((profile) => !isAdminProfile(profile));
-
-    // Newer cloud factory wipe wins while cloud is still admin-only — even if this
-    // browser still has stale local members. Never unlock/push those members back.
-    if (
-      shouldAdoptRemoteAdminOnlyWipe(remoteProfiles, remoteEpoch, localEpoch) ||
-      (adoptCloudWipe && !remoteHasMembers)
-    ) {
+    // Blank cloud always formats this device to $0 / admin-only (stale local cache ignored).
+    if (shouldAdoptRemoteAdminOnlyWipe(remoteProfiles)) {
       applyKvToLocalStorage(remoteKv);
-      try {
-        localStorage.setItem("dollar-a-day-factory-zero", "1");
-        if (remoteEpoch) {
-          localStorage.setItem(WORKSPACE_EPOCH_KEY, remoteEpoch);
-        }
-      } catch {
-        /* ignore */
-      }
-      pauseCloudPushes(24 * 60 * 60_000);
-
-      beginBulkWrite();
-      try {
-        for (const binId of DAD_BIN_IDS) {
-          const binKey = binKeyForBinId(binId);
-          if (!binKey) continue;
-          const remoteRow = remoteBins.find((row) => row.bin_id === binId);
-          if (remoteRow?.document) {
-            applyExternalBinDocument(binId, binKey, remoteRow.document);
-          }
-        }
-      } finally {
-        endBulkWrite();
-      }
+      lockLocalToRemoteWipe(remoteEpoch);
+      applyAdminOnlyRemoteBins(remoteBins);
 
       const adminOnly = remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1);
       options.replaceLocalProfiles(adminOnly);
+      refreshUiAfterLocalWipe();
 
       // Ensure cloud stays admin-only (prune any race re-uploads from other tabs).
       if (adminOnly.length) {

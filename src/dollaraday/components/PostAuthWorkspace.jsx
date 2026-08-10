@@ -66,7 +66,7 @@ export default function PostAuthWorkspace({ children }) {
         .catch((err) => console.warn("[PostAuthWorkspace] Local hydrate skipped:", err));
     }, 800);
 
-    // Full cloud sync once, deferred — skip while factory-zero lock is active.
+    // Full cloud sync once, deferred. Always run — admin-only cloud wipe applies $0 bins here.
     const cloudTimer = window.setTimeout(() => {
       if (!alive || document.visibilityState !== "visible") return;
 
@@ -80,19 +80,20 @@ export default function PostAuthWorkspace({ children }) {
           } = await import("../lib/supabase/cloudSync");
           if (!alive) return;
 
-          // After pull, only skip full bin sync while wipe lock is still active
-          // and the directory is still admin-only (blank backtest platform).
           const liveMembers = getDadProfiles().filter(
             (profile) => profile.username?.trim().toLowerCase() !== "admin",
           );
-          if (isFactoryZeroLocked() && !liveMembers.length) {
-            return;
-          }
 
-          if (liveMembers.length) {
+          // Only unlock when live members already exist (post-wipe registrations).
+          // Blank admin-only platform keeps the factory-zero lock so stale caches cannot republish.
+          if (liveMembers.length && !isFactoryZeroLocked()) {
             clearFactoryZeroDeliveryLock();
+            pauseCloudPushes(0);
+          } else if (isFactoryZeroLocked() && !liveMembers.length) {
+            // Keep pushes paused; sync still pulls blank bins from cloud.
+          } else {
+            pauseCloudPushes(0);
           }
-          pauseCloudPushes(0);
 
           const cleanupCloud = await initCloudSync({
             getLocalProfiles: getDadProfiles,
