@@ -1345,6 +1345,12 @@ export async function pullCloudProfilesNow(
     applyKvToLocalStorage(remoteKv);
     lockLocalToRemoteWipe(remoteEpoch);
     applyForcedBlankBins();
+    try {
+      const { scrubLocalProfilesToAdminOnly } = await import("../dadProfileStorage");
+      scrubLocalProfilesToAdminOnly();
+    } catch {
+      /* ignore */
+    }
     const adminOnly = remote.filter((profile) => isAdminProfile(profile)).slice(0, 1);
     replaceLocalProfiles(adminOnly);
     refreshUiAfterLocalWipe();
@@ -1357,6 +1363,12 @@ export async function pullCloudProfilesNow(
   // Admin-only cloud without blank lock: still never resurrect local stale caches.
   if (shouldFormatLocalToAdminOnly(remote)) {
     applyForcedBlankBins();
+    try {
+      const { scrubLocalProfilesToAdminOnly } = await import("../dadProfileStorage");
+      scrubLocalProfilesToAdminOnly();
+    } catch {
+      /* ignore */
+    }
     const adminOnly = remote.filter((profile) => isAdminProfile(profile)).slice(0, 1);
     replaceLocalProfiles(adminOnly);
     refreshUiAfterLocalWipe();
@@ -1377,8 +1389,8 @@ export async function pullCloudProfilesNow(
 }
 
 /**
- * Auth-screen fast path: merge a single cloud profile by username.
- * Avoids downloading the whole member directory on every sign-in.
+ * Auth-screen fast path: refresh one username from cloud without resurrecting
+ * the rest of a stale local directory.
  */
 export async function pullCloudProfileForAuth(
   username: string,
@@ -1387,31 +1399,58 @@ export async function pullCloudProfileForAuth(
 ): Promise<DadProfile[]> {
   if (!isSupabaseConfigured()) return getLocalProfiles();
 
-  const localProfiles = getLocalProfiles();
-  const remoteProfile = await fetchCloudProfileByUsername(username);
-  if (!remoteProfile) return localProfiles;
+  const remoteKv = await fetchCloudKv();
+  const remoteEpoch = getRemoteWorkspaceEpoch(remoteKv);
 
-  // Cloud approval/password wins for this username so members can sign in right after approve.
+  // Blank lock: never merge stale local members during login profile load.
+  if (shouldAdoptRemoteBlankPlatform(remoteKv)) {
+    lockLocalToRemoteWipe(remoteEpoch);
+    applyForcedBlankBins();
+    try {
+      const { scrubLocalProfilesToAdminOnly } = await import("../dadProfileStorage");
+      scrubLocalProfilesToAdminOnly();
+    } catch {
+      /* ignore */
+    }
+    const remoteProfiles = await fetchCloudProfiles();
+    const adminOnly = remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+    replaceLocalProfiles(adminOnly);
+    refreshUiAfterLocalWipe();
+    void reassertBlankCloud(adminOnly[0] ?? null, remoteEpoch).catch(() => {});
+    return adminOnly;
+  }
+
+  const remoteProfile = await fetchCloudProfileByUsername(username);
+  if (!remoteProfile) {
+    // Unknown username on an open platform — do not keep painting wiped local members.
+    const remoteProfiles = await fetchCloudProfiles();
+    if (shouldFormatLocalToAdminOnly(remoteProfiles)) {
+      applyForcedBlankBins();
+      const adminOnly = remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+      replaceLocalProfiles(adminOnly);
+      return adminOnly;
+    }
+    return getLocalProfiles();
+  }
+
+  // Upsert ONLY this username into local storage. Never treat [one remote profile]
+  // as the full cloud directory — that kept every stale local member on login.
+  const localProfiles = getLocalProfiles();
   const remoteId = remoteProfile.id;
+  const remoteUser = remoteProfile.username.trim().toLowerCase();
   const withoutStale = localProfiles.filter(
     (profile) =>
-      profile.id !== remoteId &&
-      profile.username.trim().toLowerCase() !== remoteProfile.username.trim().toLowerCase(),
+      profile.id !== remoteId && profile.username.trim().toLowerCase() !== remoteUser,
   );
-  const merged = mergeProfilesForWorkspace([...withoutStale, remoteProfile], [remoteProfile]);
-  // Ensure the cloud approval status is not lost to a newer stale local pending row.
-  const next = merged.map((profile) =>
-    profile.id === remoteId ||
-    profile.username.trim().toLowerCase() === remoteProfile.username.trim().toLowerCase()
-      ? {
-          ...profile,
-          ...remoteProfile,
-          approvalStatus: remoteProfile.approvalStatus ?? profile.approvalStatus,
-          accountStatus: remoteProfile.accountStatus ?? profile.accountStatus,
-          password: remoteProfile.password || profile.password,
-        }
-      : profile,
-  );
+  const next = [
+    ...withoutStale,
+    {
+      ...remoteProfile,
+      approvalStatus: remoteProfile.approvalStatus,
+      accountStatus: remoteProfile.accountStatus,
+      password: remoteProfile.password,
+    },
+  ];
   replaceLocalProfiles(next);
   return next;
 }

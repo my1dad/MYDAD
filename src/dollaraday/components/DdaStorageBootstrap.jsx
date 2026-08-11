@@ -4,6 +4,20 @@ import { ensureLocalBinsHydrated, initInternalDatabase } from "../lib/internalDa
 // Seed bins before first paint so authenticated reload doesn't flash empty balances.
 ensureLocalBinsHydrated();
 
+// If a prior wipe left the blank lock on, never paint stale cached members on boot.
+try {
+  if (
+    localStorage.getItem("dollar-a-day-factory-zero") === "1" ||
+    localStorage.getItem("dollar-a-day-platform-blank") === "1"
+  ) {
+    void import("../lib/dadProfileStorage").then(({ scrubLocalProfilesToAdminOnly }) => {
+      scrubLocalProfilesToAdminOnly();
+    });
+  }
+} catch {
+  /* ignore */
+}
+
 /**
  * Kick off full DB init in the background. Never block first paint / login / nav.
  */
@@ -12,6 +26,14 @@ export default function DdaStorageBootstrap({ children }) {
     void initInternalDatabase().catch((err) => {
       console.warn("[DdaStorageBootstrap] Storage init issue, continuing:", err);
     });
+
+    // Cloud blank lock wins over any local profile cache as soon as the app boots.
+    void import("../lib/supabase/cloudSync")
+      .then(async ({ pullCloudProfilesNow }) => {
+        const { getDadProfiles, replaceAllDadProfiles } = await import("../lib/dadProfileStorage");
+        await pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+      })
+      .catch((err) => console.warn("[DdaStorageBootstrap] Cloud blank pull skipped:", err));
   }, []);
 
   return <div className="h-full w-full overflow-hidden">{children}</div>;

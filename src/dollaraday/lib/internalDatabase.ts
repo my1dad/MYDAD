@@ -611,11 +611,12 @@ export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
     clearLocalDadBinKeys();
     try {
       localStorage.setItem("dollar-a-day-factory-zero", "1");
+      localStorage.setItem("dollar-a-day-platform-blank", "1");
       // Drop non-bin app state that can resurrect deposits / recurring / equity.
-      // Never touch dollar-a-day-profiles here — that deleted approved members on every reload.
       for (const key of Object.keys(localStorage)) {
         if (!key.startsWith("dollar-a-day")) continue;
         if (key === "dollar-a-day-factory-zero") continue;
+        if (key === "dollar-a-day-platform-blank") continue;
         if (key === "dollar-a-day-workspace-epoch") continue;
         if (key === "dollar-a-day-profiles") continue;
         if (key === "dollar-a-day-session") continue;
@@ -625,6 +626,15 @@ export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
     } catch {
       /* ignore */
     }
+    // Strip stale members from profiles; keep master admin only.
+    void import("./dadProfileStorage")
+      .then(({ scrubLocalProfilesToAdminOnly, ensureDadAdminProfile }) => {
+        const kept = scrubLocalProfilesToAdminOnly();
+        if (!kept.length) {
+          void ensureDadAdminProfile();
+        }
+      })
+      .catch(() => {});
     void import("./supabase/cloudSync").then(({ pauseCloudPushes, bumpWorkspaceEpoch }) => {
       bumpWorkspaceEpoch();
       pauseCloudPushes(24 * 60 * 60_000);

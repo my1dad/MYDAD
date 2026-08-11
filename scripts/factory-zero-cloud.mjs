@@ -141,6 +141,31 @@ async function wipeOnce(pass) {
     const { error } = await sb.from("dad_profiles").delete().in("id", chunk);
     if (error) throw error;
   }
+
+  // Delete leftover bins/kv from ANY other workspace id (e.g. my-dollar-a-day).
+  const { data: foreignBins } = await sb
+    .from("dad_bins")
+    .select("workspace_id,bin_id")
+    .neq("workspace_id", WORKSPACE);
+  for (const row of foreignBins || []) {
+    await sb
+      .from("dad_bins")
+      .delete()
+      .eq("workspace_id", row.workspace_id)
+      .eq("bin_id", row.bin_id);
+  }
+  const { data: foreignKv } = await sb
+    .from("dad_kv")
+    .select("workspace_id,scope_key,kv_key")
+    .neq("workspace_id", WORKSPACE);
+  for (const row of foreignKv || []) {
+    await sb
+      .from("dad_kv")
+      .delete()
+      .eq("workspace_id", row.workspace_id)
+      .eq("scope_key", row.scope_key)
+      .eq("kv_key", row.kv_key);
+  }
   const { error: upsertAdminErr } = await sb.from("dad_profiles").upsert(
     {
       ...admin,

@@ -82,9 +82,26 @@ export interface RememberLoginPrefs {
 
 let profilesCache: DadProfile[] | null = null;
 
+function isLocalBlankPlatformLocked(): boolean {
+  try {
+    return (
+      localStorage.getItem("dollar-a-day-factory-zero") === "1" ||
+      localStorage.getItem("dollar-a-day-platform-blank") === "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** While the platform is blank-locked, never surface stale cached members. */
+function filterProfilesForBlankLock(profiles: DadProfile[]): DadProfile[] {
+  if (!isLocalBlankPlatformLocked()) return profiles;
+  return profiles.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+}
+
 function readProfiles(): DadProfile[] {
   try {
-    if (profilesCache) return profilesCache;
+    if (profilesCache) return filterProfilesForBlankLock(profilesCache);
     const raw = localStorage.getItem(PROFILES_KEY);
     if (!raw) {
       profilesCache = [];
@@ -92,11 +109,36 @@ function readProfiles(): DadProfile[] {
     }
     const parsed = JSON.parse(raw) as DadProfile[];
     profilesCache = Array.isArray(parsed) ? parsed : [];
-    return profilesCache;
+    return filterProfilesForBlankLock(profilesCache);
   } catch {
     profilesCache = [];
     return profilesCache;
   }
+}
+
+/** Drop every non-admin profile from local cache/storage (blank platform). */
+export function scrubLocalProfilesToAdminOnly(): DadProfile[] {
+  const current = (() => {
+    try {
+      if (profilesCache) return profilesCache;
+      const raw = localStorage.getItem(PROFILES_KEY);
+      if (!raw) return [] as DadProfile[];
+      const parsed = JSON.parse(raw) as DadProfile[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [] as DadProfile[];
+    }
+  })();
+  const adminOnly = current.filter((profile) => isAdminProfile(profile)).slice(0, 1);
+  try {
+    localStorage.setItem("dollar-a-day-factory-zero", "1");
+    localStorage.setItem("dollar-a-day-platform-blank", "1");
+  } catch {
+    /* ignore */
+  }
+  // Do not push scrubbed directory to cloud — blank lock handles cloud separately.
+  writeProfiles(adminOnly, { stamp: false, pushToCloud: false });
+  return adminOnly;
 }
 
 /** Never restamp the whole directory — that let stale pending overwrite cloud approved. */
@@ -119,11 +161,16 @@ function writeProfiles(
     next = profiles.map((profile) => ({ ...profile }));
   }
 
-  localStorage.setItem(PROFILES_KEY, JSON.stringify(next));
-  profilesCache = next;
+  // Blank lock: never persist stale members back into localStorage or queue a cloud push.
+  const safeNext = isLocalBlankPlatformLocked()
+    ? next.filter((profile) => isAdminProfile(profile)).slice(0, 1)
+    : next;
+
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(safeNext));
+  profilesCache = safeNext;
   notifyProfileListeners();
 
-  if (pushToCloud) {
+  if (pushToCloud && !isLocalBlankPlatformLocked()) {
     queueMicrotask(() => {
       void import("./supabase/cloudSync").then(({ scheduleCloudProfilesPush }) => {
         scheduleCloudProfilesPush();
