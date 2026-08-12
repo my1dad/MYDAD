@@ -303,11 +303,11 @@ export async function approveDadProfileByAdmin(
   try {
     const { persistMembersToCloud, scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
     // Force-persist approved member to Supabase (and members bin) so they stay saved.
-    const pushed = await persistMembersToCloud([updated]);
+    const pushed = await persistMembersToCloud([updated], { openPlatform: true });
     if (!pushed) {
       // Retry once more after a short delay — first attempt can race a reset lock.
       await new Promise((resolve) => window.setTimeout(resolve, 400));
-      const retried = await persistMembersToCloud([updated]);
+      const retried = await persistMembersToCloud([updated], { openPlatform: true });
       if (!retried) {
         scheduleCloudProfilesPush();
         console.warn(
@@ -319,7 +319,7 @@ export async function approveDadProfileByAdmin(
     console.warn("[profileAdmin] Approval cloud push failed:", err);
     try {
       const { persistMembersToCloud, scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
-      await persistMembersToCloud([updated]);
+      await persistMembersToCloud([updated], { openPlatform: true });
       scheduleCloudProfilesPush();
     } catch {
       /* ignore */
@@ -361,7 +361,7 @@ export async function denyDadProfileByAdmin(
 
   try {
     const { persistMembersToCloud } = await import("./supabase/cloudSync");
-    await persistMembersToCloud([updated]);
+    await persistMembersToCloud([updated], { openPlatform: true });
   } catch (err) {
     console.warn("[profileAdmin] Deny cloud push failed:", err);
   }

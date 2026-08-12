@@ -405,7 +405,7 @@ export async function createDadProfile(input: {
   // Clears factory-zero first — otherwise the member row is silently dropped.
   try {
     const { persistMembersToCloud, scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
-    const pushed = await persistMembersToCloud([profile]);
+    const pushed = await persistMembersToCloud([profile], { openPlatform: true });
     if (!pushed) {
       console.warn("[dadProfileStorage] Cloud profile push failed after create; queued retry.");
       queueMicrotask(() => {

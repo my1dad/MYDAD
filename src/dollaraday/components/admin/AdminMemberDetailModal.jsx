@@ -29,10 +29,7 @@ import { getDatabaseRevision, readDataBin, subscribeInternalDatabase } from "../
 import { adminSetMemberWalletBalances, useMemberAccounts } from "../../lib/memberAccounts";
 import { adminSetMemberDirectoryBalances } from "../../lib/memberRegistry";
 import { buildAdminMemberDetail } from "../../lib/profileRegistry";
-import {
-  clearFactoryZeroDeliveryLock,
-  pushCloudBinsNow,
-} from "../../lib/supabase/cloudSync";
+import { pushCloudBinsNow } from "../../lib/supabase/cloudSync";
 
 function DetailSection({ title, children, className }) {
   return (
@@ -421,7 +418,6 @@ export default function AdminMemberDetailModal({
       }
       setCheckingInput(formatMoneyAmount(checking));
       try {
-        clearFactoryZeroDeliveryLock();
         await pushCloudBinsNow(
           [
             { binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") },

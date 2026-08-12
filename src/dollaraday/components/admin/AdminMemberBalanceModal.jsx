@@ -242,10 +242,13 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
       setSaved(true);
 
       try {
-        const { clearFactoryZeroDeliveryLock, pushCloudBinsNow } = await import(
+        const { isFactoryZeroLocked, pushCloudBinsNow } = await import(
           "../../lib/supabase/cloudSync"
         );
-        clearFactoryZeroDeliveryLock();
+        // Never unlock blank wipe just to push deposits — that resurrected old ledgers.
+        if (isFactoryZeroLocked()) {
+          /* keep lock; blank-platform bin guard will allow only $0 docs */
+        }
         await pushCloudBinsNow(
           [
             { binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") },

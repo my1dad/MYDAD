@@ -250,6 +250,7 @@ function lockLocalToRemoteWipe(remoteEpoch: string | null): void {
   } catch {
     /* ignore */
   }
+  purgeLocalWorkspaceArtifacts();
   pauseCloudPushes(24 * 60 * 60_000);
   blankPlatformCache = { value: true, checkedAt: Date.now() };
 }
@@ -427,7 +428,7 @@ async function isCloudPlatformBlank(): Promise<boolean> {
   }
 }
 
-/** Overwrite cloud bins/profiles back to blank whenever a stale device raced a wipe. */
+/** Overwrite cloud bins/profiles/kv back to blank whenever a stale device raced a wipe. */
 async function reassertBlankCloud(admin: DadProfile | null, epoch: string | null): Promise<void> {
   const stamp = epoch || new Date().toISOString();
   await setCloudPlatformBlank(stamp);
@@ -447,6 +448,23 @@ async function reassertBlankCloud(admin: DadProfile | null, epoch: string | null
       await upsertCloudBin(binId, blankDocumentForBin(binKey, stamp), { blankWrite: true });
     }),
   );
+
+  // Drop stale notification/DM kv that old browsers keep re-uploading.
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    for (const key of SYNCED_KV_KEYS) {
+      if (key === WORKSPACE_EPOCH_KEY || key === PLATFORM_BLANK_KEY) continue;
+      const { error } = await supabase
+        .from("dad_kv")
+        .delete()
+        .eq("workspace_id", DAD_WORKSPACE_ID)
+        .eq("scope_key", GLOBAL_KV_SCOPE)
+        .eq("kv_key", key);
+      if (error) {
+        console.warn(`[cloudSync] Failed to clear stale kv ${key}:`, error.message);
+      }
+    }
+  }
 }
 
 /** Merge local/remote profiles while dropping pre-wipe members; reopen delivery lock when new members appear. */
@@ -917,7 +935,19 @@ async function fetchCloudKv(): Promise<CloudKvRow[]> {
 }
 
 function applyKvToLocalStorage(rows: CloudKvRow[]): void {
+  const blank = isPlatformBlankFromKv(rows) || isFactoryZeroLocked();
+
   for (const key of SYNCED_KV_KEYS) {
+    // Blank platform: never restore stale notifications / DMs / locale junk from cloud.
+    if (blank && key !== WORKSPACE_EPOCH_KEY && key !== PLATFORM_BLANK_KEY) {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        /* ignore */
+      }
+      continue;
+    }
+
     const remote = rows.find((row) => row.scope_key === GLOBAL_KV_SCOPE && row.kv_key === key);
     if (!remote) continue;
 
@@ -941,6 +971,33 @@ function applyKvToLocalStorage(rows: CloudKvRow[]): void {
       console.warn(`[cloudSync] Could not apply kv ${key}:`, err);
     }
   }
+}
+
+/** Wipe local dollar-a-day artifacts so stale browsers cannot paint old members/alerts. */
+function purgeLocalWorkspaceArtifacts(): void {
+  try {
+    localStorage.setItem("dollar-a-day-factory-zero", "1");
+    localStorage.setItem(PLATFORM_BLANK_KEY, "1");
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith("dollar-a-day") && key !== "dda-locale") continue;
+      if (key === "dollar-a-day-factory-zero") continue;
+      if (key === PLATFORM_BLANK_KEY) continue;
+      if (key === WORKSPACE_EPOCH_KEY) continue;
+      if (key === "dollar-a-day-session") continue;
+      if (key === "dollar-a-day-persistent-session") continue;
+      if (key === "dollar-a-day-remember-login") continue;
+      // Profiles scrubbed separately to admin-only.
+      if (key === "dollar-a-day-profiles") continue;
+      localStorage.removeItem(key);
+    }
+  } catch {
+    /* ignore */
+  }
+  void import("../dadProfileStorage")
+    .then(({ scrubLocalProfilesToAdminOnly }) => {
+      scrubLocalProfilesToAdminOnly();
+    })
+    .catch(() => {});
 }
 
 async function upsertCloudBin(
@@ -1144,17 +1201,31 @@ export async function pushCloudProfilesNow(
 
 /**
  * Persist member profiles + members bin after signup/approval so they stay in Supabase.
- * Clears the factory-zero lock first — otherwise member rows are dropped on purpose.
+ * While the platform blank lock is set, this is a no-op unless `openPlatform: true`
+ * (only new signup / admin approve|deny may open the platform).
  */
-export async function persistMembersToCloud(profiles: DadProfile[]): Promise<boolean> {
+export async function persistMembersToCloud(
+  profiles: DadProfile[],
+  options: { openPlatform?: boolean } = {},
+): Promise<boolean> {
   if (!isSupabaseConfigured()) return true;
   if (!profiles.length) return true;
 
-  // Intentional post-wipe member write — open the platform blank lock first.
-  clearFactoryZeroDeliveryLock();
-  await clearCloudPlatformBlank();
+  const blank = await isCloudPlatformBlank();
+  if (blank && !options.openPlatform) {
+    console.warn(
+      "[cloudSync] Blocked persistMembersToCloud while blank lock is active (stale device).",
+    );
+    return false;
+  }
+
+  // Intentional post-wipe member write — only then open the platform blank lock.
+  if (options.openPlatform) {
+    clearFactoryZeroDeliveryLock();
+    await clearCloudPlatformBlank();
+    blankPlatformCache = { value: false, checkedAt: Date.now() };
+  }
   pauseCloudPushes(0);
-  blankPlatformCache = { value: false, checkedAt: Date.now() };
 
   const pushed = await pushCloudProfilesNow(profiles, { force: true });
   if (!pushed) return false;
@@ -1458,6 +1529,16 @@ export async function pullCloudProfileForAuth(
 async function upsertCloudKv(scopeKey: string, kvKey: string, rawValue: string | null): Promise<void> {
   const supabase = getSupabaseClient();
   if (!supabase || rawValue == null) return;
+
+  // Blank lock: only wipe epoch / blank flag may be written. Stale DM/notification
+  // caches from old browsers were reappearing through this path.
+  if (kvKey !== WORKSPACE_EPOCH_KEY && kvKey !== PLATFORM_BLANK_KEY) {
+    const blank = await isCloudPlatformBlank();
+    if (blank) {
+      console.warn(`[cloudSync] Blocked kv push for ${kvKey} onto blank platform.`);
+      return;
+    }
+  }
 
   let parsed: unknown = rawValue;
   try {

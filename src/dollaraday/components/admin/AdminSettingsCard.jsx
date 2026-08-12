@@ -316,12 +316,14 @@ export default function AdminSettingsCard() {
     setStatus("");
     setSyncingCloud(true);
     try {
-      const { clearFactoryZeroDeliveryLock, pauseCloudPushes } = await import(
+      const { isFactoryZeroLocked, pauseCloudPushes } = await import(
         "../../lib/supabase/cloudSync"
       );
-      // Explicit admin sync reopens the platform after a master reset wipe lock.
-      clearFactoryZeroDeliveryLock();
-      pauseCloudPushes(0);
+      // Never unlock a blank wipe from "Cloud sync now" — that let stale browsers
+      // reopen the platform and re-upload old backtest data.
+      if (!isFactoryZeroLocked()) {
+        pauseCloudPushes(0);
+      }
 
       await syncCloudWorkspace({
         getLocalProfiles: getDadProfiles,
@@ -337,7 +339,9 @@ export default function AdminSettingsCard() {
       } else {
         setStatus(
           next.ready
-            ? "Cloud sync complete — all member profiles and workspace data are shared worldwide."
+            ? isFactoryZeroLocked()
+              ? "Cloud sync complete — blank platform lock is still active ($0 / admin only)."
+              : "Cloud sync complete — all member profiles and workspace data are shared worldwide."
             : "Cloud sync is not configured. Add VITE_SUPABASE_ANON_KEY to .env.",
         );
       }
