@@ -301,7 +301,11 @@ export async function approveDadProfileByAdmin(
   });
 
   try {
-    const { persistMembersToCloud, scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
+    const { clearFactoryZeroDeliveryLock, clearCloudPlatformBlank, persistMembersToCloud, scheduleCloudProfilesPush } =
+      await import("./supabase/cloudSync");
+    // Open blank lock before persist so approval is not scrubbed by a concurrent wipe.
+    clearFactoryZeroDeliveryLock();
+    await clearCloudPlatformBlank();
     // Force-persist approved member to Supabase (and members bin) so they stay saved.
     const pushed = await persistMembersToCloud([updated], { openPlatform: true });
     if (!pushed) {

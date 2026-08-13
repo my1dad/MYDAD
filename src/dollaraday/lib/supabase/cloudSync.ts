@@ -417,12 +417,14 @@ async function isCloudPlatformBlank(): Promise<boolean> {
     return blankPlatformCache.value;
   }
   try {
-    const [remoteProfiles, remoteKv] = await Promise.all([fetchCloudProfiles(), fetchCloudKv()]);
-    const blank = isPlatformBlankFromKv(remoteKv) || isAdminOnlyDirectory(remoteProfiles);
+    // ONLY the explicit blank KV flag. Admin-only must NOT count as blank —
+    // otherwise the first new signup is treated as a wipe target and deleted.
+    const remoteKv = await fetchCloudKv();
+    const blank = isPlatformBlankFromKv(remoteKv);
     blankPlatformCache = { value: blank, checkedAt: Date.now() };
     return blank;
   } catch {
-    const fallback = localStorage.getItem(PLATFORM_BLANK_KEY) === "1" || isFactoryZeroLocked();
+    const fallback = localStorage.getItem(PLATFORM_BLANK_KEY) === "1";
     blankPlatformCache = { value: fallback, checkedAt: Date.now() };
     return fallback;
   }
@@ -430,6 +432,31 @@ async function isCloudPlatformBlank(): Promise<boolean> {
 
 /** Overwrite cloud bins/profiles/kv back to blank whenever a stale device raced a wipe. */
 async function reassertBlankCloud(admin: DadProfile | null, epoch: string | null): Promise<void> {
+  // Abort if signup/approve already opened the platform while this wipe was in-flight.
+  const remoteKv = await fetchCloudKv();
+  if (!isPlatformBlankFromKv(remoteKv) && localStorage.getItem(PLATFORM_BLANK_KEY) !== "1") {
+    blankPlatformCache = { value: false, checkedAt: Date.now() };
+    console.warn("[cloudSync] Skipping blank reassert — platform blank lock was cleared.");
+    return;
+  }
+
+  // If live members already exist, never delete them — that made new signups disappear.
+  const existing = await fetchCloudProfiles();
+  if (existing.some((profile) => !isAdminProfile(profile))) {
+    blankPlatformCache = { value: false, checkedAt: Date.now() };
+    await clearCloudPlatformBlank();
+    clearFactoryZeroDeliveryLock();
+    console.warn("[cloudSync] Skipping blank reassert — live members already present.");
+    return;
+  }
+
+  // Final race check immediately before destructive writes.
+  const kvAgain = await fetchCloudKv();
+  if (!isPlatformBlankFromKv(kvAgain) && localStorage.getItem(PLATFORM_BLANK_KEY) !== "1") {
+    blankPlatformCache = { value: false, checkedAt: Date.now() };
+    return;
+  }
+
   const stamp = epoch || new Date().toISOString();
   await setCloudPlatformBlank(stamp);
 
@@ -469,8 +496,20 @@ async function reassertBlankCloud(admin: DadProfile | null, epoch: string | null
 
 /** Merge local/remote profiles while dropping pre-wipe members; reopen delivery lock when new members appear. */
 function mergeProfilesForWorkspace(local: DadProfile[], remote: DadProfile[]): DadProfile[] {
-  // Admin-only cloud = blank platform. Never keep local-only members.
-  if (isAdminOnlyDirectory(remote)) {
+  // Only while the blank lock is active may we drop local-only members.
+  // After the first intentional signup opens the platform, local pending members must survive
+  // until their cloud upsert lands — otherwise they "disappear" on the next pull.
+  const blankLocked =
+    isFactoryZeroLocked() ||
+    (() => {
+      try {
+        return localStorage.getItem(PLATFORM_BLANK_KEY) === "1";
+      } catch {
+        return false;
+      }
+    })();
+
+  if (blankLocked && isAdminOnlyDirectory(remote)) {
     const adminRemote = remote.filter((profile) => isAdminProfile(profile)).slice(0, 1);
     return adminRemote.length
       ? adminRemote
@@ -490,11 +529,13 @@ function mergeProfilesForWorkspace(local: DadProfile[], remote: DadProfile[]): D
 export function clearFactoryZeroDeliveryLock(): void {
   try {
     localStorage.removeItem("dollar-a-day-factory-zero");
+    localStorage.removeItem(PLATFORM_BLANK_KEY);
     // Epoch was used to hide pre-wipe cloud rows; leaving it set keeps Members empty.
     localStorage.removeItem(WORKSPACE_EPOCH_KEY);
   } catch {
     /* ignore */
   }
+  blankPlatformCache = { value: false, checkedAt: Date.now() };
   cloudPushPausedUntil = 0;
   // Also clear the on-disk FACTORY_ZERO.lock (dev) — it was wiping members on every boot.
   void import("../internalDatabase")
@@ -1431,20 +1472,8 @@ export async function pullCloudProfilesNow(
     return adminOnly;
   }
 
-  // Admin-only cloud without blank lock: still never resurrect local stale caches.
-  if (shouldFormatLocalToAdminOnly(remote)) {
-    applyForcedBlankBins();
-    try {
-      const { scrubLocalProfilesToAdminOnly } = await import("../dadProfileStorage");
-      scrubLocalProfilesToAdminOnly();
-    } catch {
-      /* ignore */
-    }
-    const adminOnly = remote.filter((profile) => isAdminProfile(profile)).slice(0, 1);
-    replaceLocalProfiles(adminOnly);
-    refreshUiAfterLocalWipe();
-    return adminOnly;
-  }
+  // Open platform (blank lock cleared): merge normally so brand-new local signups
+  // are not deleted while their cloud upsert is still in flight.
 
   const merged = mergeProfilesForWorkspace(localProfiles, remote);
   replaceLocalProfiles(merged);
@@ -1493,14 +1522,6 @@ export async function pullCloudProfileForAuth(
 
   const remoteProfile = await fetchCloudProfileByUsername(username);
   if (!remoteProfile) {
-    // Unknown username on an open platform — do not keep painting wiped local members.
-    const remoteProfiles = await fetchCloudProfiles();
-    if (shouldFormatLocalToAdminOnly(remoteProfiles)) {
-      applyForcedBlankBins();
-      const adminOnly = remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1);
-      replaceLocalProfiles(adminOnly);
-      return adminOnly;
-    }
     return getLocalProfiles();
   }
 
@@ -1708,18 +1729,6 @@ export async function syncCloudWorkspace(options: {
         console.warn("[cloudSync] Blank cloud reassert failed:", err);
       }
 
-      lastSyncAt = new Date().toISOString();
-      lastSyncError = null;
-      notifyCloudStatusListeners();
-      return;
-    }
-
-    // Admin-only without blank lock: keep local UI empty; do not push stale fat bins.
-    if (shouldFormatLocalToAdminOnly(remoteProfiles)) {
-      applyForcedBlankBins();
-      const adminOnly = remoteProfiles.filter((profile) => isAdminProfile(profile)).slice(0, 1);
-      options.replaceLocalProfiles(adminOnly);
-      refreshUiAfterLocalWipe();
       lastSyncAt = new Date().toISOString();
       lastSyncError = null;
       notifyCloudStatusListeners();

@@ -393,7 +393,29 @@ export async function createDadProfile(input: {
     updatedAt: now,
   };
 
-  const next = [...readProfiles(), profile];
+  // Open blank/factory locks BEFORE writing — otherwise writeProfiles strips the new
+  // member immediately and they "disappear" from the UI.
+  try {
+    const { clearFactoryZeroDeliveryLock, clearCloudPlatformBlank } = await import(
+      "./supabase/cloudSync"
+    );
+    clearFactoryZeroDeliveryLock();
+    await clearCloudPlatformBlank();
+  } catch (err) {
+    console.warn("[dadProfileStorage] Could not clear blank lock before create:", err);
+  }
+
+  const existing = (() => {
+    try {
+      const raw = localStorage.getItem(PROFILES_KEY);
+      if (!raw) return [] as DadProfile[];
+      const parsed = JSON.parse(raw) as DadProfile[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [] as DadProfile[];
+    }
+  })();
+  const next = [...existing.filter((item) => item.id !== profile.id), profile];
   writeProfiles(next, { stamp: false, pushToCloud: false });
 
   // Email master admin that a new profile needs approval (never block signup).
@@ -402,7 +424,6 @@ export async function createDadProfile(input: {
   });
 
   // Await cloud publish so master admin sees the new member on other devices immediately.
-  // Clears factory-zero first — otherwise the member row is silently dropped.
   try {
     const { persistMembersToCloud, scheduleCloudProfilesPush } = await import("./supabase/cloudSync");
     const pushed = await persistMembersToCloud([profile], { openPlatform: true });
@@ -411,6 +432,22 @@ export async function createDadProfile(input: {
       queueMicrotask(() => {
         scheduleCloudProfilesPush();
       });
+    } else {
+      // Re-assert local directory after cloud publish (guards against a raced scrub).
+      writeProfiles(
+        (() => {
+          try {
+            const raw = localStorage.getItem(PROFILES_KEY);
+            const parsed = raw ? (JSON.parse(raw) as DadProfile[]) : [];
+            const list = Array.isArray(parsed) ? parsed : [];
+            if (list.some((item) => item.id === profile.id)) return list;
+            return [...list, profile];
+          } catch {
+            return [profile];
+          }
+        })(),
+        { stamp: false, pushToCloud: false },
+      );
     }
   } catch (err) {
     console.warn("[dadProfileStorage] Cloud profile push failed after create:", err);
