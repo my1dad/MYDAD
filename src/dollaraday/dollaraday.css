@@ -922,6 +922,179 @@ select.dda-bank-transfer-route__select:focus {
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+.dda-home-activity {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    0 20px 40px -16px rgba(var(--dda-accent-rgb), 0.12),
+    0 8px 24px -12px rgba(var(--dda-gold-rgb), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  padding: 1.05rem 1.1rem 1.15rem;
+}
+
+.dda-home-activity__head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.dda-home-activity__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #f8fafc;
+}
+
+.dda-home-activity__empty {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: rgb(107, 114, 128);
+}
+
+.dda-home-activity__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dda-home-activity__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.dda-home-activity__item:hover {
+  border-color: color-mix(in srgb, var(--color-dda-green-light) 35%, transparent);
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.dda-home-activity__item:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-dda-green-light) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.dda-home-activity__item-icon {
+  display: inline-flex;
+  height: 1.85rem;
+  width: 1.85rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--color-dda-green-light) 14%, transparent);
+  color: var(--color-dda-green-light);
+}
+
+.dda-home-activity__item-icon--money {
+  background: color-mix(in srgb, var(--color-dda-gold-light) 16%, transparent);
+  color: var(--color-dda-gold-light);
+}
+
+.dda-home-activity__item-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.dda-home-activity__item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.dda-home-activity__time {
+  font-size: 0.6875rem;
+  color: rgb(107, 114, 128);
+}
+
+.dda-home-activity__item-arrow {
+  flex-shrink: 0;
+  color: rgba(156, 163, 175, 0.7);
+  opacity: 0.55;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.dda-home-activity__item:hover .dda-home-activity__item-arrow {
+  opacity: 1;
+  transform: translate(1px, -1px);
+  color: var(--color-dda-green-light);
+}
+
+.dda-home-activity__pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-top: 0.15rem;
+}
+
+.dda-home-activity__pager-btn {
+  display: inline-flex;
+  height: 1.85rem;
+  width: 1.85rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(226, 232, 240, 0.9);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-home-activity__pager-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-dda-green-light) 40%, transparent);
+  color: #fff;
+}
+
+.dda-home-activity__pager-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.dda-home-activity__pager-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-dda-green-light) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.dda-home-activity__pager-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgb(156, 163, 175);
+}
+
 .dda-glow-green {
   background: color-mix(in srgb, var(--color-dda-green) 10%, transparent);
 }
@@ -1238,6 +1411,281 @@ select.dda-bank-transfer-route__select:focus {
   color: #93c5fd;
 }
 
+.dda-liquidity-widget {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-dda-gold-light) 28%, transparent);
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--color-dda-gold) 22%, transparent), transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, color-mix(in srgb, var(--color-dda-green) 12%, transparent), transparent 50%),
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.09) 0%,
+      rgba(12, 18, 14, 0.94) 42%,
+      rgba(6, 12, 10, 0.98) 100%
+    );
+  box-shadow:
+    0 22px 44px -22px color-mix(in srgb, var(--color-dda-gold) 34%, transparent),
+    0 14px 28px -18px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 color-mix(in srgb, var(--color-dda-gold-light) 18%, transparent);
+}
+
+.dda-liquidity-widget .dda-accent-bar {
+  background: linear-gradient(
+    90deg,
+    var(--color-dda-gold-deep) 0%,
+    var(--color-dda-gold) 42%,
+    var(--color-dda-gold-light) 78%,
+    var(--color-dda-green-light) 100%
+  );
+}
+
+.dda-liquidity-widget__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.05rem 1.1rem;
+}
+
+.dda-liquidity-widget__body--interactive {
+  cursor: pointer;
+}
+
+.dda-liquidity-widget__body--interactive:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    transparent 40%
+  );
+}
+
+.dda-liquidity-widget__body--interactive:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-dda-gold-light) 70%, white);
+  outline-offset: -2px;
+}
+
+.dda-liquidity-widget__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dda-liquidity-widget__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-dda-gold-light) 88%, white);
+}
+
+.dda-liquidity-widget__title {
+  margin: 0.2rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #f8fafc;
+}
+
+.dda-liquidity-widget__live {
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-dda-green-light) 35%, transparent);
+  background: color-mix(in srgb, var(--color-dda-green) 16%, transparent);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-dda-green-light);
+}
+
+.dda-liquidity-widget__balance-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dda-liquidity-widget__balance-label {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(156, 163, 175);
+}
+
+.dda-liquidity-widget__balance {
+  margin: 0.2rem 0 0;
+  font-size: clamp(1.55rem, 4vw, 1.95rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: #fff;
+  text-shadow: 0 10px 30px color-mix(in srgb, var(--color-dda-gold) 28%, transparent);
+}
+
+.dda-liquidity-widget__growth {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-dda-green) 16%, transparent);
+  padding: 0.3rem 0.55rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-dda-green-light);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-dda-green-light) 28%, transparent);
+}
+
+.dda-liquidity-widget__chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+@media (min-width: 640px) {
+  .dda-liquidity-widget__chips {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.dda-liquidity-widget__chip {
+  border-radius: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--color-dda-gold-light) 16%, transparent);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 0.45rem 0.55rem;
+}
+
+.dda-liquidity-widget__chip-label {
+  margin: 0;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(107, 114, 128);
+}
+
+.dda-liquidity-widget__chip-value {
+  margin: 0.15rem 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.dda-liquidity-widget__chip-value--inflow {
+  color: var(--color-dda-green-light);
+}
+
+.dda-liquidity-widget__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dda-liquidity-widget__meta,
+.dda-liquidity-widget__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: rgb(156, 163, 175);
+}
+
+.dda-liquidity-widget__cta {
+  color: color-mix(in srgb, var(--color-dda-gold-light) 90%, white);
+}
+
+.dda-liquidity-widget__body--interactive:hover .dda-liquidity-widget__cta {
+  color: var(--color-dda-gold-light);
+}
+
+.dda-liquidity-widget__transfer-btn,
+.dda-member-bank__transfer-btn {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  border-radius: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--color-dda-gold-light) 28%, transparent);
+  background: color-mix(in srgb, var(--color-dda-gold) 12%, rgba(0, 0, 0, 0.28));
+  padding: 0.55rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-dda-gold-light) 92%, white);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-member-bank__transfer-btn {
+  border-color: rgba(147, 197, 253, 0.28);
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+}
+
+.dda-liquidity-widget__transfer-btn:hover,
+.dda-member-bank__transfer-btn:hover {
+  filter: brightness(1.08);
+}
+
+.dda-liquidity-widget__transfer-btn:focus-visible,
+.dda-member-bank__transfer-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-dda-gold-light) 70%, white);
+  outline-offset: 2px;
+}
+
+.dda-member-bank__transfer-btn:focus-visible {
+  outline-color: color-mix(in srgb, #60a5fa 70%, white);
+}
+
+.dda-member-bank__request-btn {
+  border-color: transparent;
+  background: transparent;
+  color: rgba(156, 163, 175, 0.9);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-member-bank__request-btn:hover {
+  border-color: color-mix(in srgb, var(--color-dda-green-light) 32%, transparent);
+  background: color-mix(in srgb, var(--color-dda-green) 14%, rgba(0, 0, 0, 0.28));
+  color: color-mix(in srgb, var(--color-dda-green-light) 92%, white);
+  filter: none;
+}
+
+.dda-member-bank__request-btn:focus-visible {
+  outline-color: color-mix(in srgb, var(--color-dda-green-light) 70%, white);
+  border-color: color-mix(in srgb, var(--color-dda-green-light) 32%, transparent);
+  background: color-mix(in srgb, var(--color-dda-green) 14%, rgba(0, 0, 0, 0.28));
+  color: color-mix(in srgb, var(--color-dda-green-light) 92%, white);
+}
+
+.dda-admin-transfer-modal {
+  max-height: min(88dvh, 34rem);
+  overflow-y: auto;
+}
+
 .dda-member-bank--admin .dda-member-bank__cta {
   color: #93c5fd;
 }
@@ -1279,14 +1727,23 @@ select.dda-bank-transfer-route__select:focus {
 }
 
 .dda-member-bank__greeting {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
   margin: 0;
   flex: 1 1 auto;
   min-width: 0;
   font-size: 0.9rem;
   line-height: 1.3;
-  white-space: nowrap;
+}
+
+.dda-member-bank__greeting .dda-home-greeting__name {
+  display: block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dda-member-bank__brand {
@@ -1509,6 +1966,10 @@ select.dda-bank-transfer-route__select:focus {
   text-align: right;
 }
 
+.dda-member-bank__balance-col--cash {
+  text-align: right;
+}
+
 .dda-member-bank__balance-label {
   margin: 0;
   font-size: 0.68rem;
@@ -1523,16 +1984,35 @@ select.dda-bank-transfer-route__select:focus {
   letter-spacing: -0.04em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: #fff;
-  text-shadow: 0 10px 30px rgba(var(--dda-accent-rgb), 0.18);
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    var(--color-dda-green-soft) 42%,
+    var(--color-dda-gold-soft) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .dda-member-bank__balance--donated {
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
   color: #6ee7b7;
   text-shadow: 0 10px 30px rgba(var(--dda-accent-rgb), 0.28);
+}
+
+.dda-member-bank__balance--cash {
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  color: #fde68a;
+  text-shadow: 0 10px 30px rgba(250, 204, 21, 0.22);
 }
 
 .dda-member-bank__chips {
@@ -2784,6 +3264,24 @@ select.dda-bank-transfer-route__select:focus {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.22);
   padding: 0.4rem 0.55rem;
+}
+
+.dda-pool-widget__stat--link {
+  width: 100%;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.dda-pool-widget__stat--link:hover {
+  border-color: color-mix(in srgb, var(--color-dda-gold-light) 45%, transparent);
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.dda-pool-widget__stat--link:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-dda-gold-light) 70%, transparent);
+  outline-offset: 2px;
 }
 
 .dda-pool-widget__stat-label {
@@ -4350,6 +4848,38 @@ select.dda-bank-transfer-route__select:focus {
   padding: 0.85rem 1rem;
 }
 
+.dda-redemption-request-amount__field {
+  gap: 0.65rem;
+}
+
+.dda-redemption-request-amount__all {
+  flex-shrink: 0;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-dda-green-light) 88%, white);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dda-redemption-request-amount__all:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-dda-green-light) 36%, transparent);
+  background: color-mix(in srgb, var(--color-dda-green) 16%, rgba(0, 0, 0, 0.2));
+  color: #fff;
+}
+
+.dda-redemption-request-amount__all:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .dda-bank-field {
   width: 100%;
   border-radius: 0.95rem;
@@ -4452,6 +4982,70 @@ select.dda-bank-transfer-route__select {
   background: rgba(255, 255, 255, 0.02);
   padding: 0.4rem 0.6rem;
   min-height: 2.5rem;
+}
+
+.dda-redemption-tx {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 1rem;
+}
+
+.dda-redemption-tx__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.dda-redemption-tx__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.dda-redemption-tx__count {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: rgb(107, 114, 128);
+}
+
+.dda-redemption-tx .dda-bank-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dda-redemption-tx__pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+}
+
+.dda-redemption-tx__pager-btn {
+  border: 0;
+  background: transparent;
+  padding: 0.25rem 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-dda-green-light);
+}
+
+.dda-redemption-tx__pager-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.dda-redemption-tx__pager-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: rgb(156, 163, 175);
 }
 
 .dda-bank-ledger__row--editing {
@@ -7424,7 +8018,7 @@ select.dda-bank-transfer-route__select {
 
   .dda-home-pay-alerts__grid {
     display: grid;
-    grid-template-columns: minmax(13rem, 0.78fr) minmax(0, 1.55fr);
+    grid-template-columns: minmax(6.5rem, 7.75rem) minmax(0, 1fr);
     align-items: stretch;
     min-height: 0;
     flex: 1;
@@ -7435,8 +8029,8 @@ select.dda-bank-transfer-route__select {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1.15rem;
-    padding: 1.5rem 1.35rem;
+    gap: 0.75rem;
+    padding: 1rem 0.65rem;
     min-height: 100%;
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 70%);
@@ -7447,6 +8041,8 @@ select.dda-bank-transfer-route__select {
     margin: 0;
     width: 100%;
     text-align: center;
+    font-size: 0.5625rem;
+    letter-spacing: 0.1em;
   }
 
   .dda-home-pay-alerts__contribute {
@@ -7473,18 +8069,24 @@ select.dda-bank-transfer-route__select {
 
   .dda-home-pay-alerts__contribute .dda-home-payment-logos {
     width: 100%;
-    max-width: 18rem;
+    max-width: 5.75rem;
+    flex-direction: column;
     justify-content: center;
-    gap: clamp(1.25rem, 3vw, 2.25rem);
+    align-items: center;
+    gap: 0.85rem;
     padding: 0;
   }
 
   .dda-home-pay-alerts__contribute .dda-home-payment-logo-link {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    width: 100%;
     min-width: 0;
-    max-width: 7.5rem;
-    padding: 0.65rem 0.35rem;
-    border-radius: 0.85rem;
+    max-width: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem 0.35rem;
+    border-radius: 0.75rem;
     transition:
       background 0.18s ease,
       transform 0.18s ease;
@@ -7496,7 +8098,7 @@ select.dda-bank-transfer-route__select {
   }
 
   .dda-home-pay-alerts__contribute .dda-home-payment-logo {
-    height: clamp(2.35rem, 4.2vw, 3.25rem);
+    height: clamp(1.85rem, 2.8vw, 2.35rem);
     width: auto;
     max-width: 100%;
     opacity: 0.88;
@@ -7515,6 +8117,52 @@ select.dda-bank-transfer-route__select {
     border-radius: 0;
     background: transparent;
     box-shadow: none;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__body,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__body {
+    padding: 0.85rem 0.85rem 0.85rem 0.7rem;
+    gap: 0.55rem;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__list,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__list {
+    gap: 0.3rem;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__item,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item {
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.6rem;
+    min-height: 0;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__item-icon,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item-icon {
+    height: 1.65rem;
+    width: 1.65rem;
+    border-radius: 0.45rem;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__item-title,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item-title {
+    font-size: 0.8125rem;
+    line-height: 1.2;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__item-body,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item-body {
+    font-size: 0.6875rem;
+    line-height: 1.25;
+    margin-top: 0.05rem;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__time,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__time {
+    font-size: 0.625rem;
+    margin-top: 0.1rem;
   }
 
   .dda-home-desktop__rail .dda-contribute-section {

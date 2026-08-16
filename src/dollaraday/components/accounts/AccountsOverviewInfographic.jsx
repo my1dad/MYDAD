@@ -12,10 +12,9 @@ import {
   subscribeInternalDatabase,
 } from "../../lib/internalDatabase";
 import {
-  getCompletedContributionCapital,
-  getTotalAdminFundedMemberCapital,
-  getTotalMemberDepositCapitalFromLedgers,
+  getPoolCashEscrowBalance,
 } from "../../lib/memberEscrowTotals";
+import { getPoolState } from "../../lib/poolState";
 import { resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
 import {
   ensureHomeContributionSchedulesFromContributions,
@@ -31,7 +30,8 @@ const MEMBER_HIDDEN_SEGMENT_IDS = new Set([
 const SEGMENT_META = {
   checking: { labelKey: "overviewChecking", color: "var(--color-dda-green)" },
   escrow: { labelKey: "overviewEscrow", color: "#38bdf8" },
-  liquidity: { labelKey: "overviewLiquidity", color: "var(--color-dda-green)" },
+  adminAccount: { labelKey: "overviewAdminAccount", color: "#60a5fa" },
+  liquidity: { labelKey: "overviewCommunityLiquidity", color: "var(--color-dda-gold)" },
   deposits: { labelKey: "overviewDeposits", color: "var(--color-dda-gold-light)" },
   redemptionsSent: { labelKey: "overviewRedemptions", color: "var(--color-dda-gold)" },
   redemptionsReceived: { labelKey: "overviewRedemptionsReceivedShort", color: "var(--color-dda-gold-deep)" },
@@ -41,19 +41,17 @@ const SEGMENT_META = {
 };
 
 function segmentLabelKey(segmentId, isAdmin = true) {
-  if (isAdmin && (segmentId === "checking" || segmentId === "escrow" || segmentId === "liquidity")) {
-    return "overviewLiquidity";
+  if (isAdmin && segmentId === "checking") return "overviewAdminAccount";
+  if (isAdmin && (segmentId === "escrow" || segmentId === "liquidity")) {
+    return "overviewCommunityLiquidity";
   }
   if (segmentId === "recurringIncome" && !isAdmin) return "overviewRecurringDonations";
   return SEGMENT_META[segmentId]?.labelKey ?? segmentId;
 }
 
 function getAdminLiquidityTotal() {
-  return Math.max(
-    getTotalMemberDepositCapitalFromLedgers(),
-    getTotalAdminFundedMemberCapital(),
-    getCompletedContributionCapital(),
-  );
+  const deployed = Number(getPoolState().poolSummary?.deployedCapital) || 0;
+  return getPoolCashEscrowBalance(deployed);
 }
 
 function buildChartSlices(segments, t, isAdmin = true) {
@@ -151,21 +149,32 @@ export default function AccountsOverviewInfographic() {
     [isAdmin, dbRevision, ledger, stats.totalBalance],
   );
 
+  const adminAccountBalance = isAdmin
+    ? Math.max(0, Number(stats.checkingBalance) || 0)
+    : 0;
+  const communityLiquidity = isAdmin ? Math.max(0, adminLiquidityTotal) : 0;
+
   const visibleSegments = useMemo(() => {
     if (isAdmin) {
       const others = stats.segments.filter(
         (segment) => segment.id !== "checking" && segment.id !== "escrow",
       );
-      const liquidityValue = Math.max(adminLiquidityTotal, stats.totalBalance);
-      if (liquidityValue <= 0) return others;
-      return [
-        {
+      const balanceSlices = [];
+      if (adminAccountBalance > 0) {
+        balanceSlices.push({
+          id: "adminAccount",
+          value: adminAccountBalance,
+          color: SEGMENT_META.adminAccount.color,
+        });
+      }
+      if (communityLiquidity > 0) {
+        balanceSlices.push({
           id: "liquidity",
-          value: liquidityValue,
+          value: communityLiquidity,
           color: SEGMENT_META.liquidity.color,
-        },
-        ...others,
-      ];
+        });
+      }
+      return [...balanceSlices, ...others];
     }
 
     const withoutHidden = stats.segments.filter(
@@ -182,7 +191,13 @@ export default function AccountsOverviewInfographic() {
       },
       ...others,
     ];
-  }, [isAdmin, stats.segments, stats.totalBalance, adminLiquidityTotal]);
+  }, [
+    isAdmin,
+    stats.segments,
+    stats.totalBalance,
+    adminAccountBalance,
+    communityLiquidity,
+  ]);
 
   const chartData = useMemo(() => {
     const slices = buildChartSlices(visibleSegments, t, isAdmin);
@@ -191,7 +206,7 @@ export default function AccountsOverviewInfographic() {
   }, [visibleSegments, t, isAdmin]);
 
   const onHandBalance = isAdmin
-    ? Math.max(adminLiquidityTotal, stats.totalBalance)
+    ? adminAccountBalance + communityLiquidity
     : stats.totalBalance;
 
   const chartSnapshotTotal = visibleSegments.reduce((sum, segment) => sum + segment.value, 0);
@@ -267,23 +282,34 @@ export default function AccountsOverviewInfographic() {
 
         <div className="dda-accounts-overview__sections">
           <MetricGroup title={t("pages.accounts.overviewGroupBalances")}>
-            <MetricRow
-              label={
-                isAdmin
-                  ? t("pages.accounts.overviewLiquidity")
-                  : t("pages.wallet.overviewLabel")
-              }
-              value={formatPoolCurrency(
-                isAdmin ? onHandBalance : stats.totalBalance,
-              )}
-              accent={
-                isAdmin ? SEGMENT_META.liquidity.color : SEGMENT_META.checking.color
-              }
-              pct={segmentPct(
-                isAdmin ? "liquidity" : "checking",
-                isAdmin ? onHandBalance : stats.totalBalance,
-              )}
-            />
+            {isAdmin ? (
+              <>
+                <MetricRow
+                  label={t("pages.accounts.overviewAdminAccount")}
+                  value={formatPoolCurrency(adminAccountBalance)}
+                  accent={SEGMENT_META.adminAccount.color}
+                  pct={segmentPct("adminAccount", adminAccountBalance)}
+                />
+                <MetricRow
+                  label={t("pages.accounts.overviewCommunityLiquidity")}
+                  value={formatPoolCurrency(communityLiquidity)}
+                  accent={SEGMENT_META.liquidity.color}
+                  pct={segmentPct("liquidity", communityLiquidity)}
+                />
+                <MetricRow
+                  label={t("pages.accounts.overviewBalancesTotal")}
+                  value={formatPoolCurrency(onHandBalance)}
+                  hint={t("pages.accounts.overviewBalancesTotalHint")}
+                />
+              </>
+            ) : (
+              <MetricRow
+                label={t("pages.wallet.overviewLabel")}
+                value={formatPoolCurrency(stats.totalBalance)}
+                accent={SEGMENT_META.checking.color}
+                pct={segmentPct("checking", stats.totalBalance)}
+              />
+            )}
           </MetricGroup>
 
           <MetricGroup title={t("pages.accounts.overviewGroupDeposits")}>

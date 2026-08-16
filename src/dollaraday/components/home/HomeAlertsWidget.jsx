@@ -2,6 +2,8 @@ import {
   Bell,
   Banknote,
   CircleDollarSign,
+  Gift,
+  Megaphone,
   MessageCircle,
   RefreshCw,
   UserCheck,
@@ -23,19 +25,24 @@ import {
 
 const kindIcons = {
   community_dm: MessageCircle,
+  community_board: Megaphone,
   profile_pending: UserPlus,
   profile_approved: UserCheck,
   profile_denied: UserX,
   donation: CircleDollarSign,
   wallet_deposit: Wallet,
   recurring_donation: RefreshCw,
+  redemption: Gift,
   payment_request: Banknote,
+  redemption_request: Gift,
 };
 
 function getNotificationTitle(item, t, isAdmin) {
   switch (item.kind) {
     case "community_dm":
       return item.senderName ?? t("notifications.communityDm");
+    case "community_board":
+      return t("notifications.communityBoardTitle");
     case "profile_pending":
       return item.memberName ?? t("notifications.pendingTitle");
     case "profile_approved":
@@ -50,8 +57,14 @@ function getNotificationTitle(item, t, isAdmin) {
       return isAdmin
         ? (item.memberName ?? t("notifications.donationMember"))
         : t("notifications.donationTitleSelf");
+    case "redemption":
+      return isAdmin
+        ? (item.memberName ?? t("notifications.redemptionMember"))
+        : t("notifications.redemptionTitleSelf");
     case "payment_request":
       return item.memberName ?? t("notifications.paymentRequestTitle");
+    case "redemption_request":
+      return item.memberName ?? t("notifications.redemptionRequestTitle");
     default:
       return t("notifications.title");
   }
@@ -62,6 +75,8 @@ function getNotificationBody(item, t, isAdmin) {
   switch (item.kind) {
     case "community_dm":
       return item.messageBody ?? "";
+    case "community_board":
+      return item.messageBody?.trim() || t("notifications.communityBoardBody");
     case "profile_pending":
       return t("notifications.pendingBody");
     case "profile_approved":
@@ -76,6 +91,10 @@ function getNotificationBody(item, t, isAdmin) {
       return isAdmin
         ? t("notifications.donationBody", { amount })
         : t("notifications.donationBodySelf", { amount });
+    case "redemption":
+      return isAdmin
+        ? t("notifications.redemptionBody", { amount })
+        : t("notifications.redemptionBodySelf", { amount });
     case "payment_request":
       return t("notifications.paymentRequestBody", {
         amount,
@@ -84,6 +103,8 @@ function getNotificationBody(item, t, isAdmin) {
             ? t("pages.admin.paymentMethodApplePay")
             : t("pages.admin.paymentMethodZelle"),
       });
+    case "redemption_request":
+      return t("notifications.redemptionRequestBody", { amount });
     default:
       return "";
   }
@@ -119,7 +140,6 @@ export default function HomeAlertsWidget({ onNavigate, className, embedded = fal
     <div className="dda-home-alerts__body">
       <header className="dda-home-alerts__head">
         <div className="min-w-0">
-          <p className="dda-text-kicker">{t("pages.dashboard.deskAlertsKicker")}</p>
           <h2 className="dda-home-alerts__title">{t("pages.dashboard.deskAlertsTitle")}</h2>
         </div>
         <span

@@ -8,6 +8,7 @@ import {
 } from "./dadProfileStorage";
 import { readDataBin, subscribeInternalDatabase, upsertDataRecord } from "./internalDatabase";
 import { easternNow, formatEasternTimeWithZone, type DdaLocale } from "./dateTime";
+import { getPoolCashEscrowBalance } from "./memberEscrowTotals";
 import { getPoolState, syncMemberEscrowToLiquidityPool } from "./poolState";
 
 export type MemberAccountId = "checking" | "escrow";
@@ -505,7 +506,7 @@ export function redeemToMemberProfile(
   toProfileId: string,
   amount: number,
   memo?: string,
-  _options: { allowLiquidityPool?: boolean; liquidityAvailable?: number } = {},
+  options: { allowLiquidityPool?: boolean; liquidityAvailable?: number } = {},
 ): boolean {
   if (fromProfileId === toProfileId) return false;
   if (!Number.isFinite(amount) || amount <= 0) return false;
@@ -513,8 +514,15 @@ export function redeemToMemberProfile(
   const senderLedger = hydrateMemberAccounts(fromProfileId);
   const walletAvailable =
     (Number(senderLedger.checkingBalance) || 0) + (Number(senderLedger.escrowBalance) || 0);
-  // Never mint from aggregate pool metrics — only debit a real sender wallet.
-  if (amount > walletAvailable) return false;
+  const platformAvailable =
+    options.allowLiquidityPool && Number.isFinite(options.liquidityAvailable)
+      ? Math.max(0, Number(options.liquidityAvailable))
+      : walletAvailable;
+
+  // Platform redemptions may exceed the admin personal wallet when community
+  // liquidity is available — remaining balance is accounted via redemption records.
+  if (amount > platformAvailable + 0.001) return false;
+  if (!options.allowLiquidityPool && amount > walletAvailable + 0.001) return false;
 
   const note = memo?.trim() || undefined;
   let remaining = Math.round(amount * 100) / 100;
@@ -530,27 +538,29 @@ export function redeemToMemberProfile(
     }
   };
 
-  // Spend checking first, then escrow (liquidity).
-  if (remaining > 0 && senderLedger.checkingBalance > 0) {
-    const take = Math.min(remaining, senderLedger.checkingBalance);
-    if (!spendFromMemberAccount(fromProfileId, "checking", take, note)) return false;
-    spentFromChecking.push(take);
+  // Spend liquidity (escrow) first, then checking.
+  if (remaining > 0 && senderLedger.escrowBalance > 0) {
+    const take = Math.min(remaining, senderLedger.escrowBalance);
+    if (!spendFromMemberAccount(fromProfileId, "escrow", take, note)) return false;
+    spentFromEscrow.push(take);
     remaining = Math.round((remaining - take) * 100) / 100;
   }
   if (remaining > 0) {
     const fresh = hydrateMemberAccounts(fromProfileId);
-    if (fresh.escrowBalance > 0) {
-      const take = Math.min(remaining, fresh.escrowBalance);
-      if (!spendFromMemberAccount(fromProfileId, "escrow", take, note)) {
+    if (fresh.checkingBalance > 0) {
+      const take = Math.min(remaining, fresh.checkingBalance);
+      if (!spendFromMemberAccount(fromProfileId, "checking", take, note)) {
         reverseSpends();
         return false;
       }
-      spentFromEscrow.push(take);
+      spentFromChecking.push(take);
       remaining = Math.round((remaining - take) * 100) / 100;
     }
   }
 
-  if (remaining > 0) {
+  // Shortfall is allowed only when redeeming against platform liquidity — the
+  // contributions redemption record reduces pool cash for the full amount.
+  if (remaining > 0 && !options.allowLiquidityPool) {
     reverseSpends();
     return false;
   }
@@ -561,14 +571,14 @@ export function redeemToMemberProfile(
     return false;
   }
 
-  // Mirror into recipient escrow so pool/member balances stay aligned.
-  const recipient = hydrateMemberAccounts(toProfileId);
-  persistLedger(toProfileId, {
-    ...recipient,
-    escrowBalance: Math.max(recipient.escrowBalance, recipient.checkingBalance),
-  });
-
+  // Do NOT mirror into recipient escrow — personal cash must not re-inflate pool liquidity.
   return true;
+}
+
+/** Platform liquidity available for admin redemptions (escrow-driven pool cash). */
+export function getAdminLiquidityAvailable(): number {
+  const deployed = Number(getPoolState().poolSummary?.deployedCapital) || 0;
+  return Math.max(0, Math.round(getPoolCashEscrowBalance(deployed) * 100) / 100);
 }
 
 export function getMemberAccountLedger(profileId = resolveMemberProfileId()): MemberAccountLedger {

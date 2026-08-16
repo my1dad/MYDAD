@@ -53,6 +53,16 @@ export function getTotalMemberDepositCapitalFromLedgers(): number {
   );
 }
 
+function isInflowContributionType(type: string): boolean {
+  return (
+    type !== "signup" &&
+    type !== "redemption" &&
+    type !== "external-payment-request" &&
+    type !== "member-redemption-request" &&
+    type !== "admin-liquidity-transfer"
+  );
+}
+
 /** Sum completed, non-signup contribution amounts (source of truth for pool donations). */
 export function getCompletedContributionCapital(): number {
   return roundMoney(
@@ -60,9 +70,43 @@ export function getCompletedContributionCapital(): number {
       const payload = record.payload ?? {};
       const amount = Number(payload.amount);
       if (!Number.isFinite(amount) || amount <= 0) return sum;
-      if (String(payload.type ?? "") === "signup") return sum;
+      const type = String(payload.type ?? "");
       const status = String(payload.status ?? "completed");
       if (status !== "completed") return sum;
+
+      if (type === "admin-liquidity-transfer") {
+        return String(payload.direction ?? "") === "to-liquidity" ? sum + amount : sum;
+      }
+      if (!isInflowContributionType(type)) return sum;
+      return sum + amount;
+    }, 0),
+  );
+}
+
+/** Completed liquidity → member redemption outflows only. */
+export function getCompletedRedemptionOutflow(): number {
+  return roundMoney(
+    readDataBin("contributions").records.reduce((sum, record) => {
+      const payload = record.payload ?? {};
+      if (String(payload.type ?? "") !== "redemption") return sum;
+      if (String(payload.status ?? "completed") !== "completed") return sum;
+      const amount = Number(payload.amount);
+      if (!Number.isFinite(amount) || amount <= 0) return sum;
+      return sum + amount;
+    }, 0),
+  );
+}
+
+/** Admin draws from liquidity into the admin operating account. */
+export function getAdminLiquidityDrawOutflow(): number {
+  return roundMoney(
+    readDataBin("contributions").records.reduce((sum, record) => {
+      const payload = record.payload ?? {};
+      if (String(payload.type ?? "") !== "admin-liquidity-transfer") return sum;
+      if (String(payload.direction ?? "") !== "to-admin") return sum;
+      if (String(payload.status ?? "completed") !== "completed") return sum;
+      const amount = Number(payload.amount);
+      if (!Number.isFinite(amount) || amount <= 0) return sum;
       return sum + amount;
     }, 0),
   );
@@ -70,19 +114,17 @@ export function getCompletedContributionCapital(): number {
 
 /**
  * Pool cash for liquidity metrics.
- * Includes member escrow/checking deposits, admin-funded equity locks, and
- * contribution capital so community liquidity reflects member deposits.
+ * Escrow + admin-funded equity + contribution inflows, minus redemptions,
+ * admin liquidity draws, and deployed capital.
  */
 export function getPoolCashEscrowBalance(deployedCapital = 0): number {
-  const ledgerDeposits = getTotalMemberDepositCapitalFromLedgers();
+  const ledgerEscrow = getTotalMemberEscrowBalance();
   const adminFunded = getTotalAdminFundedMemberCapital();
   const contributionTotal = getCompletedContributionCapital();
+  const redemptionOutflow = getCompletedRedemptionOutflow();
+  const adminDrawOutflow = getAdminLiquidityDrawOutflow();
   const deployed = Number.isFinite(deployedCapital) ? Math.max(0, deployedCapital) : 0;
-  const cashBase = Math.max(ledgerDeposits, adminFunded);
+  const cashBase = Math.max(ledgerEscrow, adminFunded, contributionTotal);
 
-  if (cashBase + deployed + 0.001 < contributionTotal) {
-    return Math.max(0, roundMoney(contributionTotal - deployed));
-  }
-
-  return cashBase;
+  return Math.max(0, roundMoney(cashBase - redemptionOutflow - adminDrawOutflow - deployed));
 }

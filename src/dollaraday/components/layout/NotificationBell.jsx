@@ -5,6 +5,7 @@ import {
   CheckCheck,
   CircleDollarSign,
   Banknote,
+  Gift,
   Megaphone,
   MessageCircle,
   RefreshCw,
@@ -40,7 +41,9 @@ const kindIcons = {
   donation: CircleDollarSign,
   wallet_deposit: Wallet,
   recurring_donation: RefreshCw,
+  redemption: Gift,
   payment_request: Banknote,
+  redemption_request: Gift,
 };
 
 function NotificationTime({ occurredAt }) {
@@ -68,8 +71,14 @@ function getNotificationTitle(item, t, isAdmin) {
       return isAdmin
         ? (item.memberName ?? t("notifications.donationMember"))
         : t("notifications.donationTitleSelf");
+    case "redemption":
+      return isAdmin
+        ? (item.memberName ?? t("notifications.redemptionMember"))
+        : t("notifications.redemptionTitleSelf");
     case "payment_request":
       return item.memberName ?? t("notifications.paymentRequestTitle");
+    case "redemption_request":
+      return item.memberName ?? t("notifications.redemptionRequestTitle");
     default:
       return t("notifications.title");
   }
@@ -96,6 +105,10 @@ function getNotificationBody(item, t, isAdmin) {
       return isAdmin
         ? t("notifications.donationBody", { amount })
         : t("notifications.donationBodySelf", { amount });
+    case "redemption":
+      return isAdmin
+        ? t("notifications.redemptionBody", { amount })
+        : t("notifications.redemptionBodySelf", { amount });
     case "payment_request":
       return t("notifications.paymentRequestBody", {
         amount,
@@ -104,6 +117,8 @@ function getNotificationBody(item, t, isAdmin) {
             ? t("pages.admin.paymentMethodApplePay")
             : t("pages.admin.paymentMethodZelle"),
       });
+    case "redemption_request":
+      return t("notifications.redemptionRequestBody", { amount });
     default:
       return "";
   }
@@ -244,7 +259,7 @@ export default function NotificationBell({ onNavigate }) {
         username: item.targetUsername,
         name: item.memberName,
       });
-    } else if (item.kind === "payment_request") {
+    } else if (item.kind === "payment_request" || item.kind === "redemption_request") {
       // Stay on admin so the payment requests card is visible.
     }
 

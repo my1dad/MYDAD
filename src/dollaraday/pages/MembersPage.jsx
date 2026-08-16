@@ -1,8 +1,9 @@
 import { useMemo, useState, lazy, Suspense, startTransition, useSyncExternalStore } from "react";
-import { Activity, Star, Users } from "lucide-react";
+import { Activity, Banknote, Star, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import DashboardCard from "../components/layout/DashboardCard";
+import { formatPoolCurrency } from "../data/mockData";
 import { getMemberInitials } from "../lib/memberDetails";
 import { useDadAuth } from "../context/DadAuthContext";
 import { isMemberProfile } from "../../config/memberProfile";
@@ -12,6 +13,9 @@ import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
 import { getDatabaseRevision, subscribeInternalDatabase } from "../lib/internalDatabase";
 import { usePoolState } from "../lib/poolState";
+import { getMemberRedemptionsReceived } from "../lib/redemptions";
+import { formatEasternShortDate } from "../lib/dateTime";
+import { useMemberAccounts } from "../lib/memberAccounts";
 
 const MemberDetailModal = lazy(() => import("../components/members/MemberDetailModal"));
 const AdminMemberBalanceModal = lazy(() => import("../components/admin/AdminMemberBalanceModal"));
@@ -70,7 +74,7 @@ function MemberStatCard({ title, value, icon: Icon, accent, bg, bgDeep, border }
 }
 
 export default function MembersPage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { isAdmin, profile } = useDadAuth();
   const { translateStatus } = useLocalizedData();
   const [selectedMember, setSelectedMember] = useState(null);
@@ -82,6 +86,13 @@ export default function MembersPage() {
     getDatabaseRevision,
     () => 0,
   );
+  const myCashLedger = useMemberAccounts(profile?.id);
+  const myRedemptions = useMemo(() => {
+    void dbRevision;
+    if (!profile?.id) return { total: 0, count: 0, recent: [] };
+    return getMemberRedemptionsReceived(profile.id);
+  }, [profile?.id, dbRevision]);
+  const myCashBalance = Number(myCashLedger.checkingBalance) || 0;
 
   // Count completed deposits/contributions recorded for today's Eastern date only.
   const todaysDepositCount = useMemo(() => {
@@ -223,6 +234,67 @@ export default function MembersPage() {
               </span>
             </span>
           </button>
+        </DashboardCard>
+      ) : null}
+
+      {!isAdmin && profile ? (
+        <DashboardCard
+          title={t("pages.members.cashTitle")}
+          subtitle={t("pages.members.cashSub")}
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="dda-panel rounded-xl px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t("pages.members.cashOnHand")}
+                </p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-white">
+                  {formatPoolCurrency(myCashBalance)}
+                </p>
+              </div>
+              <div className="dda-panel rounded-xl px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t("pages.members.cashRedemptionsTotal")}
+                </p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-dda-gold">
+                  {formatPoolCurrency(myRedemptions.total)}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {myRedemptions.count > 0
+                    ? t("pages.members.cashRedemptionsCount", { count: myRedemptions.count })
+                    : t("pages.members.cashRedemptionsEmpty")}
+                </p>
+              </div>
+            </div>
+
+            {myRedemptions.recent.length ? (
+              <ul className="space-y-2">
+                {myRedemptions.recent.map((row) => (
+                  <li
+                    key={row.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-dda-gold/10 text-dda-gold">
+                        <Banknote className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-white">
+                          {row.memo?.trim() || t("pages.members.cashRedemptionLabel")}
+                        </span>
+                        <span className="block text-xs text-gray-500">
+                          {formatEasternShortDate(row.redeemedAt, locale === "es" ? "es" : "en")}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums text-dda-green-light">
+                      +{formatPoolCurrency(row.amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         </DashboardCard>
       ) : null}
 

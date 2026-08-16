@@ -1,11 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { Check, Copy, X } from "lucide-react";
+import { Check, Copy, Wallet, X } from "lucide-react";
 import { APPLE_PAY_LOGO_URL } from "@/lib/assetUrl";
 import { lockBodyScroll } from "@/lib/modalBodyLock";
 import { cn } from "@/lib/utils";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocale } from "../../i18n/LocaleContext";
+import { getMemberCashBalance, reinvestFromCashBalance } from "../../lib/cashReinvest";
+import {
+  getDatabaseRevision,
+  subscribeInternalDatabase,
+} from "../../lib/internalDatabase";
+import { formatPoolCurrency } from "../../data/mockData";
 
 export const APPLE_PAY_SMS_PHONE = "+15613379411";
 export const APPLE_PAY_SMS_PHONE_DISPLAY = "+1 (561) 337-9411";
@@ -100,6 +106,16 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitNote, setSubmitNote] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [fundingSource, setFundingSource] = useState("external");
+  const dbRevision = useSyncExternalStore(
+    subscribeInternalDatabase,
+    getDatabaseRevision,
+    () => 0,
+  );
+  const cashBalance = useMemo(() => {
+    void dbRevision;
+    return getMemberCashBalance(profile?.id);
+  }, [profile?.id, dbRevision, open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -124,6 +140,7 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
     setSubmitNote("");
     setSubmitError("");
     setSubmitting(false);
+    setFundingSource("external");
     const seed = Number(initialAmount);
     const match = AMOUNT_PRESETS.find((preset) => Math.abs(preset.amount - seed) < 0.001);
     if (match) {
@@ -153,9 +170,34 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
     return AMOUNT_PRESETS.find((preset) => preset.id === presetId)?.amount ?? 0;
   }, [presetId, customAmount]);
 
+  const useCash = fundingSource === "cash";
   const safeAmount = Math.max(amount, 0) || 0;
-  const formattedAmount = formatUsd(safeAmount);
-  const formattedAmountFixed = formatUsdFixed(safeAmount);
+  const cappedAmount =
+    useCash && cashBalance > 0 ? Math.min(safeAmount, cashBalance) : safeAmount;
+  const formattedAmount = formatUsd(cappedAmount);
+  const formattedAmountFixed = formatUsdFixed(cappedAmount);
+
+  const fillCashAll = () => {
+    if (cashBalance <= 0) return;
+    setFundingSource("cash");
+    setPresetId("custom");
+    setCustomAmount(sanitizeMoneyInput(cashBalance.toFixed(2)));
+    setSubmitError("");
+  };
+
+  const applyAmount = (raw) => {
+    let next = sanitizeMoneyInput(raw);
+    const parsed = Number.parseFloat(next);
+    if (useCash && Number.isFinite(parsed) && parsed > cashBalance) {
+      next = sanitizeMoneyInput(cashBalance.toFixed(2));
+    }
+    setCustomAmount(next);
+    const capped = Number.parseFloat(next);
+    const match = AMOUNT_PRESETS.find(
+      (preset) => Number.isFinite(capped) && Math.abs(preset.amount - capped) < 0.001,
+    );
+    setPresetId(match?.id ?? "custom");
+  };
 
   /** Short paste prompt for Apple Cash — e.g. "send $7.00" */
   const pastePrompt = useMemo(
@@ -192,11 +234,12 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
   };
 
   const handleCopyPrompt = () => {
-    if (!(amount > 0)) return;
+    if (!(cappedAmount > 0)) return;
     void copyText(pastePrompt, "prompt");
   };
 
-  const canSend = amount > 0;
+  const canSend =
+    cappedAmount > 0 && (!useCash || (cashBalance > 0 && cappedAmount <= cashBalance + 0.001));
 
   const handleLaunchSms = async (event) => {
     event.preventDefault();
@@ -205,10 +248,33 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
     setSubmitError("");
     setSubmitNote("");
     try {
+      if (useCash) {
+        const result = reinvestFromCashBalance({
+          amount: cappedAmount,
+          method: "apple-pay",
+          memo: smsMessage,
+        });
+        if (!result.ok) {
+          setSubmitError(
+            result.error === "insufficient"
+              ? t("contribute.cashReinvestInsufficient")
+              : t("contribute.cashReinvestFailed"),
+          );
+          return;
+        }
+        setSubmitNote(
+          t("contribute.cashReinvestSuccess", {
+            amount: formatUsdFixed(cappedAmount),
+          }),
+        );
+        window.setTimeout(() => onClose?.(), 650);
+        return;
+      }
+
       const { requestExternalPayment } = await import("../../lib/externalPaymentRequests");
       const result = await requestExternalPayment({
         method: "apple-pay",
-        amount: safeAmount,
+        amount: cappedAmount,
         memo: smsMessage,
         profile,
       });
@@ -219,7 +285,9 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
       setSubmitNote(t("contribute.paymentRequestSent"));
     } catch (err) {
       console.warn("[ApplePaySmsModal] Payment request failed:", err);
-      setSubmitError(t("contribute.paymentRequestFailed"));
+      setSubmitError(
+        useCash ? t("contribute.cashReinvestFailed") : t("contribute.paymentRequestFailed"),
+      );
       return;
     } finally {
       setSubmitting(false);
@@ -288,14 +356,78 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
           <p className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
             {t("contribute.amountLabel")}
           </p>
-          <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-label={t("contribute.amountTitle")}>
+
+          <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t("contribute.cashBalanceLabel")}
+                </p>
+                <p className="mt-0.5 text-sm font-bold tabular-nums text-[#fde68a]">
+                  {formatPoolCurrency(cashBalance)}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={cashBalance <= 0}
+                onClick={fillCashAll}
+                className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide text-dda-green-light ring-1 ring-white/10 transition hover:bg-white/5 disabled:opacity-40"
+              >
+                {t("contribute.cashUseAll")}
+              </button>
+            </div>
+            <div
+              className="mt-2.5 grid grid-cols-2 gap-2"
+              role="group"
+              aria-label={t("contribute.fundingSourceLabel")}
+            >
+              <button
+                type="button"
+                onClick={() => setFundingSource("external")}
+                className={cn(
+                  "rounded-xl border px-3 py-2 text-center text-xs font-semibold transition",
+                  !useCash
+                    ? "border-dda-green/50 bg-dda-green/15 text-white"
+                    : "border-white/10 bg-white/[0.03] text-gray-300 hover:border-white/20",
+                )}
+              >
+                {t("contribute.fundingExternalApplePay")}
+              </button>
+              <button
+                type="button"
+                disabled={cashBalance <= 0}
+                onClick={() => {
+                  setFundingSource("cash");
+                  if (amount > cashBalance) {
+                    applyAmount(cashBalance.toFixed(2));
+                  }
+                }}
+                className={cn(
+                  "inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-center text-xs font-semibold transition disabled:opacity-40",
+                  useCash
+                    ? "border-dda-green/50 bg-dda-green/15 text-white"
+                    : "border-white/10 bg-white/[0.03] text-gray-300 hover:border-white/20",
+                )}
+              >
+                <Wallet className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
+                {t("contribute.fundingCash")}
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+              {useCash
+                ? t("contribute.cashReinvestHint")
+                : t("contribute.paymentRequestHint")}
+            </p>
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-2" role="group" aria-label={t("contribute.amountTitle")}>
             {AMOUNT_PRESETS.map((preset) => (
               <button
                 key={preset.id}
                 type="button"
                 onClick={() => {
                   setPresetId(preset.id);
-                  setCustomAmount(String(preset.amount));
+                  applyAmount(String(preset.amount));
                 }}
                 className={cn(
                   "rounded-xl border px-3 py-3 text-center transition",
@@ -322,20 +454,13 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
                 inputMode="decimal"
                 value={customAmount}
                 placeholder="0.00"
-                onChange={(event) => {
-                  const next = sanitizeMoneyInput(event.target.value);
-                  setCustomAmount(next);
-                  const parsed = Number.parseFloat(next);
-                  const match = AMOUNT_PRESETS.find(
-                    (preset) => Number.isFinite(parsed) && Math.abs(preset.amount - parsed) < 0.001,
-                  );
-                  setPresetId(match?.id ?? "custom");
-                }}
+                onChange={(event) => applyAmount(event.target.value)}
                 className="w-full bg-transparent text-base font-semibold tabular-nums text-white outline-none placeholder:text-gray-600"
               />
             </div>
           </label>
 
+          {!useCash ? (
           <div className="mt-5 rounded-2xl border border-dda-green/30 bg-dda-green/10 p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -367,7 +492,9 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
               </button>
             </div>
           </div>
+          ) : null}
 
+          {!useCash ? (
           <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -399,6 +526,7 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
             </p>
             <p className="mt-1.5 text-sm leading-relaxed text-gray-300">{smsMessage}</p>
           </div>
+          ) : null}
         </div>
 
         <div className="border-t border-white/10 px-5 py-4">
@@ -412,37 +540,61 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
               {submitNote}
             </p>
           ) : null}
-          <a
-            href={canSend && !submitting ? smsHref : undefined}
-            role="button"
-            aria-disabled={!canSend || submitting}
-            aria-busy={submitting}
-            onClick={(event) => {
-              void handleLaunchSms(event);
-            }}
-            className={cn(
-              "dda-apple-pay-sms__cta",
-              (!canSend || submitting) && "dda-apple-pay-sms__cta--disabled",
-            )}
-          >
-            <img
-              src={APPLE_PAY_LOGO_URL}
-              alt=""
-              draggable={false}
-              className="dda-apple-pay-sms__cta-logo"
-            />
-            <span>
-              {submitting
-                ? t("contribute.paymentRequestSending")
-                : t("contribute.applePaySmsCta", { amount: formattedAmount })}
-            </span>
-          </a>
+          {useCash ? (
+            <button
+              type="button"
+              disabled={!canSend || submitting}
+              aria-busy={submitting}
+              onClick={(event) => {
+                void handleLaunchSms(event);
+              }}
+              className={cn(
+                "dda-apple-pay-sms__cta w-full",
+                (!canSend || submitting) && "dda-apple-pay-sms__cta--disabled",
+              )}
+            >
+              <Wallet className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
+              <span>
+                {submitting
+                  ? t("contribute.cashReinvestSending")
+                  : t("contribute.cashReinvestCta", { amount: formattedAmount })}
+              </span>
+            </button>
+          ) : (
+            <a
+              href={canSend && !submitting ? smsHref : undefined}
+              role="button"
+              aria-disabled={!canSend || submitting}
+              aria-busy={submitting}
+              onClick={(event) => {
+                void handleLaunchSms(event);
+              }}
+              className={cn(
+                "dda-apple-pay-sms__cta",
+                (!canSend || submitting) && "dda-apple-pay-sms__cta--disabled",
+              )}
+            >
+              <img
+                src={APPLE_PAY_LOGO_URL}
+                alt=""
+                draggable={false}
+                className="dda-apple-pay-sms__cta-logo"
+              />
+              <span>
+                {submitting
+                  ? t("contribute.paymentRequestSending")
+                  : t("contribute.applePaySmsCta", { amount: formattedAmount })}
+              </span>
+            </a>
+          )}
           <p className="mt-2.5 text-center text-[11px] leading-relaxed text-gray-500">
-            {t("contribute.applePaySmsHint")}
+            {useCash ? t("contribute.cashReinvestHint") : t("contribute.applePaySmsHint")}
           </p>
-          <p className="mt-1.5 text-center text-[11px] leading-relaxed text-gray-500">
-            {t("contribute.paymentRequestHint")}
-          </p>
+          {!useCash ? (
+            <p className="mt-1.5 text-center text-[11px] leading-relaxed text-gray-500">
+              {t("contribute.paymentRequestHint")}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>,

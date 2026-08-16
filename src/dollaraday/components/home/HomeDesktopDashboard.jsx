@@ -169,6 +169,7 @@ export default function HomeDesktopDashboard({
             dailyInflow={poolDailyInflow}
             ytdGrowthPct={poolYtdGrowthPct}
             onClick={() => onNavigate?.("pool")}
+            onMembersClick={() => onNavigate?.("members")}
             showSleeveDonuts
             onSleeveClick={() => onNavigate?.("investments")}
           />

@@ -3,10 +3,16 @@ import { hydrateMemberAccounts } from "./memberAccounts";
 import { readDataBin } from "./internalDatabase";
 import { getPlatformMemberDonationTotals } from "./memberContributionStats";
 import {
+  getAdminLiquidityDrawOutflow,
   getCompletedContributionCapital,
+  getCompletedRedemptionOutflow,
   getTotalAdminFundedMemberCapital,
   getTotalMemberDepositCapitalFromLedgers,
 } from "./memberEscrowTotals";
+import {
+  getMemberRedemptionsReceived,
+  getPlatformRedemptionTotals,
+} from "./redemptions";
 import type { RecurringCashflow, RecurringFrequency } from "./recurringCashflow";
 import { getRecurringCashflows, isHomeContributionSchedule } from "./recurringCashflow";
 
@@ -175,7 +181,16 @@ function sumDeposits(profileId: string) {
 
     const amount = Number(payload.amount);
     if (!Number.isFinite(amount) || amount <= 0) return;
-    if (String(payload.type ?? "") === "signup") return;
+    const type = String(payload.type ?? "");
+    if (
+      type === "signup" ||
+      type === "redemption" ||
+      type === "external-payment-request" ||
+      type === "member-redemption-request" ||
+      type === "admin-liquidity-transfer"
+    ) {
+      return;
+    }
     if (String(payload.status ?? "completed") !== "completed") return;
 
     total += amount;
@@ -261,12 +276,15 @@ export function buildAccountsOverviewStats(
   // Admin Accounts: sum member deposits (admin-funded checking/equity + ledgers + contributions).
   const deposits = options.platformScope
     ? (() => {
-        const total = Math.max(
+        const redemptionOutflow = getCompletedRedemptionOutflow();
+        const adminDrawOutflow = getAdminLiquidityDrawOutflow();
+        const gross = Math.max(
           getTotalMemberDepositCapitalFromLedgers(),
           getTotalAdminFundedMemberCapital(),
           getCompletedContributionCapital(),
           platformDonations?.donated ?? 0,
         );
+        const total = Math.max(0, roundMoney(gross - redemptionOutflow - adminDrawOutflow));
         const fundedMembers = readDataBin("members").records.filter(
           (record) =>
             record.payload?.adminBalancesLocked === true &&
@@ -276,7 +294,20 @@ export function buildAccountsOverviewStats(
         return { total, count };
       })()
     : personalDeposits;
-  const redemptions = sumRedemptions(ledger.transactions);
+  const redemptions = options.platformScope
+    ? (() => {
+        const totals = getPlatformRedemptionTotals();
+        return { sent: totals.sent, received: totals.received, count: totals.count };
+      })()
+    : (() => {
+        const received = getMemberRedemptionsReceived(profileId);
+        const memoFallback = sumRedemptions(ledger.transactions);
+        return {
+          sent: memoFallback.sent,
+          received: Math.max(received.total, memoFallback.received),
+          count: Math.max(received.count, memoFallback.count),
+        };
+      })();
   const donationSeeds = sumRecurringDonationsFromContributions(profileId);
   const recurring = sumRecurringMonthly(schedules, donationSeeds);
 

@@ -7,6 +7,8 @@ import { processRecurringCashflows } from "../../lib/recurringCashflow";
 import PlatformEquityCard from "../home/PlatformEquityCard";
 
 const AccountsOverviewInfographic = lazy(() => import("./AccountsOverviewInfographic"));
+const AccountsLiquidityWidget = lazy(() => import("./AccountsLiquidityWidget"));
+const AdminLiquidityTransferModal = lazy(() => import("./AdminLiquidityTransferModal"));
 const RecurringCashflowPanel = lazy(() => import("./RecurringCashflowPanel"));
 const WalletFundingTabs = lazy(() => import("./WalletFundingTabs"));
 const RedemptionsCard = lazy(() => import("./RedemptionsCard"));
@@ -16,10 +18,12 @@ function PanelSlot({ className = "min-h-[120px]" }) {
   return <div className={`dda-glass animate-pulse rounded-2xl ${className}`} aria-hidden="true" />;
 }
 
-export default function AccountHubView() {
+export default function AccountHubView({ onNavigate }) {
   const { isAdmin } = useDadAuth();
   const profileId = resolveMemberProfileId();
   const [walletOverlayOpen, setWalletOverlayOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferDirection, setTransferDirection] = useState("to-liquidity");
 
   useEffect(() => {
     // After paint — never block Accounts hub open with ledger rebuild.
@@ -36,13 +40,28 @@ export default function AccountHubView() {
     return () => cancel(id);
   }, [profileId]);
 
+  const openTransfer = (direction = "to-liquidity") => {
+    setTransferDirection(direction);
+    setTransferOpen(true);
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Same equity card as Home — keeps Donations / wallet totals in sync. */}
       <PlatformEquityCard
         wallet
         onClick={isAdmin ? undefined : () => setWalletOverlayOpen(true)}
+        onTransferClick={isAdmin ? () => openTransfer("to-liquidity") : undefined}
       />
+
+      {isAdmin ? (
+        <Suspense fallback={<PanelSlot className="min-h-[160px]" />}>
+          <AccountsLiquidityWidget
+            onNavigate={onNavigate}
+            onTransferClick={() => openTransfer("to-admin")}
+          />
+        </Suspense>
+      ) : null}
 
       <Suspense fallback={<PanelSlot className="min-h-[200px]" />}>
         <AccountsOverviewInfographic />
@@ -65,6 +84,16 @@ export default function AccountHubView() {
             open={walletOverlayOpen}
             accountId="checking"
             onClose={() => setWalletOverlayOpen(false)}
+          />
+        </Suspense>
+      ) : null}
+
+      {isAdmin && transferOpen ? (
+        <Suspense fallback={null}>
+          <AdminLiquidityTransferModal
+            open={transferOpen}
+            initialDirection={transferDirection}
+            onClose={() => setTransferOpen(false)}
           />
         </Suspense>
       ) : null}

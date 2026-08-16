@@ -1,5 +1,5 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { Eye, EyeOff, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowLeftRight, Banknote, Eye, EyeOff, TrendingDown, TrendingUp } from "lucide-react";
 import { DOLLARADAY_LOGO_URL } from "@/lib/assetUrl";
 import { cn } from "@/lib/utils";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
@@ -19,14 +19,10 @@ import {
   computeMemberStatsFromContributions,
   sumPlatformMemberDonations,
 } from "../../lib/memberContributionStats";
-import {
-  getCompletedContributionCapital,
-  getTotalAdminFundedMemberCapital,
-  getTotalMemberDepositCapitalFromLedgers,
-} from "../../lib/memberEscrowTotals";
 import { findStoredMemberByProfileId } from "../../lib/memberRegistry";
 import { usePoolState } from "../../lib/poolState";
 import { getProfileMemberRoi } from "../../lib/profileRegistry";
+import MemberRedemptionRequestModal from "./MemberRedemptionRequestModal";
 
 function getProfileFullName(profile) {
   if (!profile) return "";
@@ -42,11 +38,12 @@ function formatBankCurrency(amount) {
   }).format(Number(amount) || 0);
 }
 
-export default function PlatformEquityCard({ onClick, className, wallet = false }) {
+export default function PlatformEquityCard({ onClick, className, wallet = false, onTransferClick }) {
   const { t } = useLocale();
   const { profile, isAdmin } = useDadAuth();
-  const { currentMember, poolSummary } = usePoolState();
+  const { currentMember } = usePoolState();
   const [accountVisible, setAccountVisible] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
   const profileId = profile?.id ?? currentMember?.id;
   const positions = useAllocationPositions(isAdmin ? undefined : profileId);
   const ledger = useMemberAccounts(profileId);
@@ -58,7 +55,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
   const userFullName = getProfileFullName(profile);
   const fullAccountNumber = profileId ? getProfileAccountNumber(profileId) : null;
   const accountMask = profileId
-    ? maskAccountNumber(profileId, isAdmin ? "escrow" : "checking")
+    ? maskAccountNumber(profileId, "checking")
     : "•••• •••• •••• 0000";
   const accountDisplay = accountVisible && fullAccountNumber
     ? formatGroupedAccountNumber(fullAccountNumber)
@@ -83,32 +80,24 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
     const invested = positions.reduce((sum, position) => sum + getPositionAllocatedValue(position), 0);
     const checking = Number(ledger?.checkingBalance) || 0;
     const escrow = Number(ledger?.escrowBalance) || 0;
-    const walletBalance = checking + escrow;
+    const cash = Math.max(0, checking);
 
     if (isAdmin) {
-      // Master admin card shows platform-wide deposits / liquidity, not the admin wallet alone.
-      const poolTotal = Number(poolSummary?.totalBalance) || 0;
-      const poolEscrow = Number(poolSummary?.escrowBalance) || 0;
-      const depositCapital = Math.max(
-        getTotalMemberDepositCapitalFromLedgers(),
-        getTotalAdminFundedMemberCapital(),
-        getCompletedContributionCapital(),
-      );
-      const investments = Math.max(0, poolTotal, depositCapital, poolEscrow, invested);
-      const deposited = Math.max(0, depositCapital);
-      const contributed = Math.max(deposited, donated);
-      const memberRoi = getProfileMemberRoi({ contributed, equity: investments });
+      // Admin account card = operating cash (checking). Community pool lives in the liquidity widget.
+      const adminCash = Math.max(0, checking);
+      const memberRoi = getProfileMemberRoi({ contributed: adminCash, equity: adminCash });
       return {
-        equity: investments,
-        contributed,
+        equity: adminCash,
+        contributed: adminCash,
         donated,
-        deposited,
-        invested,
-        investments,
-        wallet: Math.max(poolEscrow, depositCapital),
+        deposited: adminCash,
+        invested: 0,
+        investments: adminCash,
+        cash: adminCash,
+        wallet: adminCash,
         checking,
-        escrow: poolEscrow,
-        balance: investments,
+        escrow,
+        balance: adminCash,
         roiAmount: memberRoi.amount,
         roiPct: memberRoi.pct,
       };
@@ -123,8 +112,8 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
       ? Number(stored?.equity) || 0
       : Number(contributionStats?.equity ?? stored?.equity ?? currentMember?.equityValue) || 0;
     const memberRoi = getProfileMemberRoi({ contributed, equity });
-    // Hero "Investments" = member stake (admin equity/checking), never donations.
-    const investments = Math.max(0, equity, invested, checking);
+    // Investments = community stake only. Redemption payouts sit in Cash (checking).
+    const investments = Math.max(0, equity, invested);
 
     return {
       equity,
@@ -133,14 +122,15 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
       deposited,
       invested,
       investments,
-      wallet: walletBalance,
+      cash,
+      wallet: cash,
       checking,
       escrow,
       balance: investments,
       roiAmount: memberRoi.amount,
       roiPct: memberRoi.pct,
     };
-  }, [profileId, currentMember, positions, ledger, dbRevision, isAdmin, poolSummary]);
+  }, [profileId, currentMember, positions, ledger, dbRevision, isAdmin]);
 
   const roiPositive = stats.roiAmount >= 0;
   const RoiIcon = roiPositive ? TrendingUp : TrendingDown;
@@ -176,7 +166,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
           <div className="dda-member-bank__top">
             {userFullName ? (
               <p className="dda-home-greeting dda-member-bank__greeting">
-                <span className="dda-home-greeting__label">{t("pages.dashboard.welcomeLabel")}</span>{" "}
+                <span className="dda-home-greeting__label">{t("pages.dashboard.welcomeLabel")}</span>
                 <span className="dda-home-greeting__name">{userFullName}</span>
               </p>
             ) : (
@@ -210,7 +200,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
           onKeyDown={interactive ? onLedgerKeyDown : undefined}
           aria-label={t(
             isAdmin
-              ? "pages.dashboard.liquidityAria"
+              ? "pages.dashboard.adminAccountAria"
               : interactive
                 ? wallet
                   ? "pages.dashboard.equityAriaWallet"
@@ -222,7 +212,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
           <div className="dda-member-bank__ledger-head">
             <div className="dda-member-bank__ledger-meta">
               <p className="dda-member-bank__account-type">
-                {t(isAdmin ? "pages.dashboard.liquidityTitle" : "pages.dashboard.equityTitle")}
+                {t(isAdmin ? "pages.dashboard.adminAccountTitle" : "pages.dashboard.equityTitle")}
               </p>
               <div className="dda-member-bank__account-mask-row">
                 <p className="dda-member-bank__account-mask" aria-live="polite">
@@ -266,6 +256,16 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
                 {formatBankCurrency(stats.investments)}
               </p>
             </div>
+            {!isAdmin ? (
+              <div className="dda-member-bank__balance-col dda-member-bank__balance-col--cash">
+                <p className="dda-member-bank__balance-label">
+                  {t("pages.dashboard.equityCash")}
+                </p>
+                <p className="dda-member-bank__balance dda-member-bank__balance--cash" aria-live="polite">
+                  {formatBankCurrency(stats.cash)}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <div className="dda-member-bank__chips" aria-label="Account summary">
@@ -298,8 +298,47 @@ export default function PlatformEquityCard({ onClick, className, wallet = false 
               </p>
             </div>
           </div>
+
+          {isAdmin && typeof onTransferClick === "function" ? (
+            <button
+              type="button"
+              className="dda-member-bank__transfer-btn"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onTransferClick();
+              }}
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" strokeWidth={2.25} />
+              {t("pages.accounts.adminLiquidityTransferButton")}
+            </button>
+          ) : null}
+
+          {!isAdmin ? (
+            <button
+              type="button"
+              className="dda-member-bank__transfer-btn dda-member-bank__request-btn"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setRequestOpen(true);
+              }}
+            >
+              <Banknote className="h-3.5 w-3.5" strokeWidth={2.25} />
+              {t("pages.dashboard.redemptionRequestButton")}
+            </button>
+          ) : null}
         </div>
       </div>
+
+      {!isAdmin ? (
+        <MemberRedemptionRequestModal
+          open={requestOpen}
+          onClose={() => setRequestOpen(false)}
+          availableBalance={stats.cash}
+          investedBalance={stats.investments}
+        />
+      ) : null}
     </section>
   );
 }

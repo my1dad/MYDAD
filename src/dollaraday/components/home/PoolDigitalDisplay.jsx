@@ -78,6 +78,7 @@ export default function PoolDigitalDisplay({
   dailyInflow,
   ytdGrowthPct,
   onClick,
+  onMembersClick,
   showSleeveDonuts = false,
   onSleeveClick,
 }) {
@@ -179,15 +180,34 @@ export default function PoolDigitalDisplay({
           <div className="dda-pool-widget__panel" role="tabpanel">
             {activeTab === "overview" ? (
               <div className="dda-pool-widget__stats">
-                <div className="dda-pool-widget__stat">
-                  <Users className="h-3.5 w-3.5 shrink-0 text-dda-gold-light" strokeWidth={2.25} />
-                  <div className="min-w-0">
-                    <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenMembers")}</p>
-                    <p className="dda-pool-widget__stat-value">
-                      {(memberCount ?? poolSummary?.memberCount ?? 0).toLocaleString()}
-                    </p>
+                {onMembersClick ? (
+                  <button
+                    type="button"
+                    className="dda-pool-widget__stat dda-pool-widget__stat--link"
+                    onClick={onMembersClick}
+                    aria-label={t("pages.dashboard.poolScreenMembersAria", {
+                      count: (memberCount ?? poolSummary?.memberCount ?? 0).toLocaleString(),
+                    })}
+                  >
+                    <Users className="h-3.5 w-3.5 shrink-0 text-dda-gold-light" strokeWidth={2.25} />
+                    <div className="min-w-0 text-left">
+                      <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenMembers")}</p>
+                      <p className="dda-pool-widget__stat-value">
+                        {(memberCount ?? poolSummary?.memberCount ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="dda-pool-widget__stat">
+                    <Users className="h-3.5 w-3.5 shrink-0 text-dda-gold-light" strokeWidth={2.25} />
+                    <div className="min-w-0">
+                      <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenMembers")}</p>
+                      <p className="dda-pool-widget__stat-value">
+                        {(memberCount ?? poolSummary?.memberCount ?? 0).toLocaleString()}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="dda-pool-widget__stat">
                   <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-dda-green-light" strokeWidth={2.25} />
                   <div className="min-w-0">

@@ -21,7 +21,16 @@ function roundMoney(value: number): number {
 function isCompletedDonation(payload: Record<string, unknown>): boolean {
   const amount = Number(payload.amount);
   if (!Number.isFinite(amount) || amount <= 0) return false;
-  if (String(payload.type ?? "") === "signup") return false;
+  const type = String(payload.type ?? "");
+  if (
+    type === "signup" ||
+    type === "redemption" ||
+    type === "external-payment-request" ||
+    type === "member-redemption-request" ||
+    type === "admin-liquidity-transfer"
+  ) {
+    return false;
+  }
   return String(payload.status ?? "completed") === "completed";
 }
 

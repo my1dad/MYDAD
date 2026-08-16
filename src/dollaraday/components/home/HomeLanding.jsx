@@ -3,6 +3,7 @@ import PoolDigitalDisplay from "./PoolDigitalDisplay.jsx";
 import PlatformEquityCard from "./PlatformEquityCard.jsx";
 import ContributeTodaySection from "./ContributeTodaySection.jsx";
 import CommunityWelcomeCard from "./CommunityWelcomeCard.jsx";
+import HomeRecentActivityCard from "./HomeRecentActivityCard.jsx";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
 
 const HomeDesktopDashboard = lazy(() => import("./HomeDesktopDashboard.jsx"));
@@ -41,7 +42,7 @@ export default function HomeLanding({
           onClick={onPoolClick}
         />
 
-        <CommunityWelcomeCard className="mt-1" />
+        <HomeRecentActivityCard className="mt-1" onNavigate={onNavigate} />
       </div>
 
       {/* Desktop / web — role-specific landscape dashboards (lazy so mobile skips the chunk) */}

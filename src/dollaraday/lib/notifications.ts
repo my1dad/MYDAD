@@ -28,7 +28,9 @@ export type DdaNotificationKind =
   | "donation"
   | "wallet_deposit"
   | "recurring_donation"
-  | "payment_request";
+  | "redemption"
+  | "payment_request"
+  | "redemption_request";
 
 export type DdaContributionNotifyType =
   | "wallet-deposit"
@@ -118,7 +120,16 @@ function getRecentDonations(limit = 50): ContributionDonation[] {
       };
     })
     .filter((entry) => {
-      if (entry.type === "signup" || entry.amount <= 0) return false;
+      if (
+        entry.type === "signup" ||
+        entry.type === "redemption" ||
+        entry.type === "admin-liquidity-transfer" ||
+        entry.type === "external-payment-request" ||
+        entry.type === "member-redemption-request"
+      ) {
+        return false;
+      }
+      if (entry.amount <= 0) return false;
       if (entry.status && entry.status !== "completed") return false;
       return Boolean(entry.memberName);
     })
@@ -143,6 +154,64 @@ function getRecentDonations(limit = 50): ContributionDonation[] {
         frequency,
       }),
     );
+}
+
+interface RedemptionNotify {
+  id: string;
+  memberName: string;
+  amount: number;
+  redeemedAt: string;
+  profileId?: string;
+}
+
+function getRecentRedemptions(limit = 50): RedemptionNotify[] {
+  return readDataBin("contributions")
+    .records.map((record) => {
+      const payload = record.payload ?? {};
+      const amount = Number(payload.amount) || 0;
+      const memberName =
+        typeof payload.memberName === "string" ? payload.memberName.trim() : "";
+      const redeemedAt =
+        typeof payload.redeemedAt === "string"
+          ? payload.redeemedAt
+          : typeof payload.contributedAt === "string"
+            ? payload.contributedAt
+            : record.createdAt;
+      const rawType = typeof payload.type === "string" ? payload.type : "";
+      const status = typeof payload.status === "string" ? payload.status : "completed";
+      const profileId =
+        typeof payload.toProfileId === "string"
+          ? payload.toProfileId
+          : typeof payload.profileId === "string"
+            ? payload.profileId
+            : typeof payload.memberId === "string"
+              ? payload.memberId
+              : undefined;
+
+      return {
+        id: record.id,
+        memberName,
+        amount,
+        redeemedAt,
+        profileId,
+        type: rawType,
+        status,
+      };
+    })
+    .filter((entry) => {
+      if (entry.type !== "redemption" || entry.amount <= 0) return false;
+      if (entry.status && entry.status !== "completed") return false;
+      return Boolean(entry.memberName || entry.profileId);
+    })
+    .sort((a, b) => b.redeemedAt.localeCompare(a.redeemedAt))
+    .slice(0, limit)
+    .map(({ id, memberName, amount, redeemedAt, profileId }) => ({
+      id,
+      memberName: memberName || "Member",
+      amount,
+      redeemedAt,
+      profileId,
+    }));
 }
 
 const READ_KEY = "dollar-a-day-notification-read";
@@ -334,6 +403,27 @@ function buildNotifications(profileId: string | undefined, isAdmin: boolean): Dd
       });
     });
 
+  // Redemptions: admin liquidity → member payouts (not donations).
+  getRecentRedemptions()
+    .filter((redemption) => {
+      if (isAdmin) return true;
+      if (!profileId) return false;
+      return redemption.profileId === profileId;
+    })
+    .forEach((redemption) => {
+      const id = `redemption-${redemption.id}`;
+      items.push({
+        id,
+        kind: "redemption",
+        memberName: redemption.memberName,
+        donationAmount: redemption.amount,
+        occurredAt: redemption.redeemedAt,
+        unread: !readIds.has(id),
+        targetPage: isAdmin ? "accounts" : "members",
+        targetProfileId: redemption.profileId,
+      });
+    });
+
   if (isAdmin) {
     getDadProfiles()
       .filter((profile) => profile.approvalStatus === "pending" && !isAdminProfile(profile))
@@ -380,6 +470,44 @@ function buildNotifications(profileId: string | undefined, isAdmin: boolean): Dd
             typeof payload.memberName === "string" ? payload.memberName : "Member",
           donationAmount: amount,
           paymentMethod: method,
+          paymentRequestId: record.id,
+          occurredAt:
+            typeof payload.contributedAt === "string" ? payload.contributedAt : record.createdAt,
+          unread: !readIds.has(id),
+          targetPage: "admin",
+          targetProfileId:
+            typeof payload.profileId === "string"
+              ? payload.profileId
+              : typeof payload.memberId === "string"
+                ? payload.memberId
+                : undefined,
+          targetUsername: typeof payload.username === "string" ? payload.username : undefined,
+        });
+      });
+
+    // Pending member redemption / payout requests (fulfill from liquidity).
+    readDataBin("contributions")
+      .records.filter((record) => {
+        const payload = record.payload ?? {};
+        const type = typeof payload.type === "string" ? payload.type : "";
+        const source = record.source || "";
+        const status = typeof payload.status === "string" ? payload.status : "";
+        return (
+          (type === "member-redemption-request" || source === "member-redemption-request") &&
+          status === "pending"
+        );
+      })
+      .forEach((record) => {
+        const payload = record.payload ?? {};
+        const amount = Number(payload.amount) || 0;
+        if (amount <= 0) return;
+        const id = `redemption-request-${record.id}`;
+        items.push({
+          id,
+          kind: "redemption_request",
+          memberName:
+            typeof payload.memberName === "string" ? payload.memberName : "Member",
+          donationAmount: amount,
           paymentRequestId: record.id,
           occurredAt:
             typeof payload.contributedAt === "string" ? payload.contributedAt : record.createdAt,
