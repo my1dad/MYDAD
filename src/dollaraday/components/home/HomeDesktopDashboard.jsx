@@ -1,6 +1,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 import {
   ArrowUpRight,
+  Banknote,
   Landmark,
   LineChart,
   PiggyBank,
@@ -21,11 +22,17 @@ import {
   isProfilePendingApproval,
   subscribeDadProfiles,
 } from "../../lib/dadProfileStorage";
+import { getPendingExternalPaymentRequests } from "../../lib/externalPaymentRequests";
 import {
   getDatabaseRevision,
   subscribeInternalDatabase,
 } from "../../lib/internalDatabase";
+import {
+  getPendingMemberRedemptionRequests,
+  listMemberRedemptionRequests,
+} from "../../lib/memberRedemptionRequests";
 import { useMembers } from "../../lib/memberRegistry";
+import { getAdminAccountsCombinedTotal } from "../../lib/memberAccounts";
 import { formatPoolCurrency } from "../../data/mockData";
 import PlatformEquityCard from "./PlatformEquityCard.jsx";
 import PoolDigitalDisplay from "./PoolDigitalDisplay.jsx";
@@ -65,7 +72,7 @@ function DesktopNavTile({
 
 export default function HomeDesktopDashboard({
   poolTotal,
-  poolMemberCount,
+  poolMemberCount: _poolMemberCount,
   poolDailyInflow,
   poolYtdGrowthPct,
   onNavigate,
@@ -94,23 +101,43 @@ export default function HomeDesktopDashboard({
       ? getDadProfiles().filter((item) => isProfilePendingApproval(item)).length
       : 0;
 
+    const pendingDeposits = isAdmin ? getPendingExternalPaymentRequests().length : 0;
+    const pendingRedemptions = isAdmin ? getPendingMemberRedemptionRequests().length : 0;
+    const pendingPaymentRequests = pendingDeposits + pendingRedemptions;
+    const redemptionSubmitted = isAdmin ? listMemberRedemptionRequests().length : 0;
+    const redemptionPendingPct =
+      pendingPaymentRequests > 0
+        ? Math.round((pendingRedemptions / pendingPaymentRequests) * 100)
+        : 0;
+
     const accounts = profileId
       ? buildAccountsOverviewStats(profileId, { platformScope: isAdmin })
       : null;
     const deployed = getTotalDeployedCapital();
+    const checking = Number(accounts?.checkingBalance) || 0;
+    const escrow = Number(accounts?.escrowBalance) || 0;
+    const memberWallet = Math.max(0, checking + escrow);
+    const adminCombined = isAdmin ? getAdminAccountsCombinedTotal(profileId) : null;
 
     return {
-      memberCount: members.length || poolMemberCount || 0,
+      memberCount: members.length,
       pendingCount,
-      walletTotal: Number(accounts?.totalBalance) || 0,
-      checking: Number(accounts?.checkingBalance) || 0,
-      escrow: Number(accounts?.escrowBalance) || 0,
+      pendingPaymentRequests,
+      pendingDeposits,
+      pendingRedemptions,
+      redemptionSubmitted,
+      redemptionPendingPct,
+      // Admin: operating account + community liquidity (single shared helper — no double-count).
+      walletTotal: isAdmin ? adminCombined.total : memberWallet,
+      adminAccount: adminCombined?.adminAccount ?? 0,
+      communityLiquidity: adminCombined?.communityLiquidity ?? 0,
+      checking,
+      escrow,
       depositsTotal: Number(accounts?.depositsTotal) || 0,
       deployed,
     };
   }, [
     members.length,
-    poolMemberCount,
     profileId,
     isAdmin,
     profileRevision,
@@ -126,14 +153,27 @@ export default function HomeDesktopDashboard({
       meta: t("pages.dashboard.deskAllocationsMeta"),
       tone: "gold",
     },
-    {
-      id: "community",
-      icon: MessagesSquare,
-      title: t("nav.community"),
-      value: t("pages.dashboard.deskCommunityValue"),
-      meta: t("pages.dashboard.deskCommunityMeta"),
-      tone: "sky",
-    },
+    isAdmin
+      ? {
+          id: "admin",
+          icon: Banknote,
+          title: t("pages.dashboard.deskPaymentRequestsTitle"),
+          value: String(stats.pendingPaymentRequests),
+          meta: t("pages.dashboard.deskPaymentRequestsMeta", {
+            count: stats.pendingRedemptions,
+            submitted: stats.redemptionSubmitted,
+            pct: stats.redemptionPendingPct,
+          }),
+          tone: "sky",
+        }
+      : {
+          id: "community",
+          icon: MessagesSquare,
+          title: t("nav.community"),
+          value: t("pages.dashboard.deskCommunityValue"),
+          meta: t("pages.dashboard.deskCommunityMeta"),
+          tone: "sky",
+        },
     {
       id: "loans",
       icon: Landmark,
@@ -148,7 +188,6 @@ export default function HomeDesktopDashboard({
     <div className="dda-home-desktop" aria-label={t("pages.dashboard.deskAria")}>
       <header className="dda-home-desktop__intro">
         <div className="min-w-0">
-          <p className="dda-text-kicker">{t("pages.dashboard.deskKicker")}</p>
           <h1 className="dda-home-desktop__title">{t("pages.dashboard.deskTitle")}</h1>
           <p className="dda-home-desktop__subtitle">{t("pages.dashboard.deskSubtitle")}</p>
         </div>
@@ -165,7 +204,7 @@ export default function HomeDesktopDashboard({
         <div className="dda-home-desktop__hero-pool">
           <PoolDigitalDisplay
             amount={poolTotal}
-            memberCount={poolMemberCount}
+            memberCount={members.length}
             dailyInflow={poolDailyInflow}
             ytdGrowthPct={poolYtdGrowthPct}
             onClick={() => onNavigate?.("pool")}
@@ -201,10 +240,17 @@ export default function HomeDesktopDashboard({
           icon={Wallet}
           title={t("nav.accounts")}
           value={formatMoney(stats.walletTotal)}
-          meta={t("pages.dashboard.deskAccountsMeta", {
-            checking: formatMoney(stats.checking),
-            escrow: formatMoney(stats.escrow),
-          })}
+          meta={
+            isAdmin
+              ? t("pages.dashboard.deskAccountsMetaAdmin", {
+                  admin: formatMoney(stats.adminAccount),
+                  liquidity: formatMoney(stats.communityLiquidity),
+                })
+              : t("pages.dashboard.deskAccountsMeta", {
+                  checking: formatMoney(stats.checking),
+                  escrow: formatMoney(stats.escrow),
+                })
+          }
           tone="gold"
           onClick={() => onNavigate?.("accounts")}
         />

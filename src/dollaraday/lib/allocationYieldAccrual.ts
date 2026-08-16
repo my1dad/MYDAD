@@ -70,7 +70,7 @@ function settleMaturedPosition(position: AllocationPosition, today: string): boo
   if (position.matured || today < position.maturityDate) return false;
 
   const memo = `${position.contractLabel} maturity · principal returned`;
-  const credited = depositToMemberAccount(position.profileId, "escrow", position.principal, memo, {
+  const credited = depositToMemberAccount(position.profileId, "checking", position.principal, memo, {
     occurredAt: `${position.maturityDate}T12:00:00.000Z`,
   });
 

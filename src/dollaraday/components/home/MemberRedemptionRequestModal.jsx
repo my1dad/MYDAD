@@ -36,11 +36,12 @@ export default function MemberRedemptionRequestModal({
   open,
   onClose,
   availableBalance = 0,
-  investedBalance = 0,
+  cashBalance = 0,
 }) {
   const { t } = useLocale();
+  // Available to redeem = invested equity. ALL + submit cap use this.
   const maxAmount = Math.max(0, Number(availableBalance) || 0);
-  const invested = Math.max(0, Number(investedBalance) || 0);
+  const cash = Math.max(0, Number(cashBalance) || 0);
 
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
@@ -176,10 +177,10 @@ export default function MemberRedemptionRequestModal({
           <div className="grid grid-cols-2 gap-2">
             <div className="dda-panel rounded-xl px-3 py-2.5">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                {t("pages.dashboard.redemptionRequestInvested")}
+                {t("pages.dashboard.redemptionRequestAvailable")}
               </p>
               <p className="mt-1 text-base font-bold tabular-nums text-white">
-                {formatPoolCurrency(invested)}
+                {formatPoolCurrency(maxAmount)}
               </p>
             </div>
             <div className="dda-panel rounded-xl px-3 py-2.5">
@@ -187,7 +188,7 @@ export default function MemberRedemptionRequestModal({
                 {t("pages.dashboard.equityCash")}
               </p>
               <p className="mt-1 text-base font-bold tabular-nums text-[#fde68a]">
-                {formatPoolCurrency(maxAmount)}
+                {formatPoolCurrency(cash)}
               </p>
             </div>
           </div>

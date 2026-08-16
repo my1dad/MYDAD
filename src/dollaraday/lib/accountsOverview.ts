@@ -1,14 +1,6 @@
 import type { MemberAccountTransaction } from "./memberAccounts";
 import { hydrateMemberAccounts } from "./memberAccounts";
 import { readDataBin } from "./internalDatabase";
-import { getPlatformMemberDonationTotals } from "./memberContributionStats";
-import {
-  getAdminLiquidityDrawOutflow,
-  getCompletedContributionCapital,
-  getCompletedRedemptionOutflow,
-  getTotalAdminFundedMemberCapital,
-  getTotalMemberDepositCapitalFromLedgers,
-} from "./memberEscrowTotals";
 import {
   getMemberRedemptionsReceived,
   getPlatformRedemptionTotals,
@@ -170,14 +162,22 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function sumDeposits(profileId: string) {
+/**
+ * Realtime deposit totals from completed contribution records.
+ * Counts wallet deposits, one-time/recurring gifts, and cash reinvests —
+ * not payment-request shells, redemptions, or admin liquidity moves.
+ * When profileId is omitted, sums the whole platform.
+ */
+function sumDeposits(profileId?: string) {
   let total = 0;
   let count = 0;
 
   readDataBin("contributions").records.forEach((record) => {
     const payload = record.payload ?? {};
-    const owner = String(payload.profileId ?? payload.memberId ?? "").trim();
-    if (owner !== profileId) return;
+    if (profileId) {
+      const owner = String(payload.profileId ?? payload.memberId ?? "").trim();
+      if (owner !== profileId) return;
+    }
 
     const amount = Number(payload.amount);
     if (!Number.isFinite(amount) || amount <= 0) return;
@@ -269,31 +269,8 @@ export function buildAccountsOverviewStats(
 ): AccountsOverviewStats {
   const ledger = hydrateMemberAccounts(profileId);
   const schedules = getRecurringCashflows(profileId);
-  const personalDeposits = sumDeposits(profileId);
-  const platformDonations = options.platformScope
-    ? getPlatformMemberDonationTotals()
-    : null;
-  // Admin Accounts: sum member deposits (admin-funded checking/equity + ledgers + contributions).
-  const deposits = options.platformScope
-    ? (() => {
-        const redemptionOutflow = getCompletedRedemptionOutflow();
-        const adminDrawOutflow = getAdminLiquidityDrawOutflow();
-        const gross = Math.max(
-          getTotalMemberDepositCapitalFromLedgers(),
-          getTotalAdminFundedMemberCapital(),
-          getCompletedContributionCapital(),
-          platformDonations?.donated ?? 0,
-        );
-        const total = Math.max(0, roundMoney(gross - redemptionOutflow - adminDrawOutflow));
-        const fundedMembers = readDataBin("members").records.filter(
-          (record) =>
-            record.payload?.adminBalancesLocked === true &&
-            (Number(record.payload?.equity) > 0 || Number(record.payload?.contributed) > 0),
-        ).length;
-        const count = Math.max(fundedMembers, platformDonations?.count ?? 0);
-        return { total, count };
-      })()
-    : personalDeposits;
+  // Deposits track live contribution rows only (not ledger/liquidity proxies).
+  const deposits = options.platformScope ? sumDeposits() : sumDeposits(profileId);
   const redemptions = options.platformScope
     ? (() => {
         const totals = getPlatformRedemptionTotals();

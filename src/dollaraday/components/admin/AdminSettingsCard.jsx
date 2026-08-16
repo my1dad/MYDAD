@@ -212,8 +212,13 @@ export default function AdminSettingsCard() {
 
   const handleSaveCsv = () => {
     setError("");
-    downloadDashboardCsv();
-    setStatus(t("pages.admin.settings.csvSaved"));
+    try {
+      downloadDashboardCsv();
+      setStatus(t("pages.admin.settings.csvSaved"));
+    } catch (err) {
+      console.warn("[AdminSettings] CSV export failed:", err);
+      setError(t("pages.admin.settings.csvLoadFailed"));
+    }
   };
 
   const handleLoadCsv = async (event) => {
@@ -227,14 +232,20 @@ export default function AdminSettingsCard() {
 
     try {
       const text = await file.text();
-      const result = importDashboardCsv(text);
+      const result = await importDashboardCsv(text);
       if (!result.ok) {
-        setError(result.error);
+        setError(result.error || t("pages.admin.settings.csvLoadFailed"));
         return;
       }
-      setStatus(t("pages.admin.settings.csvLoaded"));
-      window.setTimeout(() => window.location.reload(), 600);
-    } catch {
+      setStatus(
+        t("pages.admin.settings.csvLoadedDetail", {
+          profiles: result.profileCount,
+          records: result.recordCount,
+        }),
+      );
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (err) {
+      console.warn("[AdminSettings] CSV import failed:", err);
       setError(t("pages.admin.settings.csvLoadFailed"));
     } finally {
       setImporting(false);

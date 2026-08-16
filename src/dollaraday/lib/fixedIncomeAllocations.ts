@@ -21,7 +21,7 @@ export function isFixedIncomePosition(position: AllocationPosition): boolean {
 }
 
 export function sellFixedIncomeAllocation(positionId: string): FixedIncomeTradeResult {
-  const escrowProfileId = resolvePlatformEscrowProfileId();
+  const platformProfileId = resolvePlatformEscrowProfileId();
   const position = getActiveAllocationPositions().find((item) => item.id === positionId);
 
   if (!position || !isFixedIncomePosition(position)) return "not_found";
@@ -30,10 +30,10 @@ export function sellFixedIncomeAllocation(positionId: string): FixedIncomeTradeR
   if (proceeds <= 0) return "invalid";
 
   const symbol = position.sleeveKey === "treasury" ? "Treasury" : "Bond";
-  // Proceeds always return to platform Chase Escrow (same sink buys debit).
+  // Proceeds return to Admin Cash Account (same sink buys debit).
   const credited = depositToMemberAccount(
-    escrowProfileId,
-    "escrow",
+    platformProfileId,
+    "checking",
     proceeds,
     `${position.contractLabel} · ${symbol} early redemption · $${proceeds.toFixed(2)}`,
   );

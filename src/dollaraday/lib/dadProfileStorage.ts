@@ -200,6 +200,21 @@ function createId() {
   return crypto.randomUUID?.() ?? `dad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+/** Prefer full directory for backups — blank-lock filter must not shrink exports. */
+export function getDadProfilesForBackup(): DadProfile[] {
+  try {
+    if (profilesCache && profilesCache.length > 0) {
+      return profilesCache.map((profile) => ({ ...profile }));
+    }
+    const raw = localStorage.getItem(PROFILES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as DadProfile[];
+    return Array.isArray(parsed) ? parsed.map((profile) => ({ ...profile })) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function getDadProfiles(): DadProfile[] {
   return readProfiles();
 }
@@ -466,13 +481,8 @@ export async function authenticateDadProfile(
   password: string,
   options: { profile?: DadProfile | null } = {},
 ): Promise<DadProfile | null> {
-  // Auth must not be blocked by a raced blank-lock filter after cloud pull.
-  try {
-    const { clearFactoryZeroDeliveryLock } = await import("./supabase/cloudSync");
-    clearFactoryZeroDeliveryLock();
-  } catch {
-    /* ignore */
-  }
+  // Auth uses the cloud-adopted directory from pullCloudProfileForAuth.
+  // Do not clear blank/epoch locks here — that let stale devices republish old members.
 
   const profile = options.profile ?? findDadProfileByUsername(username.trim());
   const secret = password.trim();

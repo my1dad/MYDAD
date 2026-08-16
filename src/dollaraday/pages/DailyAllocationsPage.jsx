@@ -1,14 +1,15 @@
-import { useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import PageHeader from "../components/layout/PageHeader";
 import DashboardCard from "../components/layout/DashboardCard";
 import ContributeTodaySection from "../components/home/ContributeTodaySection";
-import { useMembers } from "../lib/memberRegistry";
+import { useMembers, withLiveMemberBalances } from "../lib/memberRegistry";
 import { resolveMemberFromDonation } from "../lib/memberDetails";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
 import { useEasternLiveTime, useLiveRelativeTime } from "../context/EasternTimeContext";
-import { usePoolState } from "../lib/poolState";
+import { getDatabaseRevision, subscribeInternalDatabase } from "../lib/internalDatabase";
+import { syncMemberEscrowToLiquidityPool, usePoolState } from "../lib/poolState";
 import { saveContribution } from "../lib/storageWrites";
 import { formatPoolCurrency } from "../data/mockData";
 
@@ -28,6 +29,11 @@ export default function DailyAllocationsPage() {
   const { translateStatus } = useLocalizedData();
   const { todaysDonations, dailyAllocationSummary, currentMember } = usePoolState();
   const members = useMembers();
+  const dbRevision = useSyncExternalStore(
+    subscribeInternalDatabase,
+    getDatabaseRevision,
+    () => 0,
+  );
   const [selectedMember, setSelectedMember] = useState(null);
   const [contributeOpen, setContributeOpen] = useState(false);
   const [contributeSeed, setContributeSeed] = useState({
@@ -38,6 +44,23 @@ export default function DailyAllocationsPage() {
   const completedCount = todaysDonations.filter((d) => d.status === "completed").length;
   const { longDate: todayLabel } = useEasternLiveTime();
   const lastUpdatedLabel = useLiveRelativeTime(dailyAllocationSummary.lastUpdatedAt);
+
+  useEffect(() => {
+    syncMemberEscrowToLiquidityPool();
+  }, [dbRevision]);
+
+  // Live sum of member investment balances (equity nets redemptions).
+  const memberInvestmentsTotal = useMemo(() => {
+    void dbRevision;
+    return members
+      .filter((member) => {
+        const username = member.username?.trim().toLowerCase();
+        const handle = member.handle?.trim().toLowerCase();
+        return username !== "admin" && handle !== "@admin" && member.status !== "declined";
+      })
+      .map((member) => withLiveMemberBalances(member))
+      .reduce((sum, member) => sum + (Number(member.equity) || 0), 0);
+  }, [members, dbRevision]);
 
   const openMemberDetail = (donation) => {
     setSelectedMember(resolveMemberFromDonation(donation, members, currentMember));
@@ -70,9 +93,15 @@ export default function DailyAllocationsPage() {
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-500">{t("pages.allocations.total")}</p>
-            <p className="font-bold tabular-nums text-dda-green-light">
+            <p className="text-xs text-gray-500">{t("pages.allocations.todayTotal")}</p>
+            <p className="font-bold tabular-nums text-white">
               {formatPoolCurrency(dailyAllocationSummary.totalAmount)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">{t("pages.allocations.investmentsTotal")}</p>
+            <p className="font-bold tabular-nums text-dda-green-light">
+              {formatPoolCurrency(memberInvestmentsTotal)}
             </p>
           </div>
           <div>

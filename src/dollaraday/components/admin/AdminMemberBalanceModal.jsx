@@ -18,8 +18,9 @@ import {
 } from "../../lib/memberAccounts";
 import {
   adminSetMemberDirectoryBalances,
-  findStoredMemberByProfileId,
+  applyMemberStatsFromContributions,
 } from "../../lib/memberRegistry";
+import { computeMemberStatsFromContributions } from "../../lib/memberContributionStats";
 import { findDadProfileById, getDadProfiles } from "../../lib/dadProfileStorage";
 import { logProfileActivity } from "../../lib/profileActivity";
 import { syncMemberEscrowToLiquidityPool, syncPoolInflowMetrics } from "../../lib/poolState";
@@ -62,11 +63,10 @@ function roundMoney(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
+/** Current investment balance — same equity figure as Members list / equity card. */
 function readCurrentBalance(profileId) {
-  const wallet = getMemberAccountLedger(profileId);
-  return roundMoney(
-    Math.max(Number(wallet.checkingBalance) || 0, Number(wallet.escrowBalance) || 0),
-  );
+  if (!profileId) return 0;
+  return roundMoney(computeMemberStatsFromContributions(profileId).equity);
 }
 
 function isAdminPopupDeposit(record, profileId) {
@@ -144,6 +144,11 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
   }, [open, profileId]);
 
   useEffect(() => {
+    if (!open || !profileId) return;
+    setCurrentBalance(readCurrentBalance(profileId));
+  }, [open, profileId, dbRevision]);
+
+  useEffect(() => {
     if (!open) return undefined;
     return lockBodyScroll();
   }, [open]);
@@ -195,18 +200,6 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
         depositToMemberAccount(profileId, "escrow", escrowGap, note);
       }
 
-      const stored = findStoredMemberByProfileId(profileId);
-      const nextContributed = roundMoney((Number(stored?.contributed) || 0) + amount);
-      const nextEquity = roundMoney((Number(stored?.equity) || currentBalance) + amount);
-      const directory = adminSetMemberDirectoryBalances(profileId, {
-        contributed: nextContributed,
-        equity: Math.max(nextEquity, nextContributed),
-      });
-      if (!directory) {
-        setError(t("pages.admin.memberDetailBalancesFailed"));
-        return;
-      }
-
       appendDataRecord("contributions", "wallet-deposit", {
         type: "wallet-deposit",
         source: ADMIN_POPUP_DEPOSIT_SOURCE,
@@ -220,6 +213,14 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
         contributedAt: new Date().toISOString(),
         status: "completed",
         memo: note,
+      });
+
+      // Directory contributed/equity follow live investment stats (nets redemptions).
+      applyMemberStatsFromContributions(profileId);
+      const live = computeMemberStatsFromContributions(profileId);
+      adminSetMemberDirectoryBalances(profileId, {
+        contributed: live.contributed,
+        equity: live.equity,
       });
 
       if (profile) {

@@ -102,13 +102,10 @@ export function syncProfileToMemberRegistry(
   const stored = findStoredMemberByProfileId(profile.id);
   const record = toAdminMemberRecord(profile, stored);
   const contributionStats = computeMemberStatsFromContributions(profile.id);
-  const balancesLocked = stored?.adminBalancesLocked === true;
 
-  // Contributions bin is the worldwide source of truth unless an admin locked balances.
-  if (!balancesLocked) {
-    record.contributed = contributionStats.contributed;
-    record.equity = contributionStats.equity;
-  }
+  // Contributions bin is the worldwide source of truth for contributed / equity.
+  record.contributed = contributionStats.contributed;
+  record.equity = contributionStats.equity;
   record.days = contributionStats.days;
   record.streak = contributionStats.streak;
   if (contributionStats.days > 0) {
@@ -143,7 +140,15 @@ export function syncAllProfilesToMemberRegistry(): void {
 export function getAdminMemberRecords(): AdminMemberRecord[] {
   return getDadProfiles()
     .filter((profile) => !isAdminProfile(profile))
-    .map((profile) => toAdminMemberRecord(profile, findStoredMemberByProfileId(profile.id)))
+    .map((profile) => {
+      const record = toAdminMemberRecord(profile, findStoredMemberByProfileId(profile.id));
+      const stats = computeMemberStatsFromContributions(profile.id);
+      record.contributed = stats.contributed;
+      record.equity = stats.equity;
+      if (stats.days > 0) record.days = stats.days;
+      if (stats.streak > 0) record.streak = stats.streak;
+      return record;
+    })
     .sort((a, b) => {
       if ((a.status === "pending") !== (b.status === "pending")) {
         return a.status === "pending" ? -1 : 1;
@@ -207,6 +212,11 @@ export function buildAdminMemberDetail(profileId: string) {
   if (!profile) return null;
 
   const record = toAdminMemberRecord(profile, findStoredMemberByProfileId(profileId));
+  const stats = computeMemberStatsFromContributions(profileId);
+  record.contributed = stats.contributed;
+  record.equity = stats.equity;
+  if (stats.days > 0) record.days = stats.days;
+  if (stats.streak > 0) record.streak = stats.streak;
 
   return {
     record,

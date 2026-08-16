@@ -6,6 +6,10 @@ import {
 } from "./memberAccounts";
 import { getCompletedRedemptionOutflow } from "./memberEscrowTotals";
 import { findDadProfileById, getActiveDadProfile } from "./dadProfileStorage";
+import {
+  adminSetMemberDirectoryBalances,
+  findStoredMemberByProfileId,
+} from "./memberRegistry";
 import { logProfileActivity } from "./profileActivity";
 import { syncMemberEscrowToLiquidityPool } from "./poolState";
 
@@ -177,6 +181,15 @@ export function saveAdminRedemption(input: {
     contributedAt: redeemedAt,
     direction: "liquidity-to-member",
   });
+
+  // Investments leave the platform — reduce directory equity/contributed.
+  const stored = findStoredMemberByProfileId(input.toProfileId);
+  if (stored) {
+    adminSetMemberDirectoryBalances(input.toProfileId, {
+      contributed: Math.max(0, roundMoney((Number(stored.contributed) || 0) - amount)),
+      equity: Math.max(0, roundMoney((Number(stored.equity) || 0) - amount)),
+    });
+  }
 
   const active = getActiveDadProfile();
   if (active) {

@@ -118,6 +118,11 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
     return () => window.clearTimeout(timer);
   }, [copiedTarget]);
 
+  useEffect(() => {
+    if (cashBalance > 0.001) return;
+    if (fundingSource === "cash") setFundingSource("external");
+  }, [cashBalance, fundingSource]);
+
   const amount = useMemo(() => {
     const parsed = Number.parseFloat(customAmount);
     if (Number.isFinite(parsed)) return parsed;
@@ -205,11 +210,22 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
           );
           return;
         }
-        setSubmitNote(
-          t("contribute.cashReinvestSuccess", {
-            amount: formatUsdFixed(cappedAmount),
-          }),
-        );
+        const remaining = Number(result.balance) || 0;
+        if (remaining <= 0.001) {
+          setFundingSource("external");
+          setSubmitNote(
+            t("contribute.cashReinvestSuccessEmpty", {
+              amount: formatUsdFixed(cappedAmount),
+            }),
+          );
+        } else {
+          setSubmitNote(
+            t("contribute.cashReinvestSuccess", {
+              amount: formatUsdFixed(cappedAmount),
+            }),
+          );
+        }
+        window.setTimeout(() => onClose?.(), 1200);
         return;
       }
 
@@ -226,6 +242,7 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
       }
       setSubmitNote(t("contribute.paymentRequestSent"));
       await copyText(ZELLE_PAY_EMAIL, "email");
+      window.setTimeout(() => onClose?.(), 1200);
     } catch (err) {
       console.warn("[ZellePayModal] Payment request failed:", err);
       setSubmitError(
@@ -256,7 +273,7 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
       >
         <div className="dda-accent-bar" />
 
-        <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3">
+        <div className="shrink-0 flex items-start justify-between gap-3 px-5 pt-5 pb-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
               <img
@@ -284,7 +301,7 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
           </button>
         </div>
 
-        <div className="dda-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+        <div className="dda-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6">
           <ol className="dda-zelle-pay__steps" aria-label={t("contribute.zellePayStepsLabel")}>
             <li>{t("contribute.zellePayStep1")}</li>
             <li>{t("contribute.zellePayStep2")}</li>
@@ -379,11 +396,20 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
                 {t("contribute.fundingCash")}
               </button>
             </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-              {useCash
-                ? t("contribute.cashReinvestHint")
-                : t("contribute.paymentRequestHint")}
-            </p>
+            {cashBalance <= 0 ? (
+              <p
+                className="mt-2 rounded-xl border border-[#fde68a]/25 bg-[#fde68a]/10 px-3 py-2 text-[11px] leading-relaxed text-[#fde68a]"
+                role="status"
+              >
+                {t("contribute.cashBalanceEmptyPrompt")}
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+                {useCash
+                  ? t("contribute.cashReinvestHint")
+                  : t("contribute.paymentRequestHint")}
+              </p>
+            )}
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-2" role="group" aria-label={t("contribute.amountTitle")}>
@@ -454,9 +480,18 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
               </button>
             </div>
           </div>
+
+          <p className="mt-4 text-center text-[11px] leading-relaxed text-gray-500">
+            {useCash ? t("contribute.cashReinvestHint") : t("contribute.zellePayHint")}
+          </p>
+          {!useCash ? (
+            <p className="mt-1.5 text-center text-[11px] leading-relaxed text-gray-500">
+              {t("contribute.paymentRequestHint")}
+            </p>
+          ) : null}
         </div>
 
-        <div className="border-t border-white/10 px-5 py-4">
+        <div className="dda-zelle-pay__footer shrink-0 border-t border-white/10 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {submitError ? (
             <p className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
               {submitError}
@@ -504,14 +539,6 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
               <ExternalLink className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
               {t("contribute.zellePayOpenSite")}
             </a>
-          ) : null}
-          <p className="mt-2.5 text-center text-[11px] leading-relaxed text-gray-500">
-            {useCash ? t("contribute.cashReinvestHint") : t("contribute.zellePayHint")}
-          </p>
-          {!useCash ? (
-            <p className="mt-1.5 text-center text-[11px] leading-relaxed text-gray-500">
-              {t("contribute.paymentRequestHint")}
-            </p>
           ) : null}
         </div>
       </div>

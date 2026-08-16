@@ -39,16 +39,16 @@ export function buyStockAllocation(input: {
   const total = roundMoney(shares * price);
   if (total <= 0) return "invalid";
 
-  const escrowProfileId = resolvePlatformEscrowProfileId();
+  const platformProfileId = resolvePlatformEscrowProfileId();
   const label = input.label?.trim() || symbol;
   const memo = `${symbol} · ${shares} sh @ $${price.toFixed(2)} (stocks)`;
-  const ledger = spendFromMemberAccount(escrowProfileId, "escrow", total, memo);
+  const ledger = spendFromMemberAccount(platformProfileId, "checking", total, memo);
   if (!ledger) return "insufficient";
 
   const purchasedDate = formatEasternIsoDate();
   const position = appendAllocationPosition({
     id: `stock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    profileId: escrowProfileId,
+    profileId: platformProfileId,
     sleeveKey: "stocks",
     contractId: symbol,
     contractLabel: label,
@@ -67,7 +67,7 @@ export function buyStockAllocation(input: {
 
   appendAllocationYieldLogEntry({
     positionId: position.id,
-    profileId: escrowProfileId,
+    profileId: platformProfileId,
     sleeveKey: "stocks",
     contractLabel: label,
     dayYmd: purchasedDate,
@@ -91,7 +91,7 @@ export function sellStockAllocation(input: {
 }): StockTradeResult {
   if (!Number.isFinite(input.exitPrice) || input.exitPrice <= 0) return "invalid";
 
-  const escrowProfileId = resolvePlatformEscrowProfileId();
+  const platformProfileId = resolvePlatformEscrowProfileId();
   const position = getActiveStockPositions().find((item) => item.id === input.positionId);
   if (!position) return "not_found";
 
@@ -114,8 +114,8 @@ export function sellStockAllocation(input: {
   const sellingAll = sharesToSell >= heldShares - 0.00001;
 
   const credited = depositToMemberAccount(
-    escrowProfileId,
-    "escrow",
+    platformProfileId,
+    "checking",
     proceeds,
     `${symbol} sell · ${sharesToSell} sh @ $${exitPrice.toFixed(2)} · P/L ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)}`,
   );
@@ -127,7 +127,7 @@ export function sellStockAllocation(input: {
     const roi = getPositionRoi(position);
     appendAllocationYieldLogEntry({
       positionId: position.id,
-      profileId: escrowProfileId,
+      profileId: platformProfileId,
       sleeveKey: "stocks",
       contractLabel: position.contractLabel,
       dayYmd: today,
@@ -149,7 +149,7 @@ export function sellStockAllocation(input: {
       const roi = getPositionRoi(updated);
       appendAllocationYieldLogEntry({
         positionId: updated.id,
-        profileId: escrowProfileId,
+        profileId: platformProfileId,
         sleeveKey: "stocks",
         contractLabel: updated.contractLabel,
         dayYmd: today,

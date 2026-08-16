@@ -8,14 +8,14 @@ import { getMemberInitials } from "../lib/memberDetails";
 import { useDadAuth } from "../context/DadAuthContext";
 import { isMemberProfile } from "../../config/memberProfile";
 import { countTodaysDeposits } from "../lib/poolInflow";
-import { useMembers } from "../lib/memberRegistry";
+import { useMembers, withLiveMemberBalances } from "../lib/memberRegistry";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
 import { getDatabaseRevision, subscribeInternalDatabase } from "../lib/internalDatabase";
 import { usePoolState } from "../lib/poolState";
 import { getMemberRedemptionsReceived } from "../lib/redemptions";
+import { getMemberCashBalance } from "../lib/cashReinvest";
 import { formatEasternShortDate } from "../lib/dateTime";
-import { useMemberAccounts } from "../lib/memberAccounts";
 
 const MemberDetailModal = lazy(() => import("../components/members/MemberDetailModal"));
 const AdminMemberBalanceModal = lazy(() => import("../components/admin/AdminMemberBalanceModal"));
@@ -86,13 +86,12 @@ export default function MembersPage() {
     getDatabaseRevision,
     () => 0,
   );
-  const myCashLedger = useMemberAccounts(profile?.id);
   const myRedemptions = useMemo(() => {
     void dbRevision;
     if (!profile?.id) return { total: 0, count: 0, recent: [] };
     return getMemberRedemptionsReceived(profile.id);
   }, [profile?.id, dbRevision]);
-  const myCashBalance = Number(myCashLedger.checkingBalance) || 0;
+  const myCashBalance = profile?.id ? getMemberCashBalance(profile.id) : 0;
 
   // Count completed deposits/contributions recorded for today's Eastern date only.
   const todaysDepositCount = useMemo(() => {
@@ -102,14 +101,17 @@ export default function MembersPage() {
   }, [dbRevision, dailyAllocationSummary.lastUpdatedAt]);
 
   // Member directory shows member profiles only (master admin is never listed).
+  // Live contribution stats keep CONTRIBUTED / EQUITY aligned with investments.
   const memberDirectory = useMemo(
     () =>
-      members.filter((member) => {
-        const username = member.username?.trim().toLowerCase();
-        const handle = member.handle?.trim().toLowerCase();
-        return username !== "admin" && handle !== "@admin";
-      }),
-    [members],
+      members
+        .filter((member) => {
+          const username = member.username?.trim().toLowerCase();
+          const handle = member.handle?.trim().toLowerCase();
+          return username !== "admin" && handle !== "@admin";
+        })
+        .map((member) => withLiveMemberBalances(member)),
+    [members, dbRevision],
   );
 
   const featuredMembers = useMemo(() => {

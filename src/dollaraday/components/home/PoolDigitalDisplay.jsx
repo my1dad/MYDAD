@@ -3,6 +3,7 @@ import { ArrowUpRight, Percent, PiggyBank, Sparkles, Users } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { formatPoolCurrency } from "../../data/mockData";
 import { useLocale } from "../../i18n/LocaleContext";
+import { useMembers } from "../../lib/memberRegistry";
 import { usePoolState } from "../../lib/poolState";
 import {
   ALLOCATION_SLEEVE_META,
@@ -74,7 +75,7 @@ function SleeveDonut({ sleeveKey, principal, percent, onClick, t }) {
 
 export default function PoolDigitalDisplay({
   amount,
-  memberCount,
+  memberCount: _memberCount,
   dailyInflow,
   ytdGrowthPct,
   onClick,
@@ -84,6 +85,7 @@ export default function PoolDigitalDisplay({
 }) {
   const { t } = useLocale();
   const { poolSummary } = usePoolState();
+  const members = useMembers();
   const [activeTab, setActiveTab] = useState("overview");
   const formatted = useMemo(() => formatPoolTotal(amount), [amount]);
   const positions = useAllocationPositions();
@@ -92,6 +94,8 @@ export default function PoolDigitalDisplay({
     [showSleeveDonuts, positions],
   );
 
+  // Approved community members only — never trust stale poolSummary (admin was once counted).
+  const liveMemberCount = members.length;
   const poolApy = Number(poolSummary?.poolApy) || 0;
   const ytd = ytdGrowthPct ?? poolSummary?.ytdGrowthPct ?? 0;
   const balance = Number(amount) || 0;
@@ -186,14 +190,14 @@ export default function PoolDigitalDisplay({
                     className="dda-pool-widget__stat dda-pool-widget__stat--link"
                     onClick={onMembersClick}
                     aria-label={t("pages.dashboard.poolScreenMembersAria", {
-                      count: (memberCount ?? poolSummary?.memberCount ?? 0).toLocaleString(),
+                      count: liveMemberCount.toLocaleString(),
                     })}
                   >
                     <Users className="h-3.5 w-3.5 shrink-0 text-dda-gold-light" strokeWidth={2.25} />
                     <div className="min-w-0 text-left">
                       <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenMembers")}</p>
                       <p className="dda-pool-widget__stat-value">
-                        {(memberCount ?? poolSummary?.memberCount ?? 0).toLocaleString()}
+                        {liveMemberCount.toLocaleString()}
                       </p>
                     </div>
                   </button>
@@ -203,7 +207,7 @@ export default function PoolDigitalDisplay({
                     <div className="min-w-0">
                       <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenMembers")}</p>
                       <p className="dda-pool-widget__stat-value">
-                        {(memberCount ?? poolSummary?.memberCount ?? 0).toLocaleString()}
+                        {liveMemberCount.toLocaleString()}
                       </p>
                     </div>
                   </div>

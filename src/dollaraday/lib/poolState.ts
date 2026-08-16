@@ -148,21 +148,12 @@ let inflowSyncSubscribed = false;
 let poolRevision = 0;
 let inflowSyncTimer: number | null = null;
 
-/** Approved platform profiles (master admin counted once). */
-function countPlatformMembers(): number {
-  const approved = getDadProfiles().filter(
-    (profile) => getProfileApprovalStatus(profile) === "approved",
-  );
-  let adminCounted = false;
-  let count = 0;
-  for (const profile of approved) {
-    if (isAdminProfile(profile)) {
-      if (adminCounted) continue;
-      adminCounted = true;
-    }
-    count += 1;
-  }
-  return count;
+/** Approved community members only (master admin is never counted). */
+export function countPlatformMembers(): number {
+  return getDadProfiles().filter(
+    (profile) =>
+      getProfileApprovalStatus(profile) === "approved" && !isAdminProfile(profile),
+  ).length;
 }
 
 function syncPlatformMemberCount(): boolean {
@@ -277,6 +268,8 @@ function persistPoolState(): void {
 function applyPoolState(payload: Record<string, unknown>): void {
   if (payload.poolSummary && typeof payload.poolSummary === "object") {
     state.poolSummary = payload.poolSummary as PoolSummaryState;
+    // Never trust persisted memberCount (older builds counted master admin).
+    state.poolSummary.memberCount = countPlatformMembers();
   }
   if (Array.isArray(payload.poolComposition)) {
     state.poolComposition = payload.poolComposition as PoolCompositionSegment[];

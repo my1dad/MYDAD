@@ -12,6 +12,7 @@ import PoolBalanceChart from "./PoolBalanceChart";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { formatPoolCurrency } from "../../data/mockData";
 import { useLocale } from "../../i18n/LocaleContext";
+import { useMembers } from "../../lib/memberRegistry";
 import { usePoolState } from "../../lib/poolState";
 import { POOL_CAPITAL_COLORS } from "../../lib/theme";
 
@@ -77,6 +78,7 @@ export default function LiquidityPoolInfographic() {
   const { t } = useLocale();
   const { isAdmin } = useDadAuth();
   const { poolSummary } = usePoolState();
+  const members = useMembers();
   const reservePct =
     poolSummary.totalBalance > 0 ? Math.round(poolSummary.reserveRatio * 100) : 0;
 
@@ -174,7 +176,7 @@ export default function LiquidityPoolInfographic() {
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs font-semibold text-gray-300 ring-1 ring-white/10">
                 <Users className="h-3.5 w-3.5 text-dda-green-light" />
-                {poolSummary.memberCount.toLocaleString()} {t("common.members")}
+                {members.length.toLocaleString()} {t("common.members")}
               </span>
             </div>
           </div>

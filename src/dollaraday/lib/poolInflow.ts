@@ -106,7 +106,18 @@ function contributionYmd(contributedAt: string): string {
 }
 
 function isCountableDonation(row: ContributionRow): boolean {
-  return row.type !== "signup" && row.amount > 0 && row.status === "completed";
+  if (row.amount <= 0 || row.status !== "completed") return false;
+  // Match contribution capital / deposit totals — exclude payouts and request shells.
+  if (
+    row.type === "signup" ||
+    row.type === "redemption" ||
+    row.type === "external-payment-request" ||
+    row.type === "member-redemption-request" ||
+    row.type === "admin-liquidity-transfer"
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function buildTodaysDonations(rows: ContributionRow[], today: string): {

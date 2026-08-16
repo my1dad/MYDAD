@@ -38,6 +38,24 @@ function contributionProfileId(payload: Record<string, unknown>): string {
   return String(payload.profileId ?? payload.memberId ?? "").trim();
 }
 
+/** Completed liquidity → member redemption payouts for a profile. */
+function sumMemberRedemptionsReceived(profileId: string): number {
+  let total = 0;
+  readDataBin("contributions").records.forEach((record) => {
+    const payload = record.payload ?? {};
+    if (String(payload.type ?? "") !== "redemption") return;
+    if (String(payload.status ?? "completed") !== "completed") return;
+    const toId = String(
+      payload.toProfileId ?? payload.profileId ?? payload.memberId ?? "",
+    ).trim();
+    if (toId !== profileId) return;
+    const amount = Number(payload.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    total += amount;
+  });
+  return roundMoney(total);
+}
+
 function contributionYmd(payload: Record<string, unknown>, fallback = ""): string {
   const raw = String(payload.contributedAt ?? fallback ?? "");
   if (!raw) return "";
@@ -95,13 +113,15 @@ export function computeMemberStatsFromContributions(
   const days = uniqueDays.length;
   const roundedContributed = roundMoney(contributed);
   const roundedDonated = roundMoney(donated);
+  const redeemed = sumMemberRedemptionsReceived(profileId);
+  // Equity = capital still invested with the platform (inflows minus fulfilled redemptions).
+  const equity = Math.max(0, roundMoney(roundedContributed - redeemed));
 
   return {
     contributed: roundedContributed,
     donated: roundedDonated,
     deposited: roundMoney(deposited),
-    // Equity tracks donation + deposit capital until yield overlays are applied separately.
-    equity: roundedContributed,
+    equity,
     days,
     streak: computeContributionStreak(uniqueDays, today),
   };
@@ -149,6 +169,31 @@ export function getPlatformMemberDonationTotals(): { donated: number; count: num
 
 export function sumPlatformMemberDonations(): number {
   return getPlatformMemberDonationTotals().donated;
+}
+
+/**
+ * All completed member contributions (donations + wallet deposits).
+ * Excludes master-admin rows and non-contribution types.
+ */
+export function sumPlatformMemberContributions(): number {
+  const adminProfileIds = new Set(
+    getDadProfiles()
+      .filter((profile) => isAdminProfile(profile))
+      .map((profile) => profile.id),
+  );
+
+  let total = 0;
+  readDataBin("contributions").records.forEach((record) => {
+    const payload = record.payload ?? {};
+    if (!isCompletedDonation(payload)) return;
+
+    const profileId = contributionProfileId(payload);
+    if (profileId && adminProfileIds.has(profileId)) return;
+
+    total += Number(payload.amount) || 0;
+  });
+
+  return roundMoney(total);
 }
 
 /** Activity row for wallet Recent activity (ledger + contribution donations). */

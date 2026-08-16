@@ -167,11 +167,18 @@ export default function HomeAlertsWidget({ onNavigate, className, embedded = fal
                   type="button"
                   className={cn(
                     "dda-home-alerts__item",
+                    `dda-home-alerts__item--${item.kind}`,
                     item.unread && "dda-home-alerts__item--unread",
                   )}
                   onClick={() => openItem(item)}
                 >
-                  <span className="dda-home-alerts__item-icon" aria-hidden="true">
+                  <span
+                    className={cn(
+                      "dda-home-alerts__item-icon",
+                      `dda-home-alerts__item-icon--${item.kind}`,
+                    )}
+                    aria-hidden="true"
+                  >
                     <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
                   </span>
                   <span className="dda-home-alerts__item-copy">

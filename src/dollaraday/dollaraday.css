@@ -845,6 +845,85 @@ select.dda-bank-transfer-route__select:focus {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.dda-buy-cash {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(59, 130, 246, 0.22), transparent 55%),
+    linear-gradient(135deg, rgba(12, 24, 48, 0.92) 0%, rgba(8, 14, 28, 0.96) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(147, 197, 253, 0.12),
+    0 12px 28px -18px rgba(37, 99, 235, 0.45);
+}
+
+.dda-buy-cash__rail {
+  width: 0.28rem;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #60a5fa 0%, #38bdf8 55%, #93c5fd 100%);
+}
+
+.dda-buy-cash__body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.7rem 0.85rem 0.75rem 0.8rem;
+}
+
+.dda-buy-cash__meta {
+  min-width: 0;
+}
+
+.dda-buy-cash__kicker {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #93c5fd;
+  line-height: 1.2;
+}
+
+.dda-buy-cash__hint {
+  margin: 0.28rem 0 0;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: rgba(186, 230, 253, 0.72);
+  line-height: 1.3;
+}
+
+.dda-buy-cash__amount {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: clamp(1.35rem, 3.5vw, 1.75rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  background: linear-gradient(135deg, #ffffff 0%, #bfdbfe 45%, #7dd3fc 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (max-width: 480px) {
+  .dda-buy-cash__body {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dda-buy-cash__amount {
+    font-size: 1.55rem;
+  }
+}
+
 .dda-password-field .dda-input {
   padding-right: 2.75rem;
 }
@@ -1411,6 +1490,323 @@ select.dda-bank-transfer-route__select:focus {
   color: #93c5fd;
 }
 
+.dda-member-bank__ledger--dense {
+  gap: 0.55rem;
+}
+
+.dda-member-bank__ledger-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dda-member-bank__collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dda-member-bank__collapse-btn:hover,
+.dda-member-bank__collapse-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  outline: none;
+}
+
+.dda-member-bank__collapse-chevron {
+  transition: transform 0.2s ease;
+}
+
+.dda-member-bank__collapse-chevron--open {
+  transform: rotate(180deg);
+}
+
+.dda-member-bank__greeting--compact {
+  margin: 0 0 0.45rem;
+}
+
+.dda-member-bank--collapsed .dda-member-bank__inner {
+  gap: 0.55rem;
+}
+
+.dda-member-bank--collapsed .dda-member-bank__ledger--dense {
+  gap: 0.55rem;
+}
+
+.dda-member-bank__chips--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dda-member-bank__hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.65rem 0.75rem;
+  min-width: 0;
+}
+
+.dda-member-bank__balance-hint {
+  margin: 0.28rem 0 0;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(147, 197, 253, 0.78);
+  line-height: 1.25;
+}
+
+.dda-member-bank__dial {
+  position: relative;
+  flex-shrink: 0;
+  width: 4.6rem;
+  height: 4.6rem;
+  border-radius: 999px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 8px 18px -12px rgba(59, 130, 246, 0.55);
+}
+
+.dda-member-bank__dial-hole {
+  position: absolute;
+  inset: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.08), transparent 55%),
+    linear-gradient(180deg, rgba(8, 18, 36, 0.96), rgba(4, 10, 22, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.dda-member-bank__dial-total {
+  font-size: 0.68rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: #fff;
+  line-height: 1;
+}
+
+.dda-member-bank__dial-caption {
+  margin-top: 0.12rem;
+  font-size: 0.48rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(147, 197, 253, 0.72);
+  line-height: 1;
+}
+
+.dda-member-bank__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.dda-member-bank__stack-track {
+  display: flex;
+  width: 100%;
+  height: 0.42rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.dda-member-bank__stack-seg {
+  display: block;
+  min-width: 0;
+  height: 100%;
+}
+
+.dda-member-bank__stack-seg--admin {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+.dda-member-bank__stack-seg--liq {
+  background: linear-gradient(90deg, #d97706, #fbbf24);
+}
+
+.dda-member-bank__stack-seg--don {
+  background: linear-gradient(90deg, #0284c7, #38bdf8);
+}
+
+.dda-member-bank__stack-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.7rem;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(156, 163, 175, 0.92);
+}
+
+.dda-member-bank__stack-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.dda-member-bank__swatch {
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.dda-member-bank__swatch--admin {
+  background: #60a5fa;
+}
+
+.dda-member-bank__swatch--liq {
+  background: #fbbf24;
+}
+
+.dda-member-bank__swatch--don {
+  background: #38bdf8;
+}
+
+.dda-member-bank__meters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+.dda-member-bank__meter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.dda-member-bank__meter-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(156, 163, 175, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dda-member-bank__meter-value {
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.dda-member-bank__meter-track {
+  margin-top: 0.18rem;
+  height: 0.28rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.dda-member-bank__meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.35s ease;
+}
+
+.dda-member-bank__meter--gold .dda-member-bank__meter-fill {
+  background: linear-gradient(90deg, #b45309, #fbbf24);
+}
+
+.dda-member-bank__meter--sky .dda-member-bank__meter-fill {
+  background: linear-gradient(90deg, #0369a1, #38bdf8);
+}
+
+.dda-member-bank__meter--emerald .dda-member-bank__meter-fill {
+  background: linear-gradient(90deg, #047857, #34d399);
+}
+
+.dda-member-bank__meter--blue .dda-member-bank__meter-fill {
+  background: linear-gradient(90deg, #1d4ed8, #60a5fa);
+}
+
+.dda-member-bank__quick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-top: auto;
+  min-width: 0;
+}
+
+.dda-member-bank__quick-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(147, 197, 253, 0.12);
+  background: rgba(8, 20, 40, 0.4);
+  padding: 0.42rem 0.48rem;
+  color: #93c5fd;
+}
+
+.dda-member-bank__quick-label {
+  margin: 0;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dda-member-bank__quick-value {
+  margin: 0.08rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dda-member-bank__quick-value--in {
+  color: #86efac;
+}
+
+@container dda-member-bank (min-width: 420px) {
+  .dda-member-bank__quick {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dda-member-bank__dial {
+    width: 5rem;
+    height: 5rem;
+  }
+}
+
 .dda-liquidity-widget {
   position: relative;
   overflow: hidden;
@@ -1658,9 +2054,10 @@ select.dda-bank-transfer-route__select:focus {
 }
 
 .dda-member-bank__request-btn {
-  border-color: transparent;
-  background: transparent;
-  color: rgba(156, 163, 175, 0.9);
+  border-color: rgba(148, 163, 184, 0.32);
+  background: rgba(100, 116, 139, 0.22);
+  color: #cbd5e1;
+  margin-top: 0;
   transition:
     border-color 0.15s ease,
     background 0.15s ease,
@@ -1668,17 +2065,17 @@ select.dda-bank-transfer-route__select:focus {
 }
 
 .dda-member-bank__request-btn:hover {
-  border-color: color-mix(in srgb, var(--color-dda-green-light) 32%, transparent);
-  background: color-mix(in srgb, var(--color-dda-green) 14%, rgba(0, 0, 0, 0.28));
-  color: color-mix(in srgb, var(--color-dda-green-light) 92%, white);
+  border-color: rgba(148, 163, 184, 0.48);
+  background: rgba(100, 116, 139, 0.34);
+  color: #e2e8f0;
   filter: none;
 }
 
 .dda-member-bank__request-btn:focus-visible {
-  outline-color: color-mix(in srgb, var(--color-dda-green-light) 70%, white);
-  border-color: color-mix(in srgb, var(--color-dda-green-light) 32%, transparent);
-  background: color-mix(in srgb, var(--color-dda-green) 14%, rgba(0, 0, 0, 0.28));
-  color: color-mix(in srgb, var(--color-dda-green-light) 92%, white);
+  outline-color: rgba(148, 163, 184, 0.7);
+  border-color: rgba(148, 163, 184, 0.48);
+  background: rgba(100, 116, 139, 0.34);
+  color: #e2e8f0;
 }
 
 .dda-admin-transfer-modal {
@@ -1800,7 +2197,7 @@ select.dda-bank-transfer-route__select:focus {
   min-width: 0;
   box-sizing: border-box;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.75rem;
   margin: 0;
   border: 0;
   border-radius: 0.95rem;
@@ -2018,9 +2415,10 @@ select.dda-bank-transfer-route__select:focus {
 .dda-member-bank__chips {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.35rem;
+  gap: 0.55rem;
   width: 100%;
   min-width: 0;
+  margin-top: 0.15rem;
 }
 
 .dda-member-bank__chip {
@@ -2028,7 +2426,7 @@ select.dda-bank-transfer-route__select:focus {
   border-radius: 0.7rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.22);
-  padding: var(--dda-bank-chip-pad);
+  padding: 0.55rem 0.4rem;
   text-align: center;
   box-sizing: border-box;
 }
@@ -2704,6 +3102,12 @@ select.dda-bank-transfer-route__select:focus {
     transform 0.15s ease;
 }
 
+.dda-zelle-pay__footer {
+  position: relative;
+  z-index: 2;
+  background: var(--color-dda-bg, #071013);
+}
+
 .dda-zelle-pay__cta:hover:not(:disabled) {
   background: #7c2ce8;
 }
@@ -3235,6 +3639,32 @@ select.dda-bank-transfer-route__select:focus {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* Mobile home stack only — larger hero liquidity figure (desktop hero keeps base size). */
+.dda-home-landing .dda-pool-widget__body {
+  gap: 0.7rem;
+  padding: 0.9rem 1rem 0.85rem;
+}
+
+.dda-home-landing .dda-pool-widget__balance {
+  margin: 0.15rem 0 0.1rem;
+}
+
+.dda-home-landing .dda-pool-widget__amount {
+  font-size: clamp(2.15rem, 10vw, 2.85rem);
+  letter-spacing: -0.045em;
+  filter: drop-shadow(0 10px 22px rgba(var(--dda-accent-rgb), 0.35));
+}
+
+.dda-app--admin .dda-home-landing .dda-pool-widget__amount {
+  filter: drop-shadow(0 10px 24px rgba(59, 130, 246, 0.4));
+}
+
+/* Even spacing between pool, cash card, contribute, and activity on mobile. */
+.dda-home-landing > * {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .dda-pool-widget__growth {
@@ -7292,8 +7722,19 @@ select.dda-bank-transfer-route__select {
 .dda-notification-item__icon--donation,
 .dda-notification-item__icon--wallet_deposit,
 .dda-notification-item__icon--recurring_donation {
-  color: var(--color-dda-gold-light);
-  background: rgba(var(--dda-gold-light-rgb), 0.14);
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.18);
+}
+
+.dda-notification-item__icon--redemption,
+.dda-notification-item__icon--redemption_request {
+  color: #fdba74;
+  background: rgba(249, 115, 22, 0.18);
+}
+
+.dda-notification-item__icon--payment_request {
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.2);
 }
 
 .dda-notification-item__title {
@@ -7483,6 +7924,233 @@ select.dda-bank-transfer-route__select {
 .dda-community-board__primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* Community leadership rankings */
+.dda-leadership {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.03) 55%,
+    rgba(253, 230, 138, 0.06) 100%
+  );
+  box-shadow: 0 12px 28px -18px rgba(0, 0, 0, 0.45);
+}
+
+.dda-leadership__inner {
+  padding: 0.9rem 1rem 1rem;
+}
+
+.dda-leadership__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.dda-leadership__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fde68a;
+}
+
+.dda-leadership__subtitle {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.dda-leadership__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.dda-leadership__row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.55rem 0.65rem;
+}
+
+.dda-leadership__row--podium {
+  border-color: rgba(253, 230, 138, 0.18);
+  background: linear-gradient(
+    90deg,
+    rgba(253, 230, 138, 0.08) 0%,
+    rgba(255, 255, 255, 0.03) 55%
+  );
+}
+
+.dda-leadership__rank {
+  display: inline-flex;
+  min-width: 1.85rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.dda-leadership__rank--gold {
+  background: rgba(253, 230, 138, 0.16);
+  color: #fde68a;
+}
+
+.dda-leadership__rank--silver {
+  background: rgba(226, 232, 240, 0.12);
+  color: #e2e8f0;
+}
+
+.dda-leadership__rank--bronze {
+  background: rgba(253, 186, 116, 0.14);
+  color: #fdba74;
+}
+
+.dda-leadership__rank-num {
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.dda-leadership__pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dda-leadership__pager-meta {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.dda-leadership__pager-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.dda-leadership__pager-page {
+  min-width: 5.5rem;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.dda-leadership__pager-btn {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(226, 232, 240, 0.92);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.dda-leadership__pager-btn:hover:not(:disabled) {
+  border-color: rgba(253, 230, 138, 0.35);
+  background: rgba(253, 230, 138, 0.1);
+}
+
+.dda-leadership__pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dda-leadership__identity {
+  min-width: 0;
+}
+
+.dda-leadership__metrics {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 0.55rem 0.7rem;
+}
+
+.dda-leadership__metric {
+  display: flex;
+  min-width: 3.5rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.dda-leadership__metric-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.dda-leadership__metric-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.dda-leadership__metric-value--equity {
+  color: #86efac;
+}
+
+.dda-leadership__metric-value--redeemed {
+  color: #fbbf24;
+}
+
+.dda-leadership__empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(156, 163, 175, 0.95);
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .dda-leadership__row {
+    flex-wrap: wrap;
+  }
+
+  .dda-leadership__metrics {
+    width: 100%;
+    justify-content: flex-end;
+    padding-left: 2.3rem;
+  }
 }
 
 /* Community chat */
@@ -7958,7 +8626,7 @@ select.dda-bank-transfer-route__select {
 
   .dda-home-desktop__hero {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1rem;
     align-items: stretch;
   }
@@ -7966,17 +8634,55 @@ select.dda-bank-transfer-route__select {
   .dda-home-desktop__hero-equity,
   .dda-home-desktop__hero-pool {
     min-width: 0;
-    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .dda-home-desktop__hero-equity .dda-member-bank,
   .dda-home-desktop__hero-pool .dda-pool-widget {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    width: 100%;
     height: 100%;
     margin: 0;
+    min-height: 0;
   }
 
-  .dda-home-desktop__hero-pool .dda-pool-widget__card {
+  .dda-home-desktop__hero-equity .dda-member-bank__inner {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .dda-home-desktop__hero-equity .dda-member-bank__ledger {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .dda-home-desktop__hero-equity .dda-member-bank__chips {
+    margin-top: auto;
+  }
+
+  .dda-home-desktop__hero-equity .dda-member-bank__ledger--dense .dda-member-bank__quick {
+    margin-top: auto;
+  }
+
+  .dda-home-desktop__hero-equity .dda-member-bank__ledger--dense .dda-member-bank__transfer-btn {
+    margin-top: 0.25rem;
+  }
+
+  .dda-home-desktop__hero-equity .dda-member-bank__request-btn,
+  .dda-home-desktop__hero-equity .dda-member-bank__transfer-btn {
+    margin-top: 0.35rem;
+  }
+
+  .dda-home-desktop__hero-pool .dda-pool-widget__card,
+  .dda-home-desktop__hero-pool .dda-pool-widget__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
     height: 100%;
+    min-height: 0;
   }
 
   .dda-home-desktop__rail {
@@ -8133,36 +8839,64 @@ select.dda-bank-transfer-route__select {
   .dda-home-pay-alerts__alerts .dda-home-alerts__item,
   .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item {
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.35rem 0.5rem;
-    border-radius: 0.6rem;
+    gap: 0.4rem;
+    padding: 0.28rem 0.45rem;
+    border-radius: 0.55rem;
     min-height: 0;
   }
 
   .dda-home-pay-alerts__alerts .dda-home-alerts__item-icon,
   .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item-icon {
-    height: 1.65rem;
-    width: 1.65rem;
-    border-radius: 0.45rem;
+    height: 1.4rem;
+    width: 1.4rem;
+    border-radius: 0.4rem;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__item-icon svg,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item-icon svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__item-copy,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item-copy {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.45rem;
+    row-gap: 0;
+    align-items: baseline;
   }
 
   .dda-home-pay-alerts__alerts .dda-home-alerts__item-title,
   .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item-title {
-    font-size: 0.8125rem;
-    line-height: 1.2;
-  }
-
-  .dda-home-pay-alerts__alerts .dda-home-alerts__item-body,
-  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item-body {
-    font-size: 0.6875rem;
-    line-height: 1.25;
-    margin-top: 0.05rem;
+    grid-column: 1;
+    font-size: 0.75rem;
+    line-height: 1.15;
   }
 
   .dda-home-pay-alerts__alerts .dda-home-alerts__time,
   .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__time {
-    font-size: 0.625rem;
-    margin-top: 0.1rem;
+    grid-column: 2;
+    grid-row: 1;
+    margin-top: 0;
+    font-size: 0.6rem;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__item-body,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item-body {
+    grid-column: 1 / -1;
+    font-size: 0.65rem;
+    line-height: 1.2;
+    margin-top: 0;
+  }
+
+  .dda-home-pay-alerts__alerts .dda-home-alerts__item-arrow,
+  .dda-home-pay-alerts .dda-home-alerts--embedded .dda-home-alerts__item-arrow {
+    margin-top: 0;
+    width: 0.85rem;
+    height: 0.85rem;
   }
 
   .dda-home-desktop__rail .dda-contribute-section {
@@ -8287,8 +9021,7 @@ select.dda-bank-transfer-route__select {
   }
 
   .dda-home-alerts__item--unread {
-    border-color: rgba(250, 204, 21, 0.28);
-    background: rgba(250, 204, 21, 0.06);
+    box-shadow: inset 2px 0 0 currentColor;
   }
 
   .dda-home-alerts__item-icon {
@@ -8301,6 +9034,113 @@ select.dda-bank-transfer-route__select {
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.05);
     color: var(--color-dda-gold-light);
+  }
+
+  /* Membership approval / status */
+  .dda-home-alerts__item--profile_pending {
+    border-color: rgba(250, 204, 21, 0.28);
+    background: rgba(250, 204, 21, 0.07);
+    color: #facc15;
+  }
+
+  .dda-home-alerts__item-icon--profile_pending {
+    color: #fde68a;
+    border-color: rgba(250, 204, 21, 0.35);
+    background: rgba(250, 204, 21, 0.16);
+  }
+
+  .dda-home-alerts__item--profile_approved {
+    border-color: rgba(74, 222, 128, 0.28);
+    background: rgba(74, 222, 128, 0.07);
+    color: #4ade80;
+  }
+
+  .dda-home-alerts__item-icon--profile_approved {
+    color: #86efac;
+    border-color: rgba(74, 222, 128, 0.35);
+    background: rgba(74, 222, 128, 0.16);
+  }
+
+  .dda-home-alerts__item--profile_denied {
+    border-color: rgba(248, 113, 113, 0.3);
+    background: rgba(248, 113, 113, 0.07);
+    color: #f87171;
+  }
+
+  .dda-home-alerts__item-icon--profile_denied {
+    color: #fca5a5;
+    border-color: rgba(248, 113, 113, 0.35);
+    background: rgba(248, 113, 113, 0.16);
+  }
+
+  /* Donations / deposits */
+  .dda-home-alerts__item--donation,
+  .dda-home-alerts__item--wallet_deposit,
+  .dda-home-alerts__item--recurring_donation {
+    border-color: rgba(52, 211, 153, 0.3);
+    background: rgba(16, 185, 129, 0.08);
+    color: #34d399;
+  }
+
+  .dda-home-alerts__item-icon--donation,
+  .dda-home-alerts__item-icon--wallet_deposit,
+  .dda-home-alerts__item-icon--recurring_donation {
+    color: #6ee7b7;
+    border-color: rgba(52, 211, 153, 0.4);
+    background: rgba(16, 185, 129, 0.18);
+  }
+
+  /* Redemptions / payouts */
+  .dda-home-alerts__item--redemption,
+  .dda-home-alerts__item--redemption_request {
+    border-color: rgba(251, 146, 60, 0.32);
+    background: rgba(249, 115, 22, 0.08);
+    color: #fb923c;
+  }
+
+  .dda-home-alerts__item-icon--redemption,
+  .dda-home-alerts__item-icon--redemption_request {
+    color: #fdba74;
+    border-color: rgba(251, 146, 60, 0.4);
+    background: rgba(249, 115, 22, 0.18);
+  }
+
+  /* External payment requests (Zelle / Apple Pay) */
+  .dda-home-alerts__item--payment_request {
+    border-color: rgba(167, 139, 250, 0.35);
+    background: rgba(139, 92, 246, 0.1);
+    color: #a78bfa;
+  }
+
+  .dda-home-alerts__item-icon--payment_request {
+    color: #c4b5fd;
+    border-color: rgba(167, 139, 250, 0.4);
+    background: rgba(139, 92, 246, 0.2);
+  }
+
+  /* Community */
+  .dda-home-alerts__item--community_dm {
+    border-color: rgba(56, 189, 248, 0.3);
+    background: rgba(14, 165, 233, 0.08);
+    color: #38bdf8;
+  }
+
+  .dda-home-alerts__item-icon--community_dm {
+    color: #7dd3fc;
+    border-color: rgba(56, 189, 248, 0.4);
+    background: rgba(14, 165, 233, 0.18);
+  }
+
+  .dda-home-alerts__item--community_board {
+    border-color: rgba(96, 165, 250, 0.32);
+    background: rgba(59, 130, 246, 0.1);
+    color: #60a5fa;
+  }
+
+  .dda-home-alerts__item-icon--community_board {
+    color: #93c5fd;
+    border-color: rgba(96, 165, 250, 0.4);
+    background: rgba(59, 130, 246, 0.2);
   }
 
   .dda-home-alerts__item-copy {
@@ -8338,7 +9178,7 @@ select.dda-bank-transfer-route__select {
   }
 
   .dda-home-alerts__item:hover .dda-home-alerts__item-arrow {
-    color: var(--color-dda-gold-light);
+    color: inherit;
   }
 
   .dda-home-desktop__contribute {

@@ -82,7 +82,7 @@ export default function InvestmentInfographic({
   const { t } = useLocale();
   const profileId = resolvePlatformEscrowProfileId();
   const ledger = useMemberAccounts(profileId);
-  const availableBalance = ledger.escrowBalance;
+  const availableBalance = Number(ledger.checkingBalance) || 0;
   // Prefer the page's platform snapshot; fall back to a live subscription.
   const livePositions = useAllocationPositions();
   const positions = (positionsProp?.length ? positionsProp : livePositions) ?? [];

@@ -3,7 +3,6 @@ import { appendDataRecord, readDataBin } from "./internalDatabase";
 import { getActiveDadProfile } from "./dadProfileStorage";
 import {
   depositToMemberAccount,
-  getMemberAccountLedger,
   spendFromMemberAccount,
 } from "./memberAccounts";
 import {
@@ -12,6 +11,7 @@ import {
 } from "./memberRegistry";
 import { logProfileActivity } from "./profileActivity";
 import { syncMemberEscrowToLiquidityPool, syncPoolInflowMetrics } from "./poolState";
+import { getMemberRedemptionsReceived } from "./redemptions";
 
 const REINVEST_SOURCE = "cash-reinvest";
 
@@ -19,11 +19,39 @@ function roundMoney(value: number): number {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
-/** Personal cash on hand (checking) — redemption payouts land here. */
+/** Completed cash → equity reinvest amounts for a member. */
+export function getMemberCashReinvestOutflow(profileId: string): number {
+  if (!profileId) return 0;
+  return roundMoney(
+    readDataBin("contributions").records.reduce((sum, record) => {
+      const payload = record.payload ?? {};
+      const owner =
+        typeof payload.profileId === "string"
+          ? payload.profileId
+          : typeof payload.memberId === "string"
+            ? payload.memberId
+            : "";
+      if (owner !== profileId) return sum;
+      const source = record.source || (typeof payload.source === "string" ? payload.source : "");
+      const funding = typeof payload.funding === "string" ? payload.funding : "";
+      if (source !== REINVEST_SOURCE && funding !== "cash-balance") return sum;
+      if (String(payload.status ?? "completed") !== "completed") return sum;
+      const amount = Number(payload.amount);
+      if (!Number.isFinite(amount) || amount <= 0) return sum;
+      return sum + amount;
+    }, 0),
+  );
+}
+
+/**
+ * Cash on hand from master-admin redemptions only.
+ * Starts at $0; rises when liquidity redemptions are received; falls when reinvested.
+ */
 export function getMemberCashBalance(profileId?: string | null): number {
   if (!profileId) return 0;
-  const ledger = getMemberAccountLedger(profileId);
-  return Math.max(0, roundMoney(Number(ledger.checkingBalance) || 0));
+  const received = getMemberRedemptionsReceived(profileId).total;
+  const reinvested = getMemberCashReinvestOutflow(profileId);
+  return Math.max(0, roundMoney(received - reinvested));
 }
 
 function pushReinvestBinsNow() {
@@ -43,6 +71,7 @@ function pushReinvestBinsNow() {
 
 /**
  * Spend personal cash (checking) and reinvest into community equity / pool escrow.
+ * Amount is capped to redemption cash on hand (not total checking).
  */
 export function reinvestFromCashBalance(input: {
   amount: number;

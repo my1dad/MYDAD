@@ -12,10 +12,10 @@ import {
   subscribeInternalDatabase,
 } from "../../lib/internalDatabase";
 import {
-  getPoolCashEscrowBalance,
-} from "../../lib/memberEscrowTotals";
-import { getPoolState } from "../../lib/poolState";
-import { resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
+  getAdminAccountsCombinedTotal,
+  resolveMemberProfileId,
+  useMemberAccounts,
+} from "../../lib/memberAccounts";
 import {
   ensureHomeContributionSchedulesFromContributions,
   useRecurringCashflows,
@@ -41,17 +41,10 @@ const SEGMENT_META = {
 };
 
 function segmentLabelKey(segmentId, isAdmin = true) {
-  if (isAdmin && segmentId === "checking") return "overviewAdminAccount";
-  if (isAdmin && (segmentId === "escrow" || segmentId === "liquidity")) {
-    return "overviewCommunityLiquidity";
-  }
+  if (isAdmin && segmentId === "adminAccount") return "overviewAdminAccount";
+  if (isAdmin && segmentId === "liquidity") return "overviewCommunityLiquidity";
   if (segmentId === "recurringIncome" && !isAdmin) return "overviewRecurringDonations";
   return SEGMENT_META[segmentId]?.labelKey ?? segmentId;
-}
-
-function getAdminLiquidityTotal() {
-  const deployed = Number(getPoolState().poolSummary?.deployedCapital) || 0;
-  return getPoolCashEscrowBalance(deployed);
 }
 
 function buildChartSlices(segments, t, isAdmin = true) {
@@ -144,15 +137,14 @@ export default function AccountsOverviewInfographic() {
     [profileId, ledger, schedules, dbRevision, isAdmin],
   );
 
-  const adminLiquidityTotal = useMemo(
-    () => (isAdmin ? getAdminLiquidityTotal() : 0),
-    [isAdmin, dbRevision, ledger, stats.totalBalance],
+  const adminCombined = useMemo(
+    () => (isAdmin ? getAdminAccountsCombinedTotal(profileId) : null),
+    [isAdmin, profileId, dbRevision, ledger, stats.checkingBalance],
   );
 
-  const adminAccountBalance = isAdmin
-    ? Math.max(0, Number(stats.checkingBalance) || 0)
-    : 0;
-  const communityLiquidity = isAdmin ? Math.max(0, adminLiquidityTotal) : 0;
+  const adminAccountBalance = adminCombined?.adminAccount ?? 0;
+  const communityLiquidity = adminCombined?.communityLiquidity ?? 0;
+  const accountsHeadlineTotal = adminCombined?.total ?? 0;
 
   const visibleSegments = useMemo(() => {
     if (isAdmin) {
@@ -205,9 +197,7 @@ export default function AccountsOverviewInfographic() {
     return slices.map((slice) => ({ ...slice, snapshotTotal }));
   }, [visibleSegments, t, isAdmin]);
 
-  const onHandBalance = isAdmin
-    ? adminAccountBalance + communityLiquidity
-    : stats.totalBalance;
+  const onHandBalance = isAdmin ? accountsHeadlineTotal : stats.totalBalance;
 
   const chartSnapshotTotal = visibleSegments.reduce((sum, segment) => sum + segment.value, 0);
 
@@ -315,27 +305,13 @@ export default function AccountsOverviewInfographic() {
           <MetricGroup title={t("pages.accounts.overviewGroupDeposits")}>
             <MetricRow
               label={t("pages.accounts.overviewDeposits")}
-              value={formatPoolCurrency(
-                isAdmin
-                  ? Math.max(stats.depositsTotal, adminLiquidityTotal)
-                  : stats.depositsTotal,
-              )}
+              value={formatPoolCurrency(stats.depositsTotal)}
               accent={SEGMENT_META.deposits.color}
-              pct={segmentPct(
-                "deposits",
-                isAdmin
-                  ? Math.max(stats.depositsTotal, adminLiquidityTotal)
-                  : stats.depositsTotal,
-              )}
+              pct={segmentPct("deposits", stats.depositsTotal)}
               hint={
-                (isAdmin
-                  ? Math.max(stats.depositsCount, adminLiquidityTotal > 0 ? 1 : 0)
-                  : stats.depositsCount) > 0
+                stats.depositsCount > 0
                   ? t("pages.accounts.overviewDepositCount", {
-                      count: Math.max(
-                        stats.depositsCount,
-                        isAdmin && adminLiquidityTotal > 0 ? 1 : 0,
-                      ),
+                      count: stats.depositsCount,
                     })
                   : t("pages.accounts.overviewNoDeposits")
               }

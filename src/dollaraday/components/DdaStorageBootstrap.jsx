@@ -34,10 +34,13 @@ export default function DdaStorageBootstrap({ children }) {
     });
 
     // Cloud blank lock wins over any local profile cache as soon as the app boots.
+    // Pause opportunistic pushes until this pull completes so stale bins cannot re-upload.
     void import("../lib/supabase/cloudSync")
-      .then(async ({ pullCloudProfilesNow }) => {
+      .then(async ({ pullCloudProfilesNow, pauseCloudPushes, markCloudAuthorityReady }) => {
+        pauseCloudPushes(8_000);
         const { getDadProfiles, replaceAllDadProfiles } = await import("../lib/dadProfileStorage");
         await pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
+        markCloudAuthorityReady();
       })
       .catch((err) => console.warn("[DdaStorageBootstrap] Cloud blank pull skipped:", err));
   }, []);

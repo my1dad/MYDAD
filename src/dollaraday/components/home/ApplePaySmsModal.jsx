@@ -53,49 +53,6 @@ function formatUsdFixed(amount) {
   });
 }
 
-function isAppleMobile() {
-  if (typeof navigator === "undefined") return false;
-  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
-}
-
-/** Digits only, US country code kept (e.g. 15613379411). */
-export function normalizeSmsPhoneDigits(phoneE164) {
-  const digits = String(phoneE164 ?? "").replace(/\D/g, "");
-  if (digits.length === 10) return `1${digits}`;
-  return digits;
-}
-
-/**
- * Build a cross-platform sms: URL with recipient + prefilled Apple Cash body.
- * iOS: sms:/open?addresses=...&body= (most reliable for Messages compose)
- * Android/other: sms:+E164?body=
- */
-export function buildApplePaySmsHref(phoneE164, message) {
-  const digits = normalizeSmsPhoneDigits(phoneE164);
-  const body = encodeURIComponent(String(message ?? ""));
-  if (!digits) return `sms:?body=${body}`;
-  if (isAppleMobile()) {
-    return `sms:/open?addresses=${digits}&body=${body}`;
-  }
-  return `sms:+${digits}?body=${body}`;
-}
-
-/** Open Messages with the compose deep link; falls back to window.open. */
-export function launchApplePaySms(smsHref) {
-  if (!smsHref || typeof window === "undefined") return false;
-  try {
-    window.location.assign(smsHref);
-    return true;
-  } catch {
-    try {
-      window.open(smsHref, "_blank");
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
-
 export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
   const { t } = useLocale();
   const { profile } = useDadAuth();
@@ -163,6 +120,11 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
     return () => window.clearTimeout(timer);
   }, [copiedTarget]);
 
+  useEffect(() => {
+    if (cashBalance > 0.001) return;
+    if (fundingSource === "cash") setFundingSource("external");
+  }, [cashBalance, fundingSource]);
+
   const amount = useMemo(() => {
     const parsed = Number.parseFloat(customAmount);
     if (Number.isFinite(parsed)) return parsed;
@@ -215,11 +177,6 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
     return t("contribute.applePaySmsBody", { amount: formattedAmountFixed });
   }, [formattedAmountFixed, memberName, t]);
 
-  const smsHref = useMemo(
-    () => buildApplePaySmsHref(APPLE_PAY_SMS_PHONE, pastePrompt),
-    [pastePrompt],
-  );
-
   const copyText = async (value, target) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -241,7 +198,7 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
   const canSend =
     cappedAmount > 0 && (!useCash || (cashBalance > 0 && cappedAmount <= cashBalance + 0.001));
 
-  const handleLaunchSms = async (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!canSend || submitting) return;
     setSubmitting(true);
@@ -262,12 +219,22 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
           );
           return;
         }
+        const remaining = Number(result.balance) || 0;
+        if (remaining <= 0.001) {
+          setFundingSource("external");
+          setSubmitNote(
+            t("contribute.cashReinvestSuccessEmpty", {
+              amount: formatUsdFixed(cappedAmount),
+            }),
+          );
+          return;
+        }
         setSubmitNote(
           t("contribute.cashReinvestSuccess", {
             amount: formatUsdFixed(cappedAmount),
           }),
         );
-        window.setTimeout(() => onClose?.(), 650);
+        window.setTimeout(() => onClose?.(), 1200);
         return;
       }
 
@@ -282,20 +249,18 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
         setSubmitError(result.error);
         return;
       }
+      // Copy paste prompt for Apple Cash — do not open sms: (triggers external-app dialog).
+      void navigator.clipboard?.writeText?.(pastePrompt).catch(() => {});
       setSubmitNote(t("contribute.paymentRequestSent"));
+      window.setTimeout(() => onClose?.(), 1200);
     } catch (err) {
       console.warn("[ApplePaySmsModal] Payment request failed:", err);
       setSubmitError(
         useCash ? t("contribute.cashReinvestFailed") : t("contribute.paymentRequestFailed"),
       );
-      return;
     } finally {
       setSubmitting(false);
     }
-    // Copy prompt first so members can paste into Apple Cash if the sheet opens manually.
-    void navigator.clipboard?.writeText?.(pastePrompt).catch(() => {});
-    launchApplePaySms(smsHref);
-    window.setTimeout(() => onClose?.(), 450);
   };
 
   if (!open || typeof document === "undefined") return null;
@@ -318,7 +283,7 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
       >
         <div className="dda-accent-bar" />
 
-        <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3">
+        <div className="shrink-0 flex items-start justify-between gap-3 px-5 pt-5 pb-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
               <img
@@ -346,7 +311,7 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
           </button>
         </div>
 
-        <div className="dda-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+        <div className="dda-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6">
           <ol className="dda-apple-pay-sms__steps" aria-label={t("contribute.applePaySmsStepsLabel")}>
             <li>{t("contribute.applePaySmsStep1")}</li>
             <li>{t("contribute.applePaySmsStep2")}</li>
@@ -413,11 +378,20 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
                 {t("contribute.fundingCash")}
               </button>
             </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-              {useCash
-                ? t("contribute.cashReinvestHint")
-                : t("contribute.paymentRequestHint")}
-            </p>
+            {cashBalance <= 0 ? (
+              <p
+                className="mt-2 rounded-xl border border-[#fde68a]/25 bg-[#fde68a]/10 px-3 py-2 text-[11px] leading-relaxed text-[#fde68a]"
+                role="status"
+              >
+                {t("contribute.cashBalanceEmptyPrompt")}
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+                {useCash
+                  ? t("contribute.cashReinvestHint")
+                  : t("contribute.paymentRequestHint")}
+              </p>
+            )}
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-2" role="group" aria-label={t("contribute.amountTitle")}>
@@ -527,9 +501,18 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
             <p className="mt-1.5 text-sm leading-relaxed text-gray-300">{smsMessage}</p>
           </div>
           ) : null}
+
+          <p className="mt-4 text-center text-[11px] leading-relaxed text-gray-500">
+            {useCash ? t("contribute.cashReinvestHint") : t("contribute.applePaySmsHint")}
+          </p>
+          {!useCash ? (
+            <p className="mt-1.5 text-center text-[11px] leading-relaxed text-gray-500">
+              {t("contribute.paymentRequestHint")}
+            </p>
+          ) : null}
         </div>
 
-        <div className="border-t border-white/10 px-5 py-4">
+        <div className="shrink-0 border-t border-white/10 bg-dda-bg px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {submitError ? (
             <p className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
               {submitError}
@@ -546,7 +529,7 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
               disabled={!canSend || submitting}
               aria-busy={submitting}
               onClick={(event) => {
-                void handleLaunchSms(event);
+                void handleSubmit(event);
               }}
               className={cn(
                 "dda-apple-pay-sms__cta w-full",
@@ -561,16 +544,15 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
               </span>
             </button>
           ) : (
-            <a
-              href={canSend && !submitting ? smsHref : undefined}
-              role="button"
-              aria-disabled={!canSend || submitting}
+            <button
+              type="button"
+              disabled={!canSend || submitting}
               aria-busy={submitting}
               onClick={(event) => {
-                void handleLaunchSms(event);
+                void handleSubmit(event);
               }}
               className={cn(
-                "dda-apple-pay-sms__cta",
+                "dda-apple-pay-sms__cta w-full",
                 (!canSend || submitting) && "dda-apple-pay-sms__cta--disabled",
               )}
             >
@@ -585,16 +567,8 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
                   ? t("contribute.paymentRequestSending")
                   : t("contribute.applePaySmsCta", { amount: formattedAmount })}
               </span>
-            </a>
+            </button>
           )}
-          <p className="mt-2.5 text-center text-[11px] leading-relaxed text-gray-500">
-            {useCash ? t("contribute.cashReinvestHint") : t("contribute.applePaySmsHint")}
-          </p>
-          {!useCash ? (
-            <p className="mt-1.5 text-center text-[11px] leading-relaxed text-gray-500">
-              {t("contribute.paymentRequestHint")}
-            </p>
-          ) : null}
         </div>
       </div>
     </div>,

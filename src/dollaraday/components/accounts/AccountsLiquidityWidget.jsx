@@ -9,11 +9,13 @@ import {
 } from "../../lib/internalDatabase";
 import { getAdminLiquidityAvailable } from "../../lib/memberAccounts";
 import { getCompletedRedemptionOutflow } from "../../lib/memberEscrowTotals";
+import { useMembers } from "../../lib/memberRegistry";
 import { usePoolState } from "../../lib/poolState";
 
 export default function AccountsLiquidityWidget({ onNavigate, onTransferClick, className }) {
   const { t } = useLocale();
   const { poolSummary } = usePoolState();
+  const members = useMembers();
   const dbRevision = useSyncExternalStore(
     subscribeInternalDatabase,
     getDatabaseRevision,
@@ -29,11 +31,11 @@ export default function AccountsLiquidityWidget({ onNavigate, onTransferClick, c
       Number(poolSummary?.totalBalance) || available + deployed,
     );
     const dailyInflow = Math.max(0, Number(poolSummary?.dailyInflow) || 0);
-    const memberCount = Math.max(0, Number(poolSummary?.memberCount) || 0);
+    const memberCount = members.length;
     const redemptions = getCompletedRedemptionOutflow();
     const ytd = Number(poolSummary?.ytdGrowthPct) || 0;
     return { available, deployed, total, dailyInflow, memberCount, redemptions, ytd };
-  }, [dbRevision, poolSummary]);
+  }, [dbRevision, poolSummary, members.length]);
 
   const interactive = typeof onNavigate === "function";
   const canTransfer = typeof onTransferClick === "function";

@@ -508,6 +508,7 @@ function refreshPoolSessionFromMember(member: Member): void {
 /**
  * Rebuild contributed / equity / days / streak from the shared contributions bin
  * so Members + Liquidity Pool stay aligned across devices.
+ * Contributed = gross inflows; equity = investments still on platform (nets redemptions).
  */
 export function applyMemberStatsFromContributions(profileId: string): boolean {
   if (!profileId) return false;
@@ -522,15 +523,12 @@ export function applyMemberStatsFromContributions(profileId: string): boolean {
 
   if (!existing) return false;
 
-  const contributed = existing.adminBalancesLocked ? existing.contributed : stats.contributed;
-  const equity = existing.adminBalancesLocked ? existing.equity : stats.equity;
-
   const updated: Member = {
     ...existing,
     profileId: existing.profileId ?? profileId,
     id: existing.profileId ?? profileId,
-    contributed,
-    equity,
+    contributed: stats.contributed,
+    equity: stats.equity,
     days: stats.days,
     streak: stats.streak,
     score: Math.min(100, Math.max(existing.score, stats.days > 0 ? 50 + stats.days : existing.score)),
@@ -556,6 +554,23 @@ export function applyMemberStatsFromContributions(profileId: string): boolean {
   );
   refreshPoolSessionFromMember(updated);
   return true;
+}
+
+/**
+ * Overlay live contribution/investment balances onto a directory member row.
+ * Use for admin Members list so CONTRIBUTED / EQUITY match PlatformEquityCard.
+ */
+export function withLiveMemberBalances<T extends Member>(member: T): T {
+  const profileId = member.profileId ?? member.id;
+  if (!profileId) return member;
+  const stats = computeMemberStatsFromContributions(profileId);
+  return {
+    ...member,
+    contributed: stats.contributed,
+    equity: stats.equity,
+    days: stats.days > 0 ? stats.days : member.days,
+    streak: stats.streak > 0 ? stats.streak : member.streak,
+  };
 }
 
 /** Admin override: set directory contributed / equity for a member. */

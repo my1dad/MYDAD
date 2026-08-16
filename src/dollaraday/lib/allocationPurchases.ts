@@ -36,14 +36,14 @@ export function purchasePoolAllocationOrder(order: AllocationOrderInput): Alloca
   if (term.sleeveKey !== sleeveKey) return "invalid";
 
   const memoLabel = `${contractLabel} · ${contracts} ctr @ $${price.toFixed(2)} (${term.sleeveKey})`;
-  const escrowProfileId = resolvePlatformEscrowProfileId();
+  const platformProfileId = resolvePlatformEscrowProfileId();
 
-  // Debit Chase Escrow first, then register the position so Total Deployed can sum it.
-  const ledger = spendFromMemberAccount(escrowProfileId, "escrow", total, memoLabel);
+  // Debit Admin Cash Account (checking) — cloud-synced platform operating cash.
+  const ledger = spendFromMemberAccount(platformProfileId, "checking", total, memoLabel);
   if (!ledger) return "insufficient";
 
   const position = registerAllocationPosition({
-    profileId: escrowProfileId,
+    profileId: platformProfileId,
     sleeveKey: term.sleeveKey,
     contractId,
     contractLabel,
@@ -53,8 +53,8 @@ export function purchasePoolAllocationOrder(order: AllocationOrderInput): Alloca
 
   if (!position) {
     depositToMemberAccount(
-      escrowProfileId,
-      "escrow",
+      platformProfileId,
+      "checking",
       total,
       "Allocation purchase reversal",
     );
@@ -75,7 +75,7 @@ export function purchasePoolAllocation(
   if (!Number.isFinite(amount) || amount <= 0) return "invalid";
 
   const escrowProfileId = resolvePlatformEscrowProfileId();
-  const ledger = spendFromMemberAccount(escrowProfileId, "escrow", amount, memoLabel);
+  const ledger = spendFromMemberAccount(escrowProfileId, "checking", amount, memoLabel);
   if (!ledger) return "insufficient";
 
   increaseDeployedCapital(amount);

@@ -24,13 +24,13 @@ const AUTH_SYNC_TIMEOUT_MS = 10_000;
 
 async function syncUsernameBeforeAuth(username) {
   try {
-    const { pullCloudProfileForAuth, pauseCloudPushes, clearFactoryZeroDeliveryLock } = await import(
+    const { pullCloudProfileForAuth, pauseCloudPushes } = await import(
       "../lib/supabase/cloudSync"
     );
 
-    // Always unlock before auth pull — a delayed boot scrub must not win the race.
-    clearFactoryZeroDeliveryLock();
-    pauseCloudPushes(0);
+    // Do NOT clear factory-zero / blank / epoch here — pullCloudProfileForAuth adopts
+    // cloud authority and only unlocks when cloud is confirmed open.
+    pauseCloudPushes(5_000);
     const pull = pullCloudProfileForAuth(username, getDadProfiles, replaceAllDadProfiles);
     const timeout = new Promise((_, reject) => {
       window.setTimeout(() => reject(new Error("AUTH_SYNC_TIMEOUT")), AUTH_SYNC_TIMEOUT_MS);
@@ -137,12 +137,9 @@ export function DadAuthProvider({ children }) {
     const normalizedPassword = String(password ?? "").trim();
     const isMasterAdminLogin = normalizedUsername.toLowerCase() === "admin";
 
-    // Always refresh this username from cloud on member login. Skipping when a stale
-    // local "approved" row existed left devices verifying against an old/wrong password.
+    // Always refresh from cloud on login (admin + members) so stale local caches cannot win.
     let sync = { ok: true, profile: null };
-    if (!isMasterAdminLogin) {
-      sync = await syncUsernameBeforeAuth(normalizedUsername);
-    }
+    sync = await syncUsernameBeforeAuth(normalizedUsername);
 
     // Master admin only — never route member credentials into the admin workspace.
     if (isMasterAdminLogin) {

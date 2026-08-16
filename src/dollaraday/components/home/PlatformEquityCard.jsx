@@ -1,27 +1,50 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { ArrowLeftRight, Banknote, Eye, EyeOff, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Banknote,
+  ChevronDown,
+  Droplets,
+  Eye,
+  EyeOff,
+  Landmark,
+  TrendingDown,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import { DOLLARADAY_LOGO_URL } from "@/lib/assetUrl";
 import { cn } from "@/lib/utils";
 import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { useLocale } from "../../i18n/LocaleContext";
 import { getPositionAllocatedValue } from "../../lib/allocationRoi";
 import { useAllocationPositions } from "../../lib/allocationPositions";
+import { getTotalDeployedCapital } from "../../lib/allocationSleeves";
 import {
   formatGroupedAccountNumber,
+  getDadProfiles,
+  getDadProfileRevision,
   getProfileAccountNumber,
+  isProfilePendingApproval,
+  subscribeDadProfiles,
 } from "../../lib/dadProfileStorage";
 import {
   getDatabaseRevision,
   subscribeInternalDatabase,
 } from "../../lib/internalDatabase";
-import { maskAccountNumber, useMemberAccounts } from "../../lib/memberAccounts";
+import { getPendingExternalPaymentRequests } from "../../lib/externalPaymentRequests";
+import {
+  maskAccountNumber,
+  useMemberAccounts,
+  getAdminLiquidityAvailable,
+} from "../../lib/memberAccounts";
 import {
   computeMemberStatsFromContributions,
-  sumPlatformMemberDonations,
+  sumPlatformMemberContributions,
 } from "../../lib/memberContributionStats";
+import { getPendingMemberRedemptionRequests } from "../../lib/memberRedemptionRequests";
 import { findStoredMemberByProfileId } from "../../lib/memberRegistry";
-import { usePoolState } from "../../lib/poolState";
+import { countPlatformMembers, usePoolState } from "../../lib/poolState";
 import { getProfileMemberRoi } from "../../lib/profileRegistry";
+import { getMemberCashBalance } from "../../lib/cashReinvest";
 import MemberRedemptionRequestModal from "./MemberRedemptionRequestModal";
 
 function getProfileFullName(profile) {
@@ -38,15 +61,79 @@ function formatBankCurrency(amount) {
   }).format(Number(amount) || 0);
 }
 
-export default function PlatformEquityCard({ onClick, className, wallet = false, onTransferClick }) {
+function formatCompactMoney(amount) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(amount) || 0);
+}
+
+function AdminCompositionDial({ admin, liquidity, combinedLabel }) {
+  const total = Math.max(0, admin) + Math.max(0, liquidity);
+  const a = total > 0 ? (admin / total) * 100 : 0;
+  const gradient =
+    total <= 0
+      ? "conic-gradient(from -90deg, rgba(148,163,184,0.25) 0 100%)"
+      : `conic-gradient(from -90deg,
+          #60a5fa 0 ${a}%,
+          #fbbf24 ${a}% 100%)`;
+
+  return (
+    <div
+      className="dda-member-bank__dial"
+      style={{ background: gradient }}
+      aria-hidden="true"
+    >
+      <div className="dda-member-bank__dial-hole">
+        <span className="dda-member-bank__dial-total">
+          {formatCompactMoney(admin + liquidity)}
+        </span>
+        <span className="dda-member-bank__dial-caption">{combinedLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+function AdminMeter({ label, value, max, tone = "blue" }) {
+  const pct = max > 0 ? Math.min(100, Math.round((Math.max(0, value) / max) * 100)) : 0;
+  return (
+    <div className={cn("dda-member-bank__meter", `dda-member-bank__meter--${tone}`)}>
+      <div className="dda-member-bank__meter-head">
+        <span className="dda-member-bank__meter-label">{label}</span>
+        <span className="dda-member-bank__meter-value">{formatBankCurrency(value)}</span>
+      </div>
+      <div className="dda-member-bank__meter-track" aria-hidden="true">
+        <span className="dda-member-bank__meter-fill" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+export default function PlatformEquityCard({
+  onClick,
+  className,
+  wallet = false,
+  onTransferClick,
+  collapsible = false,
+}) {
   const { t } = useLocale();
   const { profile, isAdmin } = useDadAuth();
-  const { currentMember } = usePoolState();
+  const { currentMember, poolSummary } = usePoolState();
   const [accountVisible, setAccountVisible] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(Boolean(collapsible));
+  const canCollapse = Boolean(collapsible && isAdmin);
+  const showDense = !canCollapse || !collapsed;
   const profileId = profile?.id ?? currentMember?.id;
   const positions = useAllocationPositions(isAdmin ? undefined : profileId);
   const ledger = useMemberAccounts(profileId);
+  const profileRevision = useSyncExternalStore(
+    subscribeDadProfiles,
+    getDadProfileRevision,
+    () => 0,
+  );
   const dbRevision = useSyncExternalStore(
     subscribeInternalDatabase,
     getDatabaseRevision,
@@ -70,34 +157,49 @@ export default function PlatformEquityCard({ onClick, className, wallet = false,
 
   const stats = useMemo(() => {
     void dbRevision;
+    void profileRevision;
     const stored = profileId ? findStoredMemberByProfileId(profileId) : null;
     const contributionStats = profileId
       ? computeMemberStatsFromContributions(profileId)
       : null;
     const balancesLocked = stored?.adminBalancesLocked === true;
     const personalDonated = Number(contributionStats?.donated) || 0;
-    const donated = isAdmin ? sumPlatformMemberDonations() : personalDonated;
+    // Admin card: all member contributions (donations + deposits), matching platform inflow totals.
+    const donated = isAdmin ? sumPlatformMemberContributions() : personalDonated;
     const invested = positions.reduce((sum, position) => sum + getPositionAllocatedValue(position), 0);
     const checking = Number(ledger?.checkingBalance) || 0;
     const escrow = Number(ledger?.escrowBalance) || 0;
-    const cash = Math.max(0, checking);
+    const cash = profileId ? getMemberCashBalance(profileId) : 0;
 
     if (isAdmin) {
-      // Admin account card = operating cash (checking). Community pool lives in the liquidity widget.
-      const adminCash = Math.max(0, checking);
-      const memberRoi = getProfileMemberRoi({ contributed: adminCash, equity: adminCash });
+      const adminTotal = Math.max(0, checking);
+      const liquidity = getAdminLiquidityAvailable();
+      const deployed = getTotalDeployedCapital();
+      const pendingApprovals = getDadProfiles().filter((item) => isProfilePendingApproval(item)).length;
+      const pendingPayments =
+        getPendingExternalPaymentRequests().length + getPendingMemberRedemptionRequests().length;
+      const dailyInflow = Math.max(0, Number(poolSummary?.dailyInflow) || 0);
+      const memberRoi = getProfileMemberRoi({ contributed: adminTotal, equity: adminTotal });
+      const combined = adminTotal + liquidity;
       return {
-        equity: adminCash,
-        contributed: adminCash,
+        equity: adminTotal,
+        contributed: adminTotal,
         donated,
-        deposited: adminCash,
+        deposited: adminTotal,
         invested: 0,
-        investments: adminCash,
-        cash: adminCash,
-        wallet: adminCash,
+        investments: adminTotal,
+        cash: adminTotal,
+        wallet: adminTotal,
+        liquidity,
+        deployed,
+        combined,
+        memberCount: countPlatformMembers(),
+        pendingApprovals,
+        pendingPayments,
+        dailyInflow,
         checking,
         escrow,
-        balance: adminCash,
+        balance: adminTotal,
         roiAmount: memberRoi.amount,
         roiPct: memberRoi.pct,
       };
@@ -108,11 +210,11 @@ export default function PlatformEquityCard({ onClick, className, wallet = false,
       : Number(contributionStats?.contributed ?? stored?.contributed ?? currentMember?.totalContributed) ||
         0;
     const deposited = Number(contributionStats?.deposited) || 0;
-    const equity = balancesLocked
-      ? Number(stored?.equity) || 0
-      : Number(contributionStats?.equity ?? stored?.equity ?? currentMember?.equityValue) || 0;
-    const memberRoi = getProfileMemberRoi({ contributed, equity });
-    // Investments = community stake only. Redemption payouts sit in Cash (checking).
+    const equity = Number(contributionStats?.equity ?? stored?.equity ?? currentMember?.equityValue) || 0;
+    const memberRoi = getProfileMemberRoi({
+      contributed: Math.max(contributed, equity),
+      equity,
+    });
     const investments = Math.max(0, equity, invested);
 
     return {
@@ -124,18 +226,35 @@ export default function PlatformEquityCard({ onClick, className, wallet = false,
       investments,
       cash,
       wallet: cash,
+      liquidity: 0,
+      deployed: 0,
+      combined: 0,
+      memberCount: 0,
+      pendingApprovals: 0,
+      pendingPayments: 0,
+      dailyInflow: 0,
       checking,
       escrow,
       balance: investments,
       roiAmount: memberRoi.amount,
       roiPct: memberRoi.pct,
     };
-  }, [profileId, currentMember, positions, ledger, dbRevision, isAdmin]);
+  }, [
+    profileId,
+    currentMember,
+    positions,
+    ledger,
+    dbRevision,
+    profileRevision,
+    isAdmin,
+    poolSummary?.dailyInflow,
+  ]);
 
   const roiPositive = stats.roiAmount >= 0;
   const RoiIcon = roiPositive ? TrendingUp : TrendingDown;
   const interactive = typeof onClick === "function";
   const balanceLabel = formatBankCurrency(stats.investments);
+  const meterMax = Math.max(stats.investments, stats.liquidity, stats.donated, stats.deployed, 1);
 
   const openLedger = () => {
     if (interactive) onClick();
@@ -155,6 +274,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false,
         "dda-member-bank",
         isAdmin && "dda-member-bank--admin",
         wallet && "dda-member-bank--wallet",
+        canCollapse && collapsed && "dda-member-bank--collapsed",
         className,
       )}
     >
@@ -162,7 +282,7 @@ export default function PlatformEquityCard({ onClick, className, wallet = false,
       <div className="dda-member-bank__sheen" aria-hidden="true" />
 
       <div className="dda-member-bank__inner">
-        {!wallet ? (
+        {!wallet && showDense ? (
           <div className="dda-member-bank__top">
             {userFullName ? (
               <p className="dda-home-greeting dda-member-bank__greeting">
@@ -188,11 +308,19 @@ export default function PlatformEquityCard({ onClick, className, wallet = false,
           </div>
         ) : null}
 
+        {!wallet && canCollapse && collapsed && userFullName ? (
+          <p className="dda-home-greeting dda-member-bank__greeting dda-member-bank__greeting--compact">
+            <span className="dda-home-greeting__label">{t("pages.dashboard.welcomeLabel")}</span>
+            <span className="dda-home-greeting__name">{userFullName}</span>
+          </p>
+        ) : null}
+
         <div
           role={interactive ? "button" : undefined}
           tabIndex={interactive ? 0 : undefined}
           className={cn(
             "dda-member-bank__ledger",
+            isAdmin && "dda-member-bank__ledger--dense",
             interactive && "dda-member-bank__ledger--interactive",
             !interactive && "dda-member-bank__ledger--static",
           )}
@@ -235,71 +363,254 @@ export default function PlatformEquityCard({ onClick, className, wallet = false,
                 ) : null}
               </div>
             </div>
-            <span
-              className={cn(
-                "dda-member-bank__roi",
-                roiPositive ? "dda-member-bank__roi--up" : "dda-member-bank__roi--down",
-              )}
-            >
-              <RoiIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
-              {roiPositive ? "+" : "−"}
-              {Math.abs(stats.roiPct).toLocaleString(undefined, { maximumFractionDigits: 1 })}%
-            </span>
-          </div>
-
-          <div className="dda-member-bank__balance-row">
-            <div className="dda-member-bank__balance-col">
-              <p className="dda-member-bank__balance-label">
-                {t("pages.dashboard.equityInvestments")}
-              </p>
-              <p className="dda-member-bank__balance" aria-live="polite">
-                {formatBankCurrency(stats.investments)}
-              </p>
-            </div>
-            {!isAdmin ? (
-              <div className="dda-member-bank__balance-col dda-member-bank__balance-col--cash">
-                <p className="dda-member-bank__balance-label">
-                  {t("pages.dashboard.equityCash")}
-                </p>
-                <p className="dda-member-bank__balance dda-member-bank__balance--cash" aria-live="polite">
-                  {formatBankCurrency(stats.cash)}
-                </p>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="dda-member-bank__chips" aria-label="Account summary">
-            <div className="dda-member-bank__chip">
-              <p className="dda-member-bank__chip-label">{t("pages.dashboard.equityContributed")}</p>
-              <p className="dda-member-bank__chip-value">{formatBankCurrency(stats.deposited)}</p>
-            </div>
-            <div className="dda-member-bank__chip">
-              <p className="dda-member-bank__chip-label">{t("pages.dashboard.equityDonated")}</p>
-              <p className="dda-member-bank__chip-value">{formatBankCurrency(stats.donated)}</p>
-            </div>
-            <div className="dda-member-bank__chip">
-              <p className="dda-member-bank__chip-label">{t("pages.dashboard.equityWallet")}</p>
-              <p className="dda-member-bank__chip-value">{formatBankCurrency(stats.wallet)}</p>
-            </div>
-            <div className="dda-member-bank__chip">
-              <p className="dda-member-bank__chip-label">{t("pages.dashboard.equityGain")}</p>
-              <p
+            <div className="dda-member-bank__ledger-actions">
+              <span
                 className={cn(
-                  "dda-member-bank__chip-value",
-                  roiPositive
-                    ? isAdmin
-                      ? "dda-member-bank__chip-value--gain-admin"
-                      : "text-dda-green-light"
-                    : "text-red-300",
+                  "dda-member-bank__roi",
+                  roiPositive ? "dda-member-bank__roi--up" : "dda-member-bank__roi--down",
                 )}
               >
+                <RoiIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
                 {roiPositive ? "+" : "−"}
-                {formatBankCurrency(Math.abs(stats.roiAmount))}
-              </p>
+                {Math.abs(stats.roiPct).toLocaleString(undefined, { maximumFractionDigits: 1 })}%
+              </span>
+              {canCollapse ? (
+                <button
+                  type="button"
+                  className="dda-member-bank__collapse-btn"
+                  aria-expanded={!collapsed}
+                  aria-label={t(
+                    collapsed
+                      ? "pages.dashboard.expandAdminCash"
+                      : "pages.dashboard.collapseAdminCash",
+                  )}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setCollapsed((value) => !value);
+                  }}
+                >
+                  <ChevronDown
+                    className={cn(
+                      "dda-member-bank__collapse-chevron h-4 w-4",
+                      !collapsed && "dda-member-bank__collapse-chevron--open",
+                    )}
+                    strokeWidth={2.25}
+                    aria-hidden="true"
+                  />
+                </button>
+              ) : null}
             </div>
           </div>
 
-          {isAdmin && typeof onTransferClick === "function" ? (
+          {isAdmin ? (
+            <>
+              <div className="dda-member-bank__hero-grid">
+                <div className="dda-member-bank__balance-col">
+                  <p className="dda-member-bank__balance-label">
+                    {t("pages.dashboard.adminAccountTotal")}
+                  </p>
+                  <p className="dda-member-bank__balance" aria-live="polite">
+                    {formatBankCurrency(stats.investments)}
+                  </p>
+                  {showDense ? (
+                    <p className="dda-member-bank__balance-hint">
+                      {t("pages.dashboard.adminAccountCombinedHint", {
+                        amount: formatBankCurrency(stats.combined),
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+                {showDense ? (
+                  <AdminCompositionDial
+                    admin={stats.investments}
+                    liquidity={stats.liquidity}
+                    combinedLabel={t("pages.dashboard.adminAccountCombined")}
+                  />
+                ) : null}
+              </div>
+
+              {!showDense ? (
+                <div className="dda-member-bank__chips dda-member-bank__chips--compact" aria-label="Account summary">
+                  <div className="dda-member-bank__chip">
+                    <p className="dda-member-bank__chip-label">{t("pages.dashboard.adminAccountLiquidity")}</p>
+                    <p className="dda-member-bank__chip-value">{formatBankCurrency(stats.liquidity)}</p>
+                  </div>
+                  <div className="dda-member-bank__chip">
+                    <p className="dda-member-bank__chip-label">{t("pages.dashboard.adminAccountDonations")}</p>
+                    <p className="dda-member-bank__chip-value">{formatBankCurrency(stats.donated)}</p>
+                  </div>
+                  <div className="dda-member-bank__chip">
+                    <p className="dda-member-bank__chip-label">{t("pages.dashboard.equityGain")}</p>
+                    <p
+                      className={cn(
+                        "dda-member-bank__chip-value",
+                        roiPositive
+                          ? "dda-member-bank__chip-value--gain-admin"
+                          : "text-red-300",
+                      )}
+                    >
+                      {roiPositive ? "+" : "−"}
+                      {formatBankCurrency(Math.abs(stats.roiAmount))}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+              <div
+                className="dda-member-bank__stack"
+                aria-label={t("pages.dashboard.adminAccountMixLabel")}
+              >
+                <div className="dda-member-bank__stack-track" aria-hidden="true">
+                  <span
+                    className="dda-member-bank__stack-seg dda-member-bank__stack-seg--admin"
+                    style={{ flexGrow: Math.max(stats.investments, 0.01) }}
+                  />
+                  <span
+                    className="dda-member-bank__stack-seg dda-member-bank__stack-seg--liq"
+                    style={{ flexGrow: Math.max(stats.liquidity, 0.01) }}
+                  />
+                </div>
+                <div className="dda-member-bank__stack-legend">
+                  <span>
+                    <i className="dda-member-bank__swatch dda-member-bank__swatch--admin" />
+                    {t("pages.dashboard.adminAccountTotal")}
+                  </span>
+                  <span>
+                    <i className="dda-member-bank__swatch dda-member-bank__swatch--liq" />
+                    {t("pages.dashboard.adminAccountLiquidity")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="dda-member-bank__meters">
+                <AdminMeter
+                  label={t("pages.dashboard.adminAccountLiquidity")}
+                  value={stats.liquidity}
+                  max={meterMax}
+                  tone="gold"
+                />
+                <AdminMeter
+                  label={t("pages.dashboard.adminAccountDonations")}
+                  value={stats.donated}
+                  max={meterMax}
+                  tone="sky"
+                />
+                <AdminMeter
+                  label={t("pages.dashboard.adminAccountDeployed")}
+                  value={stats.deployed}
+                  max={meterMax}
+                  tone="emerald"
+                />
+              </div>
+
+              <div
+                className="dda-member-bank__quick"
+                aria-label={t("pages.dashboard.adminAccountPulse")}
+              >
+                <div className="dda-member-bank__quick-item">
+                  <Users className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
+                  <div>
+                    <p className="dda-member-bank__quick-label">{t("common.members")}</p>
+                    <p className="dda-member-bank__quick-value">{stats.memberCount}</p>
+                  </div>
+                </div>
+                <div className="dda-member-bank__quick-item">
+                  <Landmark className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
+                  <div>
+                    <p className="dda-member-bank__quick-label">
+                      {t("pages.dashboard.adminAccountToday")}
+                    </p>
+                    <p className="dda-member-bank__quick-value dda-member-bank__quick-value--in">
+                      {formatCompactMoney(stats.dailyInflow)}
+                    </p>
+                  </div>
+                </div>
+                <div className="dda-member-bank__quick-item">
+                  <Droplets className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
+                  <div>
+                    <p className="dda-member-bank__quick-label">
+                      {t("pages.dashboard.adminAccountAlerts")}
+                    </p>
+                    <p className="dda-member-bank__quick-value">
+                      {stats.pendingApprovals + stats.pendingPayments}
+                    </p>
+                  </div>
+                </div>
+                <div className="dda-member-bank__quick-item">
+                  <TrendingUp className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
+                  <div>
+                    <p className="dda-member-bank__quick-label">{t("pages.dashboard.equityGain")}</p>
+                    <p
+                      className={cn(
+                        "dda-member-bank__quick-value",
+                        roiPositive
+                          ? "dda-member-bank__chip-value--gain-admin"
+                          : "text-red-300",
+                      )}
+                    >
+                      {roiPositive ? "+" : "−"}
+                      {formatCompactMoney(Math.abs(stats.roiAmount))}
+                    </p>
+                  </div>
+                </div>
+              </div>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="dda-member-bank__balance-row">
+                <div className="dda-member-bank__balance-col">
+                  <p className="dda-member-bank__balance-label">
+                    {t("pages.dashboard.equityInvestments")}
+                  </p>
+                  <p className="dda-member-bank__balance" aria-live="polite">
+                    {formatBankCurrency(stats.investments)}
+                  </p>
+                </div>
+                <div className="dda-member-bank__balance-col dda-member-bank__balance-col--cash">
+                  <p className="dda-member-bank__balance-label">
+                    {t("pages.dashboard.equityCash")}
+                  </p>
+                  <p className="dda-member-bank__balance dda-member-bank__balance--cash" aria-live="polite">
+                    {formatBankCurrency(stats.cash)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="dda-member-bank__chips" aria-label="Account summary">
+                <div className="dda-member-bank__chip">
+                  <p className="dda-member-bank__chip-label">{t("pages.dashboard.equityContributed")}</p>
+                  <p className="dda-member-bank__chip-value">{formatBankCurrency(stats.deposited)}</p>
+                </div>
+                <div className="dda-member-bank__chip">
+                  <p className="dda-member-bank__chip-label">{t("pages.dashboard.equityDonated")}</p>
+                  <p className="dda-member-bank__chip-value">
+                    {formatBankCurrency(stats.deposited + stats.donated)}
+                  </p>
+                </div>
+                <div className="dda-member-bank__chip">
+                  <p className="dda-member-bank__chip-label">{t("pages.dashboard.equityWallet")}</p>
+                  <p className="dda-member-bank__chip-value">{formatBankCurrency(stats.wallet)}</p>
+                </div>
+                <div className="dda-member-bank__chip">
+                  <p className="dda-member-bank__chip-label">{t("pages.dashboard.equityGain")}</p>
+                  <p
+                    className={cn(
+                      "dda-member-bank__chip-value",
+                      roiPositive ? "text-dda-green-light" : "text-red-300",
+                    )}
+                  >
+                    {roiPositive ? "+" : "−"}
+                    {formatBankCurrency(Math.abs(stats.roiAmount))}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {isAdmin && typeof onTransferClick === "function" && showDense ? (
             <button
               type="button"
               className="dda-member-bank__transfer-btn"
@@ -313,30 +624,30 @@ export default function PlatformEquityCard({ onClick, className, wallet = false,
               {t("pages.accounts.adminLiquidityTransferButton")}
             </button>
           ) : null}
-
-          {!isAdmin ? (
-            <button
-              type="button"
-              className="dda-member-bank__transfer-btn dda-member-bank__request-btn"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setRequestOpen(true);
-              }}
-            >
-              <Banknote className="h-3.5 w-3.5" strokeWidth={2.25} />
-              {t("pages.dashboard.redemptionRequestButton")}
-            </button>
-          ) : null}
         </div>
+
+        {!isAdmin ? (
+          <button
+            type="button"
+            className="dda-member-bank__transfer-btn dda-member-bank__request-btn"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setRequestOpen(true);
+            }}
+          >
+            <Banknote className="h-3.5 w-3.5" strokeWidth={2.25} />
+            {t("pages.dashboard.redemptionRequestButton")}
+          </button>
+        ) : null}
       </div>
 
       {!isAdmin ? (
         <MemberRedemptionRequestModal
           open={requestOpen}
           onClose={() => setRequestOpen(false)}
-          availableBalance={stats.cash}
-          investedBalance={stats.investments}
+          availableBalance={stats.investments}
+          cashBalance={stats.cash}
         />
       ) : null}
     </section>

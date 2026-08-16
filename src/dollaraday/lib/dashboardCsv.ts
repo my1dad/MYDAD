@@ -1,9 +1,28 @@
-import { getDadProfiles, replaceAllDadProfiles, type DadProfile } from "./dadProfileStorage";
-import { DATA_BIN_DEFINITIONS } from "./dataBins";
-import { getDatabaseSnapshot, upsertDataRecord, writeDataBin, type DataBinKey } from "./internalDatabase";
-import { getPoolState, importPoolLiveState } from "./poolState";
+import {
+  getDadProfilesForBackup,
+  replaceAllDadProfiles,
+  type DadProfile,
+} from "./dadProfileStorage";
+import { DATA_BIN_DEFINITIONS, type DataBinKey } from "./dataBins";
+import {
+  flushInternalDatabase,
+  getDatabaseSnapshot,
+  writeDataBin,
+  type DataBinDocument,
+  type StoredRecord,
+} from "./internalDatabase";
+import { getPoolState, hydratePoolStateFromStorage, importPoolLiveState } from "./poolState";
 
-const CSV_VERSION = "1";
+const CSV_VERSION = "2";
+
+export type DashboardCsvImportResult =
+  | {
+      ok: true;
+      profileCount: number;
+      recordCount: number;
+      restoredPool: boolean;
+    }
+  | { ok: false; error: string };
 
 function escapeCsvCell(value: string): string {
   if (/[",\n\r]/.test(value)) {
@@ -16,16 +35,19 @@ function rowToCsv(cells: string[]): string {
   return cells.map((cell) => escapeCsvCell(cell ?? "")).join(",");
 }
 
-function parseCsvLine(line: string): string[] {
-  const cells: string[] = [];
+/** RFC4180-ish parser — keeps newlines inside quoted fields. */
+function parseCsv(text: string): string[][] {
+  const input = text.replace(/^\uFEFF/, "");
+  const rows: string[][] = [];
+  let row: string[] = [];
   let current = "";
   let inQuotes = false;
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
     if (inQuotes) {
       if (char === '"') {
-        if (line[index + 1] === '"') {
+        if (input[index + 1] === '"') {
           current += '"';
           index += 1;
         } else {
@@ -39,24 +61,52 @@ function parseCsvLine(line: string): string[] {
 
     if (char === '"') {
       inQuotes = true;
-    } else if (char === ",") {
-      cells.push(current);
-      current = "";
-    } else {
-      current += char;
+      continue;
     }
+    if (char === ",") {
+      row.push(current);
+      current = "";
+      continue;
+    }
+    if (char === "\n") {
+      row.push(current);
+      if (row.some((cell) => cell.trim().length > 0)) rows.push(row);
+      row = [];
+      current = "";
+      continue;
+    }
+    if (char === "\r") continue;
+    current += char;
   }
 
-  cells.push(current);
-  return cells;
+  row.push(current);
+  if (row.some((cell) => cell.trim().length > 0)) rows.push(row);
+  return rows;
 }
 
-function parseCsv(text: string): string[][] {
-  return text
-    .replace(/^\uFEFF/, "")
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0)
-    .map(parseCsvLine);
+/** Encode JSON so commas/quotes/newlines cannot break CSV columns. */
+function encodeJsonCell(value: unknown): string {
+  const json = JSON.stringify(value ?? null);
+  if (typeof btoa === "function") {
+    const bytes = new TextEncoder().encode(json);
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return `b64:${btoa(binary)}`;
+  }
+  return json;
+}
+
+function decodeJsonCell(cell: string): unknown {
+  const raw = String(cell ?? "").trim();
+  if (!raw) return null;
+  if (raw.startsWith("b64:")) {
+    const binary = atob(raw.slice(4));
+    const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+  return JSON.parse(raw);
 }
 
 function profileToRow(profile: DadProfile): string[] {
@@ -74,9 +124,11 @@ function profileToRow(profile: DadProfile): string[] {
     profile.approvalStatus ?? "approved",
     profile.accountStatus ?? "active",
     profile.referredByProId ?? "",
-    profile.profilePhotoUrl ?? "",
+    // Photos are huge data-URLs — keep CSV lean; cloud/profile photo can re-sync separately.
+    "",
     profile.createdAt,
     profile.lastLoginAt,
+    profile.accountNumber ?? "",
   ];
 }
 
@@ -100,11 +152,15 @@ export function buildDashboardCsvExport(): string {
       "profilePhotoUrl",
       "createdAt",
       "lastLoginAt",
+      "accountNumber",
     ]),
   );
-  lines.push(rowToCsv(["meta", "version", CSV_VERSION, "exportedAt", new Date().toISOString()]));
+  lines.push(
+    rowToCsv(["meta", "version", CSV_VERSION, "exportedAt", new Date().toISOString()]),
+  );
 
-  getDadProfiles().forEach((profile) => {
+  // Unfiltered directory — blank/factory-zero lock must not shrink the backup.
+  getDadProfilesForBackup().forEach((profile) => {
     lines.push(rowToCsv(profileToRow(profile)));
   });
 
@@ -112,9 +168,14 @@ export function buildDashboardCsvExport(): string {
   lines.push(
     rowToCsv([
       "pool",
-      JSON.stringify(pool.poolSummary),
-      JSON.stringify(pool.poolComposition),
-      JSON.stringify(pool.dailyAllocationSummary),
+      encodeJsonCell(pool.poolSummary),
+      encodeJsonCell(pool.poolComposition),
+      encodeJsonCell(pool.dailyAllocationSummary),
+      encodeJsonCell(pool.poolBalanceHistory ?? {}),
+      encodeJsonCell(pool.todaysDonations ?? []),
+      encodeJsonCell(pool.allocationComparisons ?? []),
+      encodeJsonCell(pool.currentMember ?? null),
+      String(pool.activeEasternDay ?? ""),
     ]),
   );
 
@@ -130,7 +191,7 @@ export function buildDashboardCsvExport(): string {
           record.source,
           record.createdAt,
           record.updatedAt,
-          JSON.stringify(record.payload),
+          encodeJsonCell(record.payload),
         ]),
       );
     });
@@ -146,11 +207,59 @@ export function downloadDashboardCsv(filenamePrefix = "dollar-a-day-dashboard"):
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = `${filenamePrefix}-${Date.now()}.csv`;
+  document.body.appendChild(anchor);
   anchor.click();
+  anchor.remove();
   URL.revokeObjectURL(url);
 }
 
-export function importDashboardCsv(text: string): { ok: true } | { ok: false; error: string } {
+async function unlockPlatformForCsvRestore(): Promise<void> {
+  const {
+    clearFactoryZeroDeliveryLock,
+    clearCloudPlatformBlank,
+    pauseCloudPushes,
+  } = await import("./supabase/cloudSync");
+  const { clearFactoryZeroDisk } = await import("./internalDatabase");
+
+  // Blank/factory-zero locks strip members on write and block disk restores (HTTP 423).
+  clearFactoryZeroDeliveryLock();
+  pauseCloudPushes(0);
+  await clearFactoryZeroDisk();
+  await clearCloudPlatformBlank();
+}
+
+async function publishRestoredDashboard(profiles: DadProfile[]): Promise<void> {
+  try {
+    const {
+      persistMembersToCloud,
+      pushCloudBinsNow,
+      publishWorkspaceEpoch,
+      markCloudAuthorityReady,
+      adoptOpenPlatformFromCloud,
+    } = await import("./supabase/cloudSync");
+    const snapshot = getDatabaseSnapshot();
+
+    // Opens platform blank lock and force-publishes members so reload cannot wipe restore.
+    await persistMembersToCloud(profiles, { openPlatform: true });
+
+    await pushCloudBinsNow(
+      DATA_BIN_DEFINITIONS.map((definition) => ({
+        binId: definition.binId,
+        document: snapshot.bins[definition.key],
+      })),
+      { force: true },
+    );
+
+    // Bump epoch so other devices treat pre-restore caches as obsolete on next login.
+    const epoch = await publishWorkspaceEpoch();
+    adoptOpenPlatformFromCloud(epoch);
+    markCloudAuthorityReady();
+  } catch (err) {
+    console.warn("[dashboardCsv] Cloud publish after restore failed:", err);
+  }
+}
+
+export async function importDashboardCsv(text: string): Promise<DashboardCsvImportResult> {
   const rows = parseCsv(text);
   if (!rows.length) {
     return { ok: false, error: "CSV file is empty." };
@@ -158,18 +267,11 @@ export function importDashboardCsv(text: string): { ok: true } | { ok: false; er
 
   const profiles: DadProfile[] = [];
   let poolPayload: Partial<ReturnType<typeof getPoolState>> | null = null;
-  const records: Array<{
-    binKey: DataBinKey;
-    recordId: string;
-    source: string;
-    payload: Record<string, unknown>;
-  }> = [];
+  const recordsByBin = new Map<DataBinKey, StoredRecord[]>();
 
   for (const row of rows) {
     const section = row[0]?.trim();
-    if (!section || section === "section") continue;
-
-    if (section === "meta") continue;
+    if (!section || section === "section" || section === "meta") continue;
 
     if (section === "member") {
       const [
@@ -189,9 +291,14 @@ export function importDashboardCsv(text: string): { ok: true } | { ok: false; er
         profilePhotoUrl,
         createdAt,
         lastLoginAt,
+        accountNumber,
       ] = row;
 
-      if (!id?.trim() || !username?.trim() || !password?.trim() || !displayName?.trim()) {
+      if (!id?.trim() || !username?.trim() || !displayName?.trim()) {
+        continue;
+      }
+      // Password may be hashed or plain — required for login restore.
+      if (!password?.trim()) {
         continue;
       }
 
@@ -212,6 +319,7 @@ export function importDashboardCsv(text: string): { ok: true } | { ok: false; er
         profilePhotoUrl: profilePhotoUrl?.trim() || undefined,
         createdAt: createdAt?.trim() || new Date().toISOString(),
         lastLoginAt: lastLoginAt?.trim() || new Date().toISOString(),
+        accountNumber: accountNumber?.trim() || undefined,
       });
       continue;
     }
@@ -219,10 +327,37 @@ export function importDashboardCsv(text: string): { ok: true } | { ok: false; er
     if (section === "pool") {
       try {
         poolPayload = {
-          poolSummary: JSON.parse(row[1] ?? "{}"),
-          poolComposition: JSON.parse(row[2] ?? "[]"),
-          dailyAllocationSummary: JSON.parse(row[3] ?? "{}"),
+          poolSummary: decodeJsonCell(row[1] ?? "") as ReturnType<typeof getPoolState>["poolSummary"],
+          poolComposition: decodeJsonCell(row[2] ?? "[]") as ReturnType<
+            typeof getPoolState
+          >["poolComposition"],
+          dailyAllocationSummary: decodeJsonCell(row[3] ?? "{}") as ReturnType<
+            typeof getPoolState
+          >["dailyAllocationSummary"],
         };
+        if (row[4]) {
+          poolPayload.poolBalanceHistory = decodeJsonCell(row[4]) as ReturnType<
+            typeof getPoolState
+          >["poolBalanceHistory"];
+        }
+        if (row[5]) {
+          poolPayload.todaysDonations = decodeJsonCell(row[5]) as ReturnType<
+            typeof getPoolState
+          >["todaysDonations"];
+        }
+        if (row[6]) {
+          poolPayload.allocationComparisons = decodeJsonCell(row[6]) as ReturnType<
+            typeof getPoolState
+          >["allocationComparisons"];
+        }
+        if (row[7]) {
+          poolPayload.currentMember = decodeJsonCell(row[7]) as ReturnType<
+            typeof getPoolState
+          >["currentMember"];
+        }
+        if (row[8]?.trim()) {
+          poolPayload.activeEasternDay = row[8].trim();
+        }
       } catch {
         return { ok: false, error: "Invalid pool data in CSV." };
       }
@@ -230,47 +365,83 @@ export function importDashboardCsv(text: string): { ok: true } | { ok: false; er
     }
 
     if (section === "record") {
-      const [, binKey, recordId, source, , , payloadJson] = row;
+      const [, binKey, recordId, source, createdAt, updatedAt, payloadCell] = row;
       if (!binKey || !recordId || !source) continue;
       if (!DATA_BIN_DEFINITIONS.some((definition) => definition.key === binKey)) continue;
 
       try {
-        records.push({
-          binKey: binKey as DataBinKey,
-          recordId: recordId.trim(),
+        const payload = decodeJsonCell(payloadCell ?? "{}") as Record<string, unknown>;
+        const list = recordsByBin.get(binKey as DataBinKey) ?? [];
+        list.push({
+          id: recordId.trim(),
           source: source.trim(),
-          payload: JSON.parse(payloadJson ?? "{}") as Record<string, unknown>,
+          createdAt: createdAt?.trim() || new Date().toISOString(),
+          updatedAt: updatedAt?.trim() || new Date().toISOString(),
+          payload: payload && typeof payload === "object" ? payload : {},
         });
+        recordsByBin.set(binKey as DataBinKey, list);
       } catch {
         return { ok: false, error: `Invalid record payload for ${recordId}.` };
       }
     }
   }
 
-  if (!profiles.length && !records.length && !poolPayload) {
+  const recordCount = [...recordsByBin.values()].reduce((sum, list) => sum + list.length, 0);
+  if (!profiles.length && !recordCount && !poolPayload) {
     return { ok: false, error: "No importable dashboard data found in CSV." };
   }
+
+  await unlockPlatformForCsvRestore();
 
   if (profiles.length) {
     replaceAllDadProfiles(profiles);
   }
 
+  // Replace each bin atomically (do not merge with stale local rows).
+  const stamp = new Date().toISOString();
   for (const definition of DATA_BIN_DEFINITIONS) {
-    writeDataBin(definition.key, {
+    const records = recordsByBin.get(definition.key) ?? [];
+    const document: DataBinDocument = {
       version: 1,
       binKey: definition.key,
-      updatedAt: new Date().toISOString(),
-      records: [],
-    });
+      updatedAt: stamp,
+      records,
+    };
+    writeDataBin(definition.key, document);
   }
-
-  records.forEach((record) => {
-    upsertDataRecord(record.binKey, record.recordId, record.source, record.payload);
-  });
 
   if (poolPayload) {
     importPoolLiveState(poolPayload);
   }
 
-  return { ok: true };
+  await flushInternalDatabase();
+
+  try {
+    const { invalidateMemberAccountsCache } = await import("./memberAccounts");
+    invalidateMemberAccountsCache();
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { syncAllProfilesToMemberRegistry } = await import("./profileRegistry");
+    syncAllProfilesToMemberRegistry();
+  } catch {
+    /* ignore */
+  }
+
+  hydratePoolStateFromStorage({ reconcile: false });
+
+  if (profiles.length) {
+    await publishRestoredDashboard(profiles);
+  } else {
+    await publishRestoredDashboard(getDadProfilesForBackup());
+  }
+
+  return {
+    ok: true,
+    profileCount: profiles.length,
+    recordCount,
+    restoredPool: Boolean(poolPayload),
+  };
 }

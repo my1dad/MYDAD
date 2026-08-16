@@ -577,8 +577,34 @@ export function redeemToMemberProfile(
 
 /** Platform liquidity available for admin redemptions (escrow-driven pool cash). */
 export function getAdminLiquidityAvailable(): number {
-  const deployed = Number(getPoolState().poolSummary?.deployedCapital) || 0;
-  return Math.max(0, Math.round(getPoolCashEscrowBalance(deployed) * 100) / 100);
+  return Math.max(0, Math.round(getPoolCashEscrowBalance() * 100) / 100);
+}
+
+/**
+ * Master admin operating balance (checking only).
+ * Admin Chase escrow holds community donation cash already counted in pool liquidity —
+ * do not add it again when combining with getAdminLiquidityAvailable().
+ */
+export function getAdminOperatingAccountBalance(profileId?: string): number {
+  const id = profileId || getAdminProfileId();
+  if (!id) return 0;
+  const ledger = hydrateMemberAccounts(id);
+  return Math.max(0, Math.round((Number(ledger.checkingBalance) || 0) * 100) / 100);
+}
+
+/** Accounts tile / overview headline: admin operating + undeployed community liquidity. */
+export function getAdminAccountsCombinedTotal(profileId?: string): {
+  adminAccount: number;
+  communityLiquidity: number;
+  total: number;
+} {
+  const adminAccount = getAdminOperatingAccountBalance(profileId);
+  const communityLiquidity = getAdminLiquidityAvailable();
+  return {
+    adminAccount,
+    communityLiquidity,
+    total: Math.round((adminAccount + communityLiquidity) * 100) / 100,
+  };
 }
 
 export function getMemberAccountLedger(profileId = resolveMemberProfileId()): MemberAccountLedger {

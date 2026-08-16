@@ -107,6 +107,7 @@ export default function AdminMemberDetailModal({
 }) {
   const { t } = useLocale();
   const [editOpen, setEditOpen] = useState(false);
+  const [editProfile, setEditProfile] = useState(null);
   const [actionError, setActionError] = useState("");
   const [balanceError, setBalanceError] = useState("");
   const [balanceSaved, setBalanceSaved] = useState(false);
@@ -148,7 +149,6 @@ export default function AdminMemberDetailModal({
     setActionError("");
     setBalanceError("");
     setBalanceSaved(false);
-    setEditOpen(false);
     setProfileLoadFailed(false);
     setResolvedProfileId(profileId || "");
     setActionBusy(false);
@@ -262,7 +262,21 @@ export default function AdminMemberDetailModal({
     onClose();
   };
 
-  if (!open) return null;
+  if (!open) {
+    if (editOpen && editProfile) {
+      return (
+        <AdminProfileEditModal
+          profile={editProfile}
+          open={editOpen}
+          onClose={() => {
+            setEditOpen(false);
+            setEditProfile(null);
+          }}
+        />
+      );
+    }
+    return null;
+  }
 
   if (!detail) {
     const canAct = Boolean(usernameHint || profileId);
@@ -378,7 +392,9 @@ export default function AdminMemberDetailModal({
     });
     if (!result.ok) {
       setActionError(result.error);
+      return;
     }
+    onClose();
   };
 
   const handleDeny = async () => {
@@ -391,6 +407,12 @@ export default function AdminMemberDetailModal({
       setActionError(result.error);
       return;
     }
+    onClose();
+  };
+
+  const openEditSheet = () => {
+    setEditProfile(profile);
+    setEditOpen(true);
     onClose();
   };
 
@@ -537,7 +559,7 @@ export default function AdminMemberDetailModal({
             ) : null}
             <button
               type="button"
-              onClick={() => setEditOpen(true)}
+              onClick={openEditSheet}
               className="dda-admin-member-detail__pill"
             >
               {t("pages.admin.profileEdit")}
@@ -756,7 +778,10 @@ export default function AdminMemberDetailModal({
         <AdminProfileEditModal
           profile={profile}
           open={editOpen}
-          onClose={() => setEditOpen(false)}
+          onClose={() => {
+            setEditOpen(false);
+            setEditProfile(null);
+          }}
         />
       </div>
     </div>,

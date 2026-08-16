@@ -116,7 +116,7 @@ export default function BuyAllocationsCard() {
   const [entityInitialMode, setEntityInitialMode] = useState("buy");
   const [entityInitialSellId, setEntityInitialSellId] = useState("");
 
-  const availableBalance = ledger.escrowBalance;
+  const availableBalance = Number(ledger.checkingBalance) || 0;
   const activeSleeve = ALLOCATION_OPTIONS.find((item) => item.id === activeSleeveId);
 
   const activePositions = useMemo(
@@ -154,12 +154,18 @@ export default function BuyAllocationsCard() {
         collapseAriaLabel={t("pages.investments.collapseBuyAllocations")}
         expandAriaLabel={t("pages.investments.expandBuyAllocations")}
       >
-        <p className="text-xs text-gray-500">
-          {t("pages.investments.buyAvailable")}:{" "}
-          <span className="font-semibold tabular-nums text-gray-300">
-            {formatPoolCurrency(availableBalance)}
-          </span>
-        </p>
+        <div className="dda-buy-cash" aria-label={t("pages.investments.buyAvailable")}>
+          <div className="dda-buy-cash__rail" aria-hidden="true" />
+          <div className="dda-buy-cash__body">
+            <div className="dda-buy-cash__meta">
+              <span className="dda-buy-cash__kicker">{t("pages.investments.buyAvailable")}</span>
+              <p className="dda-buy-cash__hint">{t("pages.investments.buyCashDeployHint")}</p>
+            </div>
+            <p className="dda-buy-cash__amount" aria-live="polite">
+              {formatPoolCurrency(availableBalance)}
+            </p>
+          </div>
+        </div>
 
         <div className="mt-3 flex gap-2">
           {ALLOCATION_OPTIONS.map(({ id, labelKey, icon: Icon, accent }) => (

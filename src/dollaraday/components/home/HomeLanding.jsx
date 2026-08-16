@@ -26,14 +26,10 @@ export default function HomeLanding({
       <div
         className={
           isAdmin
-            ? "dda-home-landing mx-auto flex w-full max-w-lg flex-col pb-1 sm:max-w-xl lg:hidden"
-            : "dda-home-landing dda-home-landing--member mx-auto flex w-full max-w-lg flex-col pb-1 sm:max-w-xl lg:hidden"
+            ? "dda-home-landing mx-auto flex w-full max-w-lg flex-col gap-3 pb-1 sm:max-w-xl lg:hidden"
+            : "dda-home-landing dda-home-landing--member mx-auto flex w-full max-w-lg flex-col gap-3 pb-1 sm:max-w-xl lg:hidden"
         }
       >
-        <PlatformEquityCard onClick={onWalletClick} />
-
-        <ContributeTodaySection />
-
         <PoolDigitalDisplay
           amount={poolTotal}
           memberCount={poolMemberCount}
@@ -42,7 +38,11 @@ export default function HomeLanding({
           onClick={onPoolClick}
         />
 
-        <HomeRecentActivityCard className="mt-1" onNavigate={onNavigate} />
+        <PlatformEquityCard onClick={onWalletClick} collapsible={isAdmin} />
+
+        {!isAdmin ? <ContributeTodaySection /> : null}
+
+        <HomeRecentActivityCard onNavigate={onNavigate} />
       </div>
 
       {/* Desktop / web — role-specific landscape dashboards (lazy so mobile skips the chunk) */}
@@ -68,9 +68,11 @@ export default function HomeLanding({
         </Suspense>
       </div>
 
-      <div className="mx-auto hidden w-full max-w-6xl lg:block lg:max-w-7xl">
-        <CommunityWelcomeCard className="mt-1" />
-      </div>
+      {!isAdmin ? (
+        <div className="mx-auto hidden w-full max-w-6xl lg:block lg:max-w-7xl">
+          <CommunityWelcomeCard className="mt-1" />
+        </div>
+      ) : null}
     </>
   );
 }

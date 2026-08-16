@@ -6,11 +6,11 @@ import {
 import { useDadAuth } from "../context/DadAuthContext.jsx";
 
 /**
- * Keep the UI free. Background work is minimal and delayed:
- * 1) Pull cloud profiles (never re-upload stale local members onto a wipe)
- * 2) Rebuild member registry from profiles
+ * Keep the UI free. Background work is ordered for cloud authority:
+ * 1) Pull cloud profiles + adopt remote bins (never re-upload stale local members)
+ * 2) Rebuild member registry from the adopted directory
  * 3) Light local pool hydrate
- * 4) Full cloud sync later — skipped while factory-zero lock is active
+ * 4) Full cloud sync later — blank lock still blocks fat pushes
  */
 export default function PostAuthWorkspace({ children }) {
   const { isAuthenticated } = useDadAuth();
@@ -24,10 +24,13 @@ export default function PostAuthWorkspace({ children }) {
     const unlockTimer = window.setTimeout(() => {
       void import("../lib/supabase/cloudSync")
         .then(async ({
-          clearFactoryZeroDeliveryLock,
+          adoptOpenPlatformFromCloud,
           pauseCloudPushes,
           pullCloudProfilesNow,
           isFactoryZeroLocked,
+          isCloudPlatformBlank,
+          markCloudAuthorityReady,
+          getWorkspaceEpoch,
         }) => {
           if (!alive) return;
 
@@ -37,15 +40,14 @@ export default function PostAuthWorkspace({ children }) {
           await pullCloudProfilesNow(getDadProfiles, replaceAllDadProfiles);
           if (!alive) return;
 
-          const afterPull = getDadProfiles();
-          const liveMembers = afterPull.filter(
-            (profile) => profile.username?.trim().toLowerCase() !== "admin",
-          );
+          const blank = await isCloudPlatformBlank().catch(() => isFactoryZeroLocked());
+          if (!alive) return;
 
-          if (liveMembers.length && !isFactoryZeroLocked()) {
-            clearFactoryZeroDeliveryLock();
-            pauseCloudPushes(0);
-          } else if (!isFactoryZeroLocked() && !liveMembers.length) {
+          if (blank) {
+            // Keep pushes paused; blank lock continues to block fat republish.
+            markCloudAuthorityReady();
+          } else {
+            adoptOpenPlatformFromCloud(getWorkspaceEpoch());
             pauseCloudPushes(0);
           }
 
@@ -56,7 +58,7 @@ export default function PostAuthWorkspace({ children }) {
         .catch((err) => console.warn("[PostAuthWorkspace] Profile restore skipped:", err));
     }, 50);
 
-    // Light local hydrate after first paint.
+    // Light local hydrate after first paint — after cloud pull had a chance to run.
     const localTimer = window.setTimeout(() => {
       void import("../lib/poolState")
         .then(({ hydratePoolStateFromStorage }) => {
@@ -74,24 +76,19 @@ export default function PostAuthWorkspace({ children }) {
         try {
           const {
             initCloudSync,
-            clearFactoryZeroDeliveryLock,
+            adoptOpenPlatformFromCloud,
             pauseCloudPushes,
             isFactoryZeroLocked,
+            isCloudPlatformBlank,
+            getWorkspaceEpoch,
           } = await import("../lib/supabase/cloudSync");
           if (!alive) return;
 
-          const liveMembers = getDadProfiles().filter(
-            (profile) => profile.username?.trim().toLowerCase() !== "admin",
-          );
-
-          // Only unlock when live members already exist (post-wipe registrations).
-          // Blank admin-only platform keeps the factory-zero lock so stale caches cannot republish.
-          if (liveMembers.length && !isFactoryZeroLocked()) {
-            clearFactoryZeroDeliveryLock();
-            pauseCloudPushes(0);
-          } else if (isFactoryZeroLocked() && !liveMembers.length) {
+          const blank = await isCloudPlatformBlank().catch(() => isFactoryZeroLocked());
+          if (blank) {
             // Keep pushes paused; sync still pulls blank bins from cloud.
           } else {
+            adoptOpenPlatformFromCloud(getWorkspaceEpoch());
             pauseCloudPushes(0);
           }
 
@@ -132,15 +129,19 @@ export default function PostAuthWorkspace({ children }) {
       })();
     }, 4_000);
 
+    cleanups.push(() => window.clearTimeout(unlockTimer));
+    cleanups.push(() => window.clearTimeout(localTimer));
+    cleanups.push(() => window.clearTimeout(cloudTimer));
+
     return () => {
       alive = false;
-      window.clearTimeout(unlockTimer);
-      window.clearTimeout(localTimer);
-      window.clearTimeout(cloudTimer);
-      while (cleanups.length) {
-        const stop = cleanups.pop();
-        if (typeof stop === "function") stop();
-      }
+      cleanups.forEach((fn) => {
+        try {
+          fn();
+        } catch {
+          /* ignore */
+        }
+      });
     };
   }, [isAuthenticated]);
 

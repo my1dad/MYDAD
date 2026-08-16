@@ -114,17 +114,22 @@ export function getAdminLiquidityDrawOutflow(): number {
 
 /**
  * Pool cash for liquidity metrics.
- * Escrow + admin-funded equity + contribution inflows, minus redemptions,
- * admin liquidity draws, and deployed capital.
+ * Contribution inflows + admin-funded equity are the source of truth.
+ * Summing every member/admin escrow ledger overstates when the same donation
+ * was credited on a member wallet and (mistakenly) on admin Chase Escrow.
+ * Ledgers are only a fallback when contribution/admin-funded totals are empty.
+ *
+ * Deployed capital is funded from Admin Cash Account (checking), not pool
+ * escrow — do not subtract deployed here or liquidity drops when admin invests.
  */
-export function getPoolCashEscrowBalance(deployedCapital = 0): number {
+export function getPoolCashEscrowBalance(_deployedCapital = 0): number {
   const ledgerEscrow = getTotalMemberEscrowBalance();
   const adminFunded = getTotalAdminFundedMemberCapital();
   const contributionTotal = getCompletedContributionCapital();
   const redemptionOutflow = getCompletedRedemptionOutflow();
   const adminDrawOutflow = getAdminLiquidityDrawOutflow();
-  const deployed = Number.isFinite(deployedCapital) ? Math.max(0, deployedCapital) : 0;
-  const cashBase = Math.max(ledgerEscrow, adminFunded, contributionTotal);
+  const sourceOfTruth = Math.max(contributionTotal, adminFunded);
+  const cashBase = sourceOfTruth > 0 ? sourceOfTruth : ledgerEscrow;
 
-  return Math.max(0, roundMoney(cashBase - redemptionOutflow - adminDrawOutflow - deployed));
+  return Math.max(0, roundMoney(cashBase - redemptionOutflow - adminDrawOutflow));
 }

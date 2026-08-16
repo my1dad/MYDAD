@@ -6,7 +6,8 @@ import {
   upsertDataRecord,
 } from "./internalDatabase";
 import { findDadProfileById, getActiveDadProfile } from "./dadProfileStorage";
-import { hydrateMemberAccounts, resolveMemberProfileId } from "./memberAccounts";
+import { resolveMemberProfileId } from "./memberAccounts";
+import { computeMemberStatsFromContributions } from "./memberContributionStats";
 import { logProfileActivity } from "./profileActivity";
 import { saveAdminRedemption } from "./redemptions";
 
@@ -39,11 +40,15 @@ function buildHandle(username?: string): string {
   return raw ? `@${raw}` : "@member";
 }
 
-/** Available balance a member may request to redeem (personal cash). */
+/**
+ * Invested equity available to request as a redemption.
+ * Cash is separate — it only rises after master admin fulfills a request.
+ * Fulfilled redemptions are already deducted from contribution equity.
+ */
 export function getMemberRedeemableBalance(profileId: string): number {
   if (!profileId) return 0;
-  const ledger = hydrateMemberAccounts(profileId);
-  return Math.max(0, roundMoney(Number(ledger.checkingBalance) || 0));
+  const contributionStats = computeMemberStatsFromContributions(profileId);
+  return Math.max(0, roundMoney(Number(contributionStats?.equity) || 0));
 }
 
 export function listMemberRedemptionRequests(

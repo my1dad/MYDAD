@@ -20,6 +20,7 @@ import {
 } from "../../lib/communityChat";
 import { consumePendingDmPartnerId } from "../../lib/communityDmNavigation";
 import CommunityBoardMessage from "./CommunityBoardMessage.jsx";
+import CommunityLeadershipCard from "./CommunityLeadershipCard.jsx";
 
 function resolveChatPartner(selectedPartnerId, allProfiles) {
   if (!selectedPartnerId) return null;
@@ -424,7 +425,7 @@ function MembersPanel({ profileId, onMessage, hasUnreadFrom }) {
 
 export default function CommunityChat() {
   const { t } = useLocale();
-  const { profile, authEntryTick } = useDadAuth();
+  const { profile, authEntryTick, isAdmin } = useDadAuth();
   const [activeTab, setActiveTab] = useState("room");
   const [dmPartnerId, setDmPartnerId] = useState(null);
   const profileId = profile?.id;
@@ -456,6 +457,8 @@ export default function CommunityChat() {
       />
 
       <CommunityBoardMessage />
+
+      {isAdmin ? <CommunityLeadershipCard /> : null}
 
       <div className="dda-community-chat">
         <div className="dda-community-chat__tabs" role="tablist">
