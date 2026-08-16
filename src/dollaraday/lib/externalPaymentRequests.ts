@@ -47,56 +47,54 @@ function buildHandle(username?: string, fallback?: string): string {
 export function listExternalPaymentRequests(
   options: { status?: ExternalPaymentStatus } = {},
 ): ExternalPaymentRequest[] {
-  return readDataBin("contributions")
-    .records.map((record) => {
-      const payload = record.payload ?? {};
-      const type = typeof payload.type === "string" ? payload.type : "";
-      const source = record.source || (typeof payload.source === "string" ? payload.source : "");
-      if (type !== "external-payment-request" && source !== REQUEST_SOURCE) return null;
+  const requests: ExternalPaymentRequest[] = [];
 
-      const amount = Number(payload.amount) || 0;
-      const method =
-        payload.method === "zelle" || payload.method === "apple-pay"
-          ? payload.method
-          : "zelle";
-      const status =
-        payload.status === "completed" || payload.status === "denied" || payload.status === "pending"
-          ? payload.status
-          : "pending";
-      const profileId =
-        typeof payload.profileId === "string"
-          ? payload.profileId
-          : typeof payload.memberId === "string"
-            ? payload.memberId
-            : "";
-      if (!profileId || amount <= 0) return null;
+  for (const record of readDataBin("contributions").records) {
+    const payload = record.payload ?? {};
+    const type = typeof payload.type === "string" ? payload.type : "";
+    const source = record.source || (typeof payload.source === "string" ? payload.source : "");
+    if (type !== "external-payment-request" && source !== REQUEST_SOURCE) continue;
 
-      return {
-        id: record.id,
-        method,
-        amount,
-        profileId,
-        memberId: typeof payload.memberId === "string" ? payload.memberId : profileId,
-        memberName:
-          typeof payload.memberName === "string" && payload.memberName.trim()
-            ? payload.memberName.trim()
-            : "Member",
-        handle:
-          typeof payload.handle === "string" && payload.handle.trim()
-            ? payload.handle.trim()
-            : buildHandle(
-                typeof payload.username === "string" ? payload.username : undefined,
-              ),
-        username: typeof payload.username === "string" ? payload.username : undefined,
-        memo: typeof payload.memo === "string" ? payload.memo : "",
-        status,
-        contributedAt:
-          typeof payload.contributedAt === "string" ? payload.contributedAt : record.createdAt,
-        completedAt: typeof payload.completedAt === "string" ? payload.completedAt : undefined,
-        completedBy: typeof payload.completedBy === "string" ? payload.completedBy : undefined,
-      } satisfies ExternalPaymentRequest;
-    })
-    .filter((entry): entry is ExternalPaymentRequest => Boolean(entry))
+    const amount = Number(payload.amount) || 0;
+    const method: ExternalPaymentMethod =
+      payload.method === "zelle" || payload.method === "apple-pay" ? payload.method : "zelle";
+    const status: ExternalPaymentStatus =
+      payload.status === "completed" || payload.status === "denied" || payload.status === "pending"
+        ? payload.status
+        : "pending";
+    const profileId =
+      typeof payload.profileId === "string"
+        ? payload.profileId
+        : typeof payload.memberId === "string"
+          ? payload.memberId
+          : "";
+    if (!profileId || amount <= 0) continue;
+
+    requests.push({
+      id: record.id,
+      method,
+      amount,
+      profileId,
+      memberId: typeof payload.memberId === "string" ? payload.memberId : profileId,
+      memberName:
+        typeof payload.memberName === "string" && payload.memberName.trim()
+          ? payload.memberName.trim()
+          : "Member",
+      handle:
+        typeof payload.handle === "string" && payload.handle.trim()
+          ? payload.handle.trim()
+          : buildHandle(typeof payload.username === "string" ? payload.username : undefined),
+      username: typeof payload.username === "string" ? payload.username : undefined,
+      memo: typeof payload.memo === "string" ? payload.memo : "",
+      status,
+      contributedAt:
+        typeof payload.contributedAt === "string" ? payload.contributedAt : record.createdAt,
+      completedAt: typeof payload.completedAt === "string" ? payload.completedAt : undefined,
+      completedBy: typeof payload.completedBy === "string" ? payload.completedBy : undefined,
+    });
+  }
+
+  return requests
     .filter((entry) => (options.status ? entry.status === options.status : true))
     .sort((a, b) => b.contributedAt.localeCompare(a.contributedAt));
 }
