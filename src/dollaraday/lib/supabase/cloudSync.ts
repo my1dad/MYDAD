@@ -1520,7 +1520,38 @@ export async function pullCloudProfileForAuth(
   const remoteKv = await fetchCloudKv();
   const remoteEpoch = getRemoteWorkspaceEpoch(remoteKv);
 
-  // Blank lock: never merge stale local members during login profile load.
+  // Always try the username first. A stale blank lock must not hide an approved
+  // member that already exists in cloud (create→approve→login on another device).
+  const remoteProfile = await fetchCloudProfileByUsername(username);
+  if (remoteProfile && !isAdminProfile(remoteProfile)) {
+    // Local blank/factory-zero locks strip non-admin rows in writeProfiles/readProfiles.
+    // Signup clears them before write; login must too or auth sees "invalid password".
+    clearFactoryZeroDeliveryLock();
+    if (isPlatformBlankFromKv(remoteKv)) {
+      await clearCloudPlatformBlank();
+    }
+
+    const localProfiles = getLocalProfiles();
+    const remoteId = remoteProfile.id;
+    const remoteUser = remoteProfile.username.trim().toLowerCase();
+    const withoutStale = localProfiles.filter(
+      (profile) =>
+        profile.id !== remoteId && profile.username.trim().toLowerCase() !== remoteUser,
+    );
+    const next = [
+      ...withoutStale,
+      {
+        ...remoteProfile,
+        approvalStatus: remoteProfile.approvalStatus,
+        accountStatus: remoteProfile.accountStatus,
+        password: remoteProfile.password,
+      },
+    ];
+    replaceLocalProfiles(next);
+    return next;
+  }
+
+  // No cloud member for this username: blank lock may scrub stale local leftovers.
   if (shouldAdoptRemoteBlankPlatform(remoteKv)) {
     lockLocalToRemoteWipe(remoteEpoch);
     applyForcedBlankBins();
@@ -1538,31 +1569,7 @@ export async function pullCloudProfileForAuth(
     return adminOnly;
   }
 
-  const remoteProfile = await fetchCloudProfileByUsername(username);
-  if (!remoteProfile) {
-    return getLocalProfiles();
-  }
-
-  // Upsert ONLY this username into local storage. Never treat [one remote profile]
-  // as the full cloud directory — that kept every stale local member on login.
-  const localProfiles = getLocalProfiles();
-  const remoteId = remoteProfile.id;
-  const remoteUser = remoteProfile.username.trim().toLowerCase();
-  const withoutStale = localProfiles.filter(
-    (profile) =>
-      profile.id !== remoteId && profile.username.trim().toLowerCase() !== remoteUser,
-  );
-  const next = [
-    ...withoutStale,
-    {
-      ...remoteProfile,
-      approvalStatus: remoteProfile.approvalStatus,
-      accountStatus: remoteProfile.accountStatus,
-      password: remoteProfile.password,
-    },
-  ];
-  replaceLocalProfiles(next);
-  return next;
+  return getLocalProfiles();
 }
 
 async function upsertCloudKv(scopeKey: string, kvKey: string, rawValue: string | null): Promise<void> {

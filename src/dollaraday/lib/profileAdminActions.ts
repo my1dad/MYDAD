@@ -284,6 +284,17 @@ export async function approveDadProfileByAdmin(
   }
 
   const targetId = profile!.id;
+
+  // Open blank/factory locks BEFORE the local write — otherwise writeProfiles strips
+  // the approved member and login on other devices can race a scrubbed directory.
+  try {
+    const { clearFactoryZeroDeliveryLock, clearCloudPlatformBlank } = await import("./supabase/cloudSync");
+    clearFactoryZeroDeliveryLock();
+    await clearCloudPlatformBlank();
+  } catch (err) {
+    console.warn("[profileAdmin] Could not clear blank lock before approve:", err);
+  }
+
   const updated = updateDadProfileRecord(targetId, (current) => ({
     ...current,
     approvalStatus: "approved",
@@ -301,11 +312,8 @@ export async function approveDadProfileByAdmin(
   });
 
   try {
-    const { clearFactoryZeroDeliveryLock, clearCloudPlatformBlank, persistMembersToCloud, scheduleCloudProfilesPush } =
+    const { persistMembersToCloud, scheduleCloudProfilesPush } =
       await import("./supabase/cloudSync");
-    // Open blank lock before persist so approval is not scrubbed by a concurrent wipe.
-    clearFactoryZeroDeliveryLock();
-    await clearCloudPlatformBlank();
     // Force-persist approved member to Supabase (and members bin) so they stay saved.
     const pushed = await persistMembersToCloud([updated], { openPlatform: true });
     if (!pushed) {
@@ -346,6 +354,14 @@ export async function denyDadProfileByAdmin(
 
   if (getProfileApprovalStatus(profile) === "denied") {
     return { ok: false, error: "This membership request was already denied." };
+  }
+
+  try {
+    const { clearFactoryZeroDeliveryLock, clearCloudPlatformBlank } = await import("./supabase/cloudSync");
+    clearFactoryZeroDeliveryLock();
+    await clearCloudPlatformBlank();
+  } catch {
+    /* ignore */
   }
 
   const updated = updateDadProfileRecord(profile!.id, (current) => ({
