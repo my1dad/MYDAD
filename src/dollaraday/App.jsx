@@ -1,4 +1,5 @@
 import { lazy, Suspense, startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import AppShell from "./components/layout/AppShell";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import { EasternTimeProvider } from "./context/EasternTimeContext.jsx";
@@ -159,6 +160,7 @@ export default function App() {
           </Suspense>
         )}
       </AppShell>
+      <Analytics />
     </EasternTimeProvider>
   );
 }
