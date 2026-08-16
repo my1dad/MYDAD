@@ -120,8 +120,14 @@ function zeroSettings() {
 }
 
 console.log("NUCLEAR WIPE", stamp);
+console.log(
+  "Note: anon RLS scopes all reads/deletes to workspace_id=dollaraday. Other workspaces are not visible.",
+);
 
-const { data: profiles, error: profileErr } = await sb.from("dad_profiles").select("*");
+const { data: profiles, error: profileErr } = await sb
+  .from("dad_profiles")
+  .select("*")
+  .eq("workspace_id", WORKSPACE);
 if (profileErr) throw profileErr;
 const admin = (profiles || []).find((row) => String(row.username || "").toLowerCase() === "admin");
 if (!admin) throw new Error("Master admin missing — aborting");
@@ -130,32 +136,41 @@ const staleIds = (profiles || []).map((row) => row.id).filter((id) => id !== adm
 console.log("deleting profiles:", staleIds.length);
 for (let i = 0; i < staleIds.length; i += 100) {
   const chunk = staleIds.slice(i, i + 100);
-  const { error } = await sb.from("dad_profiles").delete().in("id", chunk);
+  const { error } = await sb
+    .from("dad_profiles")
+    .delete()
+    .eq("workspace_id", WORKSPACE)
+    .in("id", chunk);
   if (error) throw error;
 }
 
-// Delete EVERY bin row in EVERY workspace (my-dollar-a-day leftovers, etc.).
-const { data: allBins, error: binsReadErr } = await sb.from("dad_bins").select("workspace_id,bin_id");
+// Delete every visible (dollaraday) bin row, then reseed blank below.
+const { data: allBins, error: binsReadErr } = await sb
+  .from("dad_bins")
+  .select("workspace_id,bin_id")
+  .eq("workspace_id", WORKSPACE);
 if (binsReadErr) throw binsReadErr;
 console.log("deleting bin rows:", (allBins || []).length);
 for (const row of allBins || []) {
   const { error } = await sb
     .from("dad_bins")
     .delete()
-    .eq("workspace_id", row.workspace_id)
+    .eq("workspace_id", WORKSPACE)
     .eq("bin_id", row.bin_id);
   if (error) throw error;
 }
 
-// Delete ALL kv rows in every workspace.
-const { data: allKv, error: kvReadErr } = await sb.from("dad_kv").select("workspace_id,scope_key,kv_key");
+const { data: allKv, error: kvReadErr } = await sb
+  .from("dad_kv")
+  .select("workspace_id,scope_key,kv_key")
+  .eq("workspace_id", WORKSPACE);
 if (kvReadErr) throw kvReadErr;
 console.log("deleting kv rows:", (allKv || []).length);
 for (const row of allKv || []) {
   const { error } = await sb
     .from("dad_kv")
     .delete()
-    .eq("workspace_id", row.workspace_id)
+    .eq("workspace_id", WORKSPACE)
     .eq("scope_key", row.scope_key)
     .eq("kv_key", row.kv_key);
   if (error) throw error;
@@ -183,6 +198,7 @@ for (const binId of BIN_IDS) {
 await sb.from("dad_profiles").upsert(
   {
     ...admin,
+    workspace_id: WORKSPACE,
     username: "admin",
     role: admin.role || "Master Admin",
     approval_status: "approved",
@@ -212,9 +228,18 @@ await sb.from("dad_kv").upsert(
   { onConflict: "workspace_id,scope_key,kv_key" },
 );
 
-const { data: leftProfiles } = await sb.from("dad_profiles").select("username");
-const { data: leftBins } = await sb.from("dad_bins").select("workspace_id,bin_id,document");
-const { data: leftKv } = await sb.from("dad_kv").select("workspace_id,kv_key,value");
+const { data: leftProfiles } = await sb
+  .from("dad_profiles")
+  .select("username,workspace_id")
+  .eq("workspace_id", WORKSPACE);
+const { data: leftBins } = await sb
+  .from("dad_bins")
+  .select("workspace_id,bin_id,document")
+  .eq("workspace_id", WORKSPACE);
+const { data: leftKv } = await sb
+  .from("dad_kv")
+  .select("workspace_id,kv_key,value")
+  .eq("workspace_id", WORKSPACE);
 
 console.log(
   JSON.stringify(
@@ -235,11 +260,17 @@ console.log(
 const ok =
   (leftProfiles || []).length === 1 &&
   String(leftProfiles[0]?.username || "").toLowerCase() === "admin" &&
+  (leftProfiles || []).every((p) => p.workspace_id === WORKSPACE) &&
+  (leftBins || []).length === BIN_IDS.length &&
   (leftBins || []).every((b) => b.workspace_id === WORKSPACE) &&
-  (leftBins || []).every((b) => (b.bin_id === "dollar-a-day-settings" ? (b.document?.records?.length ?? 0) === 1 : (b.document?.records?.length ?? 0) === 0));
+  (leftBins || []).every((b) =>
+    b.bin_id === "dollar-a-day-settings"
+      ? (b.document?.records?.length ?? 0) === 1
+      : (b.document?.records?.length ?? 0) === 0,
+  );
 
 if (!ok) {
   console.error("NUCLEAR WIPE FAILED VERIFICATION");
   process.exit(2);
 }
-console.log("\nNUCLEAR WIPE COMPLETE — admin only, blank lock on, no other workspaces");
+console.log("\nNUCLEAR WIPE COMPLETE — dollaraday admin only, blank lock on");

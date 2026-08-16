@@ -130,7 +130,11 @@ async function wipeOnce(pass) {
   const stamp = new Date().toISOString();
   console.log(`\n[pass ${pass}] epoch ${stamp}`);
 
-  const { data: profiles, error: profileErr } = await sb.from("dad_profiles").select("*");
+  // Anon RLS only allows workspace_id = 'dollaraday' — foreign workspaces are invisible.
+  const { data: profiles, error: profileErr } = await sb
+    .from("dad_profiles")
+    .select("*")
+    .eq("workspace_id", WORKSPACE);
   if (profileErr) throw profileErr;
   const admin = (profiles || []).find((row) => String(row.username || "").toLowerCase() === "admin");
   if (!admin) throw new Error("Master admin profile missing");
@@ -138,37 +142,18 @@ async function wipeOnce(pass) {
   const staleIds = (profiles || []).map((row) => row.id).filter((id) => id !== admin.id);
   for (let i = 0; i < staleIds.length; i += 100) {
     const chunk = staleIds.slice(i, i + 100);
-    const { error } = await sb.from("dad_profiles").delete().in("id", chunk);
+    const { error } = await sb
+      .from("dad_profiles")
+      .delete()
+      .eq("workspace_id", WORKSPACE)
+      .in("id", chunk);
     if (error) throw error;
   }
 
-  // Delete leftover bins/kv from ANY other workspace id (e.g. my-dollar-a-day).
-  const { data: foreignBins } = await sb
-    .from("dad_bins")
-    .select("workspace_id,bin_id")
-    .neq("workspace_id", WORKSPACE);
-  for (const row of foreignBins || []) {
-    await sb
-      .from("dad_bins")
-      .delete()
-      .eq("workspace_id", row.workspace_id)
-      .eq("bin_id", row.bin_id);
-  }
-  const { data: foreignKv } = await sb
-    .from("dad_kv")
-    .select("workspace_id,scope_key,kv_key")
-    .neq("workspace_id", WORKSPACE);
-  for (const row of foreignKv || []) {
-    await sb
-      .from("dad_kv")
-      .delete()
-      .eq("workspace_id", row.workspace_id)
-      .eq("scope_key", row.scope_key)
-      .eq("kv_key", row.kv_key);
-  }
   const { error: upsertAdminErr } = await sb.from("dad_profiles").upsert(
     {
       ...admin,
+      workspace_id: WORKSPACE,
       username: "admin",
       role: admin.role || "Master Admin",
       approval_status: "approved",
@@ -238,7 +223,10 @@ async function wipeOnce(pass) {
 }
 
 async function verify() {
-  const { data: profiles } = await sb.from("dad_profiles").select("username,role");
+  const { data: profiles } = await sb
+    .from("dad_profiles")
+    .select("username,role,workspace_id")
+    .eq("workspace_id", WORKSPACE);
   const { data: settings } = await sb
     .from("dad_bins")
     .select("document")

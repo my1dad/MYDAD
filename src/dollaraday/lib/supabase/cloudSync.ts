@@ -91,7 +91,11 @@ export async function deleteCloudMemberProfile(profileId: string): Promise<boole
   rememberDeletedProfileId(profileId);
   pauseCloudPushes(0);
 
-  const { error } = await supabase.from("dad_profiles").delete().eq("id", profileId);
+  const { error } = await supabase
+    .from("dad_profiles")
+    .delete()
+    .eq("workspace_id", DAD_WORKSPACE_ID)
+    .eq("id", profileId);
   if (error) {
     console.warn("[cloudSync] Failed to delete cloud member profile:", error.message);
     return false;
@@ -101,7 +105,11 @@ export async function deleteCloudMemberProfile(profileId: string): Promise<boole
   try {
     const stillThere = (await fetchCloudProfiles()).some((profile) => profile.id === profileId);
     if (stillThere) {
-      const { error: retryError } = await supabase.from("dad_profiles").delete().eq("id", profileId);
+      const { error: retryError } = await supabase
+        .from("dad_profiles")
+        .delete()
+        .eq("workspace_id", DAD_WORKSPACE_ID)
+        .eq("id", profileId);
       if (retryError) {
         console.warn("[cloudSync] Retry delete cloud member failed:", retryError.message);
         return false;
@@ -548,6 +556,7 @@ interface CloudBinRow {
 
 interface CloudProfileRow {
   id: string;
+  workspace_id?: string;
   username: string;
   password: string;
   display_name: string;
@@ -630,6 +639,8 @@ function profileToRow(profile: DadProfile, options: { includeAccountNumber?: boo
   const includeAccountNumber = options.includeAccountNumber ?? cloudSupportsAccountNumber;
   const row: Record<string, unknown> = {
     id: profile.id,
+    // Required under workspace-scoped RLS (WITH CHECK workspace_id = 'dollaraday').
+    workspace_id: DAD_WORKSPACE_ID,
     username: profile.username,
     password: profile.password,
     display_name: profile.displayName,
@@ -914,7 +925,10 @@ async function fetchCloudProfiles(): Promise<DadProfile[]> {
   const supabase = getSupabaseClient();
   if (!supabase) return [];
 
-  const { data, error } = await supabase.from("dad_profiles").select("*");
+  const { data, error } = await supabase
+    .from("dad_profiles")
+    .select("*")
+    .eq("workspace_id", DAD_WORKSPACE_ID);
   if (error) {
     lastSyncError = error.message;
     notifyCloudStatusListeners();
@@ -939,6 +953,7 @@ async function fetchCloudProfileByUsername(username: string): Promise<DadProfile
   const { data, error } = await supabase
     .from("dad_profiles")
     .select("*")
+    .eq("workspace_id", DAD_WORKSPACE_ID)
     .ilike("username", pattern)
     .limit(1)
     .maybeSingle();
@@ -1340,7 +1355,11 @@ export async function replaceCloudProfilesDirectory(
       // Delete in chunks — some PostgREST gateways cap `.in()` lists.
       for (let index = 0; index < staleIds.length; index += 100) {
         const chunk = staleIds.slice(index, index + 100);
-        const { error } = await supabase.from("dad_profiles").delete().in("id", chunk);
+        const { error } = await supabase
+          .from("dad_profiles")
+          .delete()
+          .eq("workspace_id", DAD_WORKSPACE_ID)
+          .in("id", chunk);
         if (error) {
           console.warn("[cloudSync] Failed to delete stale profiles during reset:", error.message);
           throw new Error(`Failed to delete cloud members: ${error.message}`);
@@ -1389,7 +1408,11 @@ export async function wipeCloudWorkspaceExceptAdmin(admin: DadProfile): Promise<
     if (!remaining.length) break;
     for (let index = 0; index < remaining.length; index += 100) {
       const chunk = remaining.slice(index, index + 100).map((profile) => profile.id);
-      const { error } = await supabase.from("dad_profiles").delete().in("id", chunk);
+      const { error } = await supabase
+        .from("dad_profiles")
+        .delete()
+        .eq("workspace_id", DAD_WORKSPACE_ID)
+        .in("id", chunk);
       if (error) {
         console.warn("[cloudSync] Forced member delete failed:", error.message);
         throw new Error(`Failed to delete cloud members: ${error.message}`);
@@ -1846,7 +1869,12 @@ export function startCloudRealtime(options: {
     )
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "dad_profiles" },
+      {
+        event: "*",
+        schema: "public",
+        table: "dad_profiles",
+        filter: `workspace_id=eq.${DAD_WORKSPACE_ID}`,
+      },
       async () => {
         try {
           const localProfiles = options.getLocalProfiles();

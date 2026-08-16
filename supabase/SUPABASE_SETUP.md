@@ -9,6 +9,7 @@ This app syncs all workspace data to Supabase so members and admins see the same
 1. Open [Supabase Dashboard](https://supabase.com/dashboard) → your project → **SQL Editor**
 2. Paste and run the full contents of [`schema.sql`](./schema.sql)
 3. If Security Advisor still warns about old policies / `set_updated_at`, also run [`security_advisor_fixes.sql`](./security_advisor_fixes.sql)
+4. If `dad_profiles.account_number` is missing on an older project, run [`add_account_number.sql`](./add_account_number.sql) so account numbers sync to cloud
 4. Enable **Realtime** for these tables:  
    **Database → Replication** (or Publications) → add `dad_bins`, `dad_profiles`, `dad_kv`
 
@@ -58,7 +59,7 @@ Push this repo to `github.com/your-org/my1dad`. Vercel will build from the conne
 
 ## Security note
 
-Current RLS policies allow the anon key to read/write workspace data (shared community model). Before public launch, consider migrating to **Supabase Auth** and tightening RLS per user.
+RLS is enabled on `dad_bins`, `dad_kv`, and `dad_profiles`. Policies allow the anon key to read/write only rows where `workspace_id = 'dollaraday'` (shared community model for this workspace). Foreign workspaces are invisible to the anon key. Before public launch, consider migrating to **Supabase Auth** and tightening RLS per user.
 
 ## Auth model (important)
 
