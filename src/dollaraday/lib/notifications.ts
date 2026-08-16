@@ -27,7 +27,8 @@ export type DdaNotificationKind =
   | "profile_denied"
   | "donation"
   | "wallet_deposit"
-  | "recurring_donation";
+  | "recurring_donation"
+  | "payment_request";
 
 export type DdaContributionNotifyType =
   | "wallet-deposit"
@@ -50,6 +51,8 @@ export interface DdaNotification {
   donationAmount?: number;
   contributionType?: DdaContributionNotifyType;
   frequency?: string;
+  paymentMethod?: "zelle" | "apple-pay";
+  paymentRequestId?: string;
 }
 
 interface ContributionDonation {
@@ -346,6 +349,49 @@ function buildNotifications(profileId: string | undefined, isAdmin: boolean): Dd
           targetPage: "admin",
           targetProfileId: profile.id,
           targetUsername: profile.username,
+        });
+      });
+
+    // Pending Zelle / Apple Pay payment requests awaiting manual credit.
+    readDataBin("contributions")
+      .records.filter((record) => {
+        const payload = record.payload ?? {};
+        const type = typeof payload.type === "string" ? payload.type : "";
+        const source = record.source || "";
+        const status = typeof payload.status === "string" ? payload.status : "";
+        return (
+          (type === "external-payment-request" || source === "external-payment-request") &&
+          status === "pending"
+        );
+      })
+      .forEach((record) => {
+        const payload = record.payload ?? {};
+        const amount = Number(payload.amount) || 0;
+        if (amount <= 0) return;
+        const id = `payment-request-${record.id}`;
+        const method =
+          payload.method === "apple-pay" || payload.method === "zelle"
+            ? payload.method
+            : "zelle";
+        items.push({
+          id,
+          kind: "payment_request",
+          memberName:
+            typeof payload.memberName === "string" ? payload.memberName : "Member",
+          donationAmount: amount,
+          paymentMethod: method,
+          paymentRequestId: record.id,
+          occurredAt:
+            typeof payload.contributedAt === "string" ? payload.contributedAt : record.createdAt,
+          unread: !readIds.has(id),
+          targetPage: "admin",
+          targetProfileId:
+            typeof payload.profileId === "string"
+              ? payload.profileId
+              : typeof payload.memberId === "string"
+                ? payload.memberId
+                : undefined,
+          targetUsername: typeof payload.username === "string" ? payload.username : undefined,
         });
       });
   }

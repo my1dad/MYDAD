@@ -138,6 +138,8 @@ export default {
     depositBody: "Depositaste ${{amount}}",
     recurringDonationTitle: "Donación recurrente",
     recurringDonationBody: "Donación recurrente de ${{amount}} procesada",
+    paymentRequestTitle: "Solicitud de pago",
+    paymentRequestBody: "Pidió enviar ${{amount}} por {{method}} — acredita cuando lo recibas",
     inviteHomeAria: "Compartir enlace de invitación por AirDrop o Mensajes",
     inviteHomeTitle: "AirDrop o comparte tu enlace de invitación",
     inviteShareTitle: "My Dollar A Day",

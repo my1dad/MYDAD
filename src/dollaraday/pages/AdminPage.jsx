@@ -25,6 +25,7 @@ import { usePoolState } from "../lib/poolState";
 
 const AdminMemberDetailModal = lazy(() => import("../components/admin/AdminMemberDetailModal"));
 const AdminSettingsCard = lazy(() => import("../components/admin/AdminSettingsCard"));
+const AdminPaymentRequestsCard = lazy(() => import("../components/admin/AdminPaymentRequestsCard"));
 const MemberSettingsCard = lazy(() => import("../components/members/MemberSettingsCard"));
 
 export default function AdminPage({ onNavigate }) {
@@ -203,6 +204,10 @@ export default function AdminPage({ onNavigate }) {
           </div>
         ))}
       </section>
+
+      <Suspense fallback={<div className="dda-glass min-h-[120px] animate-pulse rounded-2xl" aria-hidden="true" />}>
+        <AdminPaymentRequestsCard />
+      </Suspense>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <DashboardCard

@@ -52,6 +52,9 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
   const [presetId, setPresetId] = useState("weekly");
   const [customAmount, setCustomAmount] = useState(String(AMOUNT_PRESETS[0].amount));
   const [copiedTarget, setCopiedTarget] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitNote, setSubmitNote] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     if (!open) return undefined;
@@ -73,6 +76,9 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
   useEffect(() => {
     if (!open) return;
     setCopiedTarget(null);
+    setSubmitNote("");
+    setSubmitError("");
+    setSubmitting(false);
     const seed = Number(initialAmount);
     const match = AMOUNT_PRESETS.find((preset) => Math.abs(preset.amount - seed) < 0.001);
     if (match) {
@@ -133,6 +139,35 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
   const handleCopyMemo = () => {
     if (!canCopyMemo) return;
     void copyText(memoMessage, "memo");
+  };
+
+  const canSubmit = amount > 0;
+
+  const handleNotifyAndCopy = async () => {
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    setSubmitError("");
+    setSubmitNote("");
+    try {
+      const { requestExternalPayment } = await import("../../lib/externalPaymentRequests");
+      const result = await requestExternalPayment({
+        method: "zelle",
+        amount: safeAmount,
+        memo: memoMessage,
+        profile,
+      });
+      if (!result.ok) {
+        setSubmitError(result.error);
+        return;
+      }
+      setSubmitNote(t("contribute.paymentRequestSent"));
+      await copyText(ZELLE_PAY_EMAIL, "email");
+    } catch (err) {
+      console.warn("[ZellePayModal] Payment request failed:", err);
+      setSubmitError(t("contribute.paymentRequestFailed"));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (!open || typeof document === "undefined") return null;
@@ -304,10 +339,24 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
         </div>
 
         <div className="border-t border-white/10 px-5 py-4">
+          {submitError ? (
+            <p className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              {submitError}
+            </p>
+          ) : null}
+          {submitNote ? (
+            <p className="mb-2 rounded-lg border border-dda-green/30 bg-dda-green/10 px-3 py-2 text-xs text-dda-green-light">
+              {submitNote}
+            </p>
+          ) : null}
           <button
             type="button"
-            onClick={handleCopyEmail}
-            className="dda-zelle-pay__cta"
+            onClick={() => {
+              void handleNotifyAndCopy();
+            }}
+            disabled={!canSubmit || submitting}
+            aria-busy={submitting}
+            className="dda-zelle-pay__cta disabled:pointer-events-none disabled:opacity-60"
           >
             <img
               src={ZELLE_LOGO_URL}
@@ -316,9 +365,11 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
               className="dda-zelle-pay__cta-logo"
             />
             <span>
-              {copiedTarget === "email"
-                ? t("contribute.zellePayCtaCopied")
-                : t("contribute.zellePayCta", { amount: formattedAmount })}
+              {submitting
+                ? t("contribute.paymentRequestSending")
+                : copiedTarget === "email"
+                  ? t("contribute.zellePayCtaCopied")
+                  : t("contribute.zellePayCta", { amount: formattedAmount })}
             </span>
           </button>
           <a
@@ -332,6 +383,9 @@ export default function ZellePayModal({ open, onClose, initialAmount = 7 }) {
           </a>
           <p className="mt-2.5 text-center text-[11px] leading-relaxed text-gray-500">
             {t("contribute.zellePayHint")}
+          </p>
+          <p className="mt-1.5 text-center text-[11px] leading-relaxed text-gray-500">
+            {t("contribute.paymentRequestHint")}
           </p>
         </div>
       </div>

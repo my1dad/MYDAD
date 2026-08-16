@@ -1,5 +1,6 @@
 import {
   Bell,
+  Banknote,
   CircleDollarSign,
   MessageCircle,
   RefreshCw,
@@ -28,6 +29,7 @@ const kindIcons = {
   donation: CircleDollarSign,
   wallet_deposit: Wallet,
   recurring_donation: RefreshCw,
+  payment_request: Banknote,
 };
 
 function getNotificationTitle(item, t, isAdmin) {
@@ -48,6 +50,8 @@ function getNotificationTitle(item, t, isAdmin) {
       return isAdmin
         ? (item.memberName ?? t("notifications.donationMember"))
         : t("notifications.donationTitleSelf");
+    case "payment_request":
+      return item.memberName ?? t("notifications.paymentRequestTitle");
     default:
       return t("notifications.title");
   }
@@ -72,6 +76,14 @@ function getNotificationBody(item, t, isAdmin) {
       return isAdmin
         ? t("notifications.donationBody", { amount })
         : t("notifications.donationBodySelf", { amount });
+    case "payment_request":
+      return t("notifications.paymentRequestBody", {
+        amount,
+        method:
+          item.paymentMethod === "apple-pay"
+            ? t("pages.admin.paymentMethodApplePay")
+            : t("pages.admin.paymentMethodZelle"),
+      });
     default:
       return "";
   }

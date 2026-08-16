@@ -97,6 +97,9 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
   const [presetId, setPresetId] = useState("weekly");
   const [customAmount, setCustomAmount] = useState(String(AMOUNT_PRESETS[0].amount));
   const [copiedTarget, setCopiedTarget] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitNote, setSubmitNote] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     if (!open) return undefined;
@@ -118,6 +121,9 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
   useEffect(() => {
     if (!open) return;
     setCopiedTarget(null);
+    setSubmitNote("");
+    setSubmitError("");
+    setSubmitting(false);
     const seed = Number(initialAmount);
     const match = AMOUNT_PRESETS.find((preset) => Math.abs(preset.amount - seed) < 0.001);
     if (match) {
@@ -192,13 +198,36 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
 
   const canSend = amount > 0;
 
-  const handleLaunchSms = (event) => {
+  const handleLaunchSms = async (event) => {
     event.preventDefault();
-    if (!canSend) return;
+    if (!canSend || submitting) return;
+    setSubmitting(true);
+    setSubmitError("");
+    setSubmitNote("");
+    try {
+      const { requestExternalPayment } = await import("../../lib/externalPaymentRequests");
+      const result = await requestExternalPayment({
+        method: "apple-pay",
+        amount: safeAmount,
+        memo: smsMessage,
+        profile,
+      });
+      if (!result.ok) {
+        setSubmitError(result.error);
+        return;
+      }
+      setSubmitNote(t("contribute.paymentRequestSent"));
+    } catch (err) {
+      console.warn("[ApplePaySmsModal] Payment request failed:", err);
+      setSubmitError(t("contribute.paymentRequestFailed"));
+      return;
+    } finally {
+      setSubmitting(false);
+    }
     // Copy prompt first so members can paste into Apple Cash if the sheet opens manually.
     void navigator.clipboard?.writeText?.(pastePrompt).catch(() => {});
     launchApplePaySms(smsHref);
-    window.setTimeout(() => onClose?.(), 250);
+    window.setTimeout(() => onClose?.(), 450);
   };
 
   if (!open || typeof document === "undefined") return null;
@@ -373,12 +402,28 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
         </div>
 
         <div className="border-t border-white/10 px-5 py-4">
+          {submitError ? (
+            <p className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              {submitError}
+            </p>
+          ) : null}
+          {submitNote ? (
+            <p className="mb-2 rounded-lg border border-dda-green/30 bg-dda-green/10 px-3 py-2 text-xs text-dda-green-light">
+              {submitNote}
+            </p>
+          ) : null}
           <a
-            href={canSend ? smsHref : undefined}
+            href={canSend && !submitting ? smsHref : undefined}
             role="button"
-            aria-disabled={!canSend}
-            onClick={handleLaunchSms}
-            className={cn("dda-apple-pay-sms__cta", !canSend && "dda-apple-pay-sms__cta--disabled")}
+            aria-disabled={!canSend || submitting}
+            aria-busy={submitting}
+            onClick={(event) => {
+              void handleLaunchSms(event);
+            }}
+            className={cn(
+              "dda-apple-pay-sms__cta",
+              (!canSend || submitting) && "dda-apple-pay-sms__cta--disabled",
+            )}
           >
             <img
               src={APPLE_PAY_LOGO_URL}
@@ -386,10 +431,17 @@ export default function ApplePaySmsModal({ open, onClose, initialAmount = 7 }) {
               draggable={false}
               className="dda-apple-pay-sms__cta-logo"
             />
-            <span>{t("contribute.applePaySmsCta", { amount: formattedAmount })}</span>
+            <span>
+              {submitting
+                ? t("contribute.paymentRequestSending")
+                : t("contribute.applePaySmsCta", { amount: formattedAmount })}
+            </span>
           </a>
           <p className="mt-2.5 text-center text-[11px] leading-relaxed text-gray-500">
             {t("contribute.applePaySmsHint")}
+          </p>
+          <p className="mt-1.5 text-center text-[11px] leading-relaxed text-gray-500">
+            {t("contribute.paymentRequestHint")}
           </p>
         </div>
       </div>
