@@ -233,11 +233,6 @@ function shouldAdoptRemoteBlankPlatform(remoteKv: CloudKvRow[] = []): boolean {
   return isPlatformBlankFromKv(remoteKv);
 }
 
-/** Admin-only directory: never paint stale local members/bins, but do not re-lock. */
-function shouldFormatLocalToAdminOnly(remoteProfiles: DadProfile[]): boolean {
-  return isAdminOnlyDirectory(remoteProfiles);
-}
-
 function lockLocalToRemoteWipe(remoteEpoch: string | null): void {
   try {
     localStorage.setItem("dollar-a-day-factory-zero", "1");
