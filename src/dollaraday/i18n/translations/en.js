@@ -397,7 +397,7 @@ export default {
       amount: "Amount",
       time: "Time",
       status: "Status",
-      showingRecent: "Showing recent donations · {{count}} more today",
+      empty: "No donations recorded yet today.",
       yesterday: "Yesterday",
       yesterdayCaption: "Daily donations",
       lastWeek: "Last week",

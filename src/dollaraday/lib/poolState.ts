@@ -279,14 +279,46 @@ function applyPoolState(payload: Record<string, unknown>): void {
   }
   if (payload.dailyAllocationSummary && typeof payload.dailyAllocationSummary === "object") {
     const summary = payload.dailyAllocationSummary as Partial<PoolLiveState["dailyAllocationSummary"]>;
+    const asCount = (value: unknown, fallback: number) => {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fallback;
+    };
     state.dailyAllocationSummary = {
       ...state.dailyAllocationSummary,
       ...summary,
-      lastUpdatedAt: summary.lastUpdatedAt ?? easternNow().toISOString(),
+      totalDonations: asCount(summary.totalDonations, state.dailyAllocationSummary.totalDonations),
+      totalAmount: asCount(summary.totalAmount, state.dailyAllocationSummary.totalAmount),
+      uniqueContributors: asCount(
+        summary.uniqueContributors,
+        state.dailyAllocationSummary.uniqueContributors,
+      ),
+      pending: asCount(summary.pending, state.dailyAllocationSummary.pending),
+      lastUpdatedAt:
+        typeof summary.lastUpdatedAt === "string" && summary.lastUpdatedAt
+          ? summary.lastUpdatedAt
+          : (state.dailyAllocationSummary.lastUpdatedAt || easternNow().toISOString()),
     };
   }
   if (Array.isArray(payload.todaysDonations)) {
-    state.todaysDonations = payload.todaysDonations as TodayDonation[];
+    state.todaysDonations = payload.todaysDonations.flatMap((row) => {
+      if (!row || typeof row !== "object") return [];
+      const item = row as Partial<TodayDonation> & { memberName?: string };
+      const amount = Number(item.amount);
+      if (!Number.isFinite(amount)) return [];
+      const member = String(item.member ?? item.memberName ?? "Member").trim() || "Member";
+      const status =
+        item.status === "pending" || item.status === "failed" ? item.status : "completed";
+      return [
+        {
+          id: String(item.id ?? `${member}-${amount}`),
+          member,
+          handle: String(item.handle ?? ""),
+          amount,
+          time: String(item.time ?? ""),
+          status,
+        },
+      ];
+    });
   }
   if (Array.isArray(payload.allocationComparisons)) {
     state.allocationComparisons = payload.allocationComparisons as AllocationComparison[];

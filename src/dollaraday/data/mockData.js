@@ -272,9 +272,10 @@ export const allocationComparisons = [
 export const todaysDonations = [];
 
 export function formatPoolCurrency(n) {
+  const amount = Number(n);
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
-  }).format(n);
+  }).format(Number.isFinite(amount) ? amount : 0);
 }

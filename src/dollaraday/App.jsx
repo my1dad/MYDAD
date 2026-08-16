@@ -163,7 +163,11 @@ export default function App() {
         {isDashboard ? (
           <Page key={`${safePage}-${authEntryTick}`} onNavigate={goTo} />
         ) : (
-          <Suspense fallback={null}>
+          <Suspense
+            fallback={
+              <div className="dda-glass min-h-[16rem] animate-pulse rounded-2xl" aria-hidden="true" />
+            }
+          >
             <Page key={`${safePage}-${authEntryTick}`} onNavigate={goTo} />
           </Suspense>
         )}

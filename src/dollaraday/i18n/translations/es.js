@@ -398,6 +398,7 @@ export default {
       time: "Hora",
       status: "Estado",
       showingRecent: "Mostrando donaciones recientes · {{count}} más hoy",
+      empty: "Aún no hay donaciones registradas hoy.",
       yesterday: "Ayer",
       yesterdayCaption: "Donaciones diarias",
       lastWeek: "Semana pasada",

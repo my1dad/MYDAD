@@ -4,8 +4,12 @@ import { buildRecentEasternMonthDays, formatEasternIsoDate, subtractDays, easter
 const weekLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export function getMemberInitials(name) {
-  return name
-    .split(" ")
+  const parts = String(name || "Member")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "M";
+  return parts
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
@@ -33,9 +37,10 @@ function mapPoolCurrentMemberToMember(currentMember) {
 
 /** Resolve a donation row to a member profile for the detail modal. */
 export function resolveMemberFromDonation(donation, membersList, poolCurrentMember = null) {
+  const list = Array.isArray(membersList) ? membersList : [];
   const matched =
-    membersList.find((member) => member.handle === donation.handle) ??
-    membersList.find((member) => member.name === donation.member);
+    list.find((member) => member.handle === donation?.handle) ??
+    list.find((member) => member.name === donation?.member);
 
   if (matched) return { ...matched };
 
@@ -46,15 +51,18 @@ export function resolveMemberFromDonation(donation, membersList, poolCurrentMemb
     return mapPoolCurrentMemberToMember(poolCurrentMember);
   }
 
-  const seed = hashHandle(donation.handle);
+  const handle = String(donation?.handle ?? "");
+  const memberName = String(donation?.member ?? "Member");
+  const amount = Number(donation?.amount) || 0;
+  const seed = hashHandle(handle);
   const days = 45 + (seed % 280);
-  const contributed = Math.max(Math.round(donation.amount * days), Math.round(donation.amount * 30));
+  const contributed = Math.max(Math.round(amount * days), Math.round(amount * 30));
   const score = 52 + (seed % 44);
 
   return {
-    id: `guest-${donation.handle.replace("@", "")}`,
-    name: donation.member,
-    handle: donation.handle,
+    id: `guest-${handle.replace("@", "") || "member"}`,
+    name: memberName,
+    handle,
     tier: "Investor",
     contributed,
     equity: Math.round(contributed * 1.35),
