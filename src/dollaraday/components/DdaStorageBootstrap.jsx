@@ -11,7 +11,13 @@ try {
     localStorage.getItem("dollar-a-day-platform-blank") === "1"
   ) {
     void import("../lib/dadProfileStorage").then(({ scrubLocalProfilesToAdminOnly }) => {
-      scrubLocalProfilesToAdminOnly();
+      // Re-check: login may have cleared the lock while this import was in flight.
+      if (
+        localStorage.getItem("dollar-a-day-factory-zero") === "1" ||
+        localStorage.getItem("dollar-a-day-platform-blank") === "1"
+      ) {
+        scrubLocalProfilesToAdminOnly();
+      }
     });
   }
 } catch {

@@ -885,7 +885,8 @@ export default {
       memberDetailEmail: "Email",
       memberDetailPhone: "Phone",
       memberDetailCredentials: "Credentials",
-      memberDetailCredentialsNote: "Stored locally for admin review on this device.",
+      memberDetailCredentialsNote:
+        "Password is set by the member at signup. Use Edit profile to reset it — do not copy a hash.",
       memberDetailStats: "Activity stats",
       memberDetailBalances: "Member balance",
       memberDetailBalancesNote:

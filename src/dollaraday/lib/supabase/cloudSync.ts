@@ -1531,7 +1531,16 @@ export async function pullCloudProfileForAuth(
       await clearCloudPlatformBlank();
     }
 
-    const localProfiles = getLocalProfiles();
+    // Prefer raw localStorage over filtered getLocalProfiles — blank-lock reads can
+    // still hide members if a concurrent scrub races the unlock above.
+    let localProfiles: DadProfile[] = [];
+    try {
+      const raw = localStorage.getItem("dollar-a-day-profiles");
+      const parsed = raw ? (JSON.parse(raw) as DadProfile[]) : [];
+      localProfiles = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      localProfiles = getLocalProfiles();
+    }
     const remoteId = remoteProfile.id;
     const remoteUser = remoteProfile.username.trim().toLowerCase();
     const withoutStale = localProfiles.filter(
@@ -1539,7 +1548,7 @@ export async function pullCloudProfileForAuth(
         profile.id !== remoteId && profile.username.trim().toLowerCase() !== remoteUser,
     );
     const next = [
-      ...withoutStale,
+      ...withoutStale.filter((profile) => isAdminProfile(profile) || !isDeletedProfileId(profile.id)),
       {
         ...remoteProfile,
         approvalStatus: remoteProfile.approvalStatus,

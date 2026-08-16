@@ -885,7 +885,8 @@ export default {
       memberDetailEmail: "Correo",
       memberDetailPhone: "Teléfono",
       memberDetailCredentials: "Credenciales",
-      memberDetailCredentialsNote: "Almacenadas localmente para revisión del admin en este dispositivo.",
+      memberDetailCredentialsNote:
+        "La contraseña la crea el miembro al registrarse. Usa Editar perfil para restablecerla — no copies un hash.",
       memberDetailStats: "Estadísticas",
       memberDetailBalances: "Saldo del miembro",
       memberDetailBalancesNote:

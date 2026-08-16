@@ -630,7 +630,11 @@ export default function AdminMemberDetailModal({
               <DetailRow label={t("login.username")} value={record.username ? `@${record.username}` : "—"} mono />
               <DetailRow
                 label={t("login.password")}
-                value={record.password}
+                value={
+                  record.password?.startsWith("pbkdf2$")
+                    ? "•••••••• (set by member)"
+                    : record.password || "—"
+                }
                 mono
                 accent="text-amber-300"
               />

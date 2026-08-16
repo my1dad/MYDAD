@@ -118,6 +118,12 @@ function readProfiles(): DadProfile[] {
 
 /** Drop every non-admin profile from local cache/storage (blank platform). */
 export function scrubLocalProfilesToAdminOnly(): DadProfile[] {
+  // If login/signup already cleared the blank lock, do not re-arm it or wipe members.
+  // Bootstrap schedules this asynchronously — it must not race an in-flight auth pull.
+  if (!isLocalBlankPlatformLocked()) {
+    return readProfiles();
+  }
+
   const current = (() => {
     try {
       if (profilesCache) return profilesCache;
@@ -130,12 +136,6 @@ export function scrubLocalProfilesToAdminOnly(): DadProfile[] {
     }
   })();
   const adminOnly = current.filter((profile) => isAdminProfile(profile)).slice(0, 1);
-  try {
-    localStorage.setItem("dollar-a-day-factory-zero", "1");
-    localStorage.setItem("dollar-a-day-platform-blank", "1");
-  } catch {
-    /* ignore */
-  }
   // Do not push scrubbed directory to cloud — blank lock handles cloud separately.
   writeProfiles(adminOnly, { stamp: false, pushToCloud: false });
   return adminOnly;
@@ -464,8 +464,17 @@ export async function createDadProfile(input: {
 export async function authenticateDadProfile(
   username: string,
   password: string,
+  options: { profile?: DadProfile | null } = {},
 ): Promise<DadProfile | null> {
-  const profile = findDadProfileByUsername(username.trim());
+  // Auth must not be blocked by a raced blank-lock filter after cloud pull.
+  try {
+    const { clearFactoryZeroDeliveryLock } = await import("./supabase/cloudSync");
+    clearFactoryZeroDeliveryLock();
+  } catch {
+    /* ignore */
+  }
+
+  const profile = options.profile ?? findDadProfileByUsername(username.trim());
   const secret = password.trim();
   if (!profile || !(await verifyPassword(secret, profile.password))) return null;
   // Never authenticate the master-admin row through the member login path.
@@ -486,10 +495,20 @@ export async function authenticateDadProfile(
   };
 
   // Don't block sign-in on a cloud upsert — PostAuthWorkspace syncs shortly after.
-  writeProfiles(
-    readProfiles().map((item) => (item.id === profile.id ? updated : item)),
-    { stamp: false, pushToCloud: false },
-  );
+  const directory = (() => {
+    try {
+      const raw = localStorage.getItem(PROFILES_KEY);
+      if (!raw) return [] as DadProfile[];
+      const parsed = JSON.parse(raw) as DadProfile[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [] as DadProfile[];
+    }
+  })();
+  const next = directory.some((item) => item.id === profile.id)
+    ? directory.map((item) => (item.id === profile.id ? updated : item))
+    : [...directory, updated];
+  writeProfiles(next, { stamp: false, pushToCloud: false });
   return updated;
 }
 

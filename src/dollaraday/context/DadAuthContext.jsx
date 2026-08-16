@@ -24,22 +24,29 @@ const AUTH_SYNC_TIMEOUT_MS = 10_000;
 
 async function syncUsernameBeforeAuth(username) {
   try {
-    const { pullCloudProfileForAuth, pauseCloudPushes } = await import("../lib/supabase/cloudSync");
+    const { pullCloudProfileForAuth, pauseCloudPushes, clearFactoryZeroDeliveryLock } = await import(
+      "../lib/supabase/cloudSync"
+    );
 
-    // Always pull this username from Supabase. Skipping here left approved members
-    // stuck as "pending" on devices that still had a factory-zero lock.
+    // Always unlock before auth pull — a delayed boot scrub must not win the race.
+    clearFactoryZeroDeliveryLock();
     pauseCloudPushes(0);
     const pull = pullCloudProfileForAuth(username, getDadProfiles, replaceAllDadProfiles);
     const timeout = new Promise((_, reject) => {
       window.setTimeout(() => reject(new Error("AUTH_SYNC_TIMEOUT")), AUTH_SYNC_TIMEOUT_MS);
     });
-    await Promise.race([pull, timeout]);
-    return { ok: true };
+    const profiles = await Promise.race([pull, timeout]);
+    const normalized = String(username ?? "").trim().toLowerCase();
+    const matched = Array.isArray(profiles)
+      ? profiles.find((profile) => profile.username?.trim().toLowerCase() === normalized)
+      : null;
+    return { ok: true, profile: matched ?? findDadProfileByUsername(username) ?? null };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err ?? "");
     console.warn("[auth] Fast auth profile pull failed:", err);
     return {
       ok: false,
+      profile: findDadProfileByUsername(username) ?? null,
       error: message === "AUTH_SYNC_TIMEOUT" ? "syncTimeout" : "syncFailed",
     };
   }
@@ -130,19 +137,10 @@ export function DadAuthProvider({ children }) {
     const normalizedPassword = String(password ?? "").trim();
     const isMasterAdminLogin = normalizedUsername.toLowerCase() === "admin";
 
-    const localBefore = findDadProfileByUsername(normalizedUsername);
-    const alreadyApprovedLocally =
-      Boolean(localBefore) &&
-      isProfileLoginAllowed(localBefore) &&
-      !isProfilePendingApproval(localBefore) &&
-      !isProfileDenied(localBefore) &&
-      !isProfileSuspended(localBefore);
-
-    // Fast path: approved/local-known users sign in immediately.
-    // Only block on cloud when the account is missing or still pending locally.
-    // Full directory refresh runs in PostAuthWorkspace after the session starts.
-    let sync = { ok: true };
-    if (!alreadyApprovedLocally) {
+    // Always refresh this username from cloud on member login. Skipping when a stale
+    // local "approved" row existed left devices verifying against an old/wrong password.
+    let sync = { ok: true, profile: null };
+    if (!isMasterAdminLogin) {
       sync = await syncUsernameBeforeAuth(normalizedUsername);
     }
 
@@ -157,12 +155,12 @@ export function DadAuthProvider({ children }) {
       return { ok: false, error: "Invalid username or password." };
     }
 
-    // Re-read after cloud sync — approval may have changed from pending → approved.
-    let existing = findDadProfileByUsername(normalizedUsername);
+    // Prefer the profile returned by the cloud pull (source of truth for password/approval).
+    let existing = sync.profile ?? findDadProfileByUsername(normalizedUsername);
     if (existing?.username && isProfilePendingApproval(existing)) {
       // One more forced pull so a just-approved member is not blocked by a stale local row.
-      await syncUsernameBeforeAuth(normalizedUsername);
-      existing = findDadProfileByUsername(normalizedUsername);
+      sync = await syncUsernameBeforeAuth(normalizedUsername);
+      existing = sync.profile ?? findDadProfileByUsername(normalizedUsername);
     }
 
     if (existing) {
@@ -189,7 +187,9 @@ export function DadAuthProvider({ children }) {
       }
     }
 
-    const matched = await authenticateDadProfile(normalizedUsername, normalizedPassword);
+    const matched = await authenticateDadProfile(normalizedUsername, normalizedPassword, {
+      profile: existing,
+    });
     if (!matched) {
       if (!existing && !sync.ok) return { ok: false, error: sync.error };
       // Profile missing locally after a failed sync — tell the member to retry, not "invalid password".
