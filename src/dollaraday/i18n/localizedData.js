@@ -13,6 +13,8 @@ import {
   poolBalanceIntervals,
   poolComposition,
 } from "../data/mockData";
+import { ADMIN_ROLE } from "../../config/admin";
+import { MEMBER_ROLE, resolveMembershipTier } from "../../config/memberProfile";
 import { useLocale } from "./LocaleContext";
 import { easternNow, formatEasternLongDate, formatRelativeTimeFromNow } from "../lib/dateTime";
 
@@ -136,7 +138,11 @@ export function useLocalizedData() {
         dateLabel: formatEasternLongDate(easternNow(), locale),
         lastUpdated: formatRelativeTimeFromNow(new Date(), t, locale),
       },
-      translateTier: (tier) => t(`tier.${tier}`),
+      translateTier: (tier) => {
+        const resolved = resolveMembershipTier(tier);
+        if (resolved === ADMIN_ROLE) return t(`tier.${ADMIN_ROLE}`);
+        return t(`tier.${MEMBER_ROLE}`);
+      },
       translateStatus: (status) => t(`status.${status}`),
       translateRisk: (risk) => t(`risk.${risk}`),
       translateLiquidity: (liquidity) => t(`liquidity.${liquidity}`),

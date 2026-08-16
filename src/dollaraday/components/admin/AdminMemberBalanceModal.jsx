@@ -320,7 +320,7 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
 
           <div className="dda-admin-member-balance-card">
             <label htmlFor="member-balance-checking" className="dda-admin-member-balance-card__label">
-              {t("pages.admin.memberBalanceDepositAmount")}
+              {t("pages.admin.memberDetailBalanceChecking")}
             </label>
             <div className="dda-admin-member-balance-card__field">
               <span className="dda-admin-member-balance-card__currency" aria-hidden="true">

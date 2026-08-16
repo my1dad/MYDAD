@@ -236,6 +236,7 @@ async function publishRestoredDashboard(profiles: DadProfile[]): Promise<void> {
       publishWorkspaceEpoch,
       markCloudAuthorityReady,
       adoptOpenPlatformFromCloud,
+      pauseCloudPushes,
     } = await import("./supabase/cloudSync");
     const snapshot = getDatabaseSnapshot();
 
@@ -254,6 +255,7 @@ async function publishRestoredDashboard(profiles: DadProfile[]): Promise<void> {
     const epoch = await publishWorkspaceEpoch();
     adoptOpenPlatformFromCloud(epoch);
     markCloudAuthorityReady();
+    pauseCloudPushes(0);
   } catch (err) {
     console.warn("[dashboardCsv] Cloud publish after restore failed:", err);
   }

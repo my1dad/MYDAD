@@ -5,7 +5,7 @@ import {
   ADMIN_WORKSPACE_NAME,
   isAdminProfile,
 } from "../../config/admin";
-import { MEMBER_PROFILE_TEMPLATE } from "../../config/memberProfile";
+import { MEMBER_PROFILE_TEMPLATE, MEMBER_ROLE, resolveMembershipTier } from "../../config/memberProfile";
 import type { DadProfile } from "./dadProfileStorage";
 import {
   findDadProfileById,
@@ -79,7 +79,7 @@ export function profileToMember(profile: DadProfile): Member {
     username: profile.username,
     name: profile.displayName,
     handle: buildHandle(profile.username),
-    tier: profile.role?.trim() || (isMember ? MEMBER_PROFILE_TEMPLATE.tier : "Member"),
+    tier: isMember ? resolveMembershipTier(profile) : ADMIN_ROLE,
     contributed: isMember ? MEMBER_PROFILE_TEMPLATE.contributed : 0,
     equity: isMember ? MEMBER_PROFILE_TEMPLATE.equity : 0,
     days: isMember ? MEMBER_PROFILE_TEMPLATE.days : 0,
@@ -128,7 +128,9 @@ function payloadToMember(record: StoredRecord): Member | null {
     username: typeof payload.username === "string" ? payload.username : undefined,
     name,
     handle,
-    tier: typeof payload.tier === "string" ? payload.tier : "Member",
+    tier: resolveMembershipTier(
+      typeof payload.tier === "string" ? payload.tier : MEMBER_ROLE,
+    ),
     contributed: Number(payload.contributed) || 0,
     equity: Number(payload.equity) || 0,
     days: Number(payload.days) || 0,
@@ -261,7 +263,7 @@ function mergeProfileWithStoredMember(profile: DadProfile, stored?: Member): Mem
     status: resolveMemberStatus(profile),
     name: stored.name.trim() || profile.displayName,
     handle: stored.handle || buildHandle(profile.username),
-    tier: stored.tier || profile.role?.trim() || "Member",
+    tier: resolveMembershipTier(profile),
     joinedAt: stored.joinedAt || profile.createdAt,
     username: profile.username,
     profileId: profile.id,

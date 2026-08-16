@@ -14,7 +14,17 @@ import { DAD_WORKSPACE_ID, getSupabaseClient, isSupabaseConfigured } from "./cli
 const CLOUD_PUSH_DEBOUNCE_MS = 2500;
 const CLOUD_POLL_MS = 10 * 60_000;
 const CLOUD_VISIBLE_RESYNC_MIN_MS = 5 * 60_000;
+const CLOUD_FETCH_TIMEOUT_MS = 15_000;
 const GLOBAL_KV_SCOPE = "global";
+
+function cloudFetchSignal(timeoutMs = CLOUD_FETCH_TIMEOUT_MS): AbortSignal {
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  const controller = new AbortController();
+  window.setTimeout(() => controller.abort(), timeoutMs);
+  return controller.signal;
+}
 
 /** Marks a factory reset so sync cannot resurrect wiped members/data. */
 export const WORKSPACE_EPOCH_KEY = "dollar-a-day-workspace-epoch";
@@ -325,7 +335,7 @@ function zeroSettingsWipeDocument(stamp: string): DataBinDocument {
             name: "Guest",
             handle: "@guest",
             avatarInitials: "?",
-            tier: "Member",
+            tier: "Investor",
             memberSince: "",
             dailyContribution: 0,
             totalContributed: 0,
@@ -386,13 +396,21 @@ function applyForcedBlankBins(): void {
 
 function refreshUiAfterLocalWipe(): void {
   queueMicrotask(() => {
-    void Promise.all([import("../memberAccounts"), import("../poolState")])
-      .then(([{ invalidateMemberAccountsCache }, { hydratePoolStateFromStorage }]) => {
-        invalidateMemberAccountsCache();
-        hydratePoolStateFromStorage();
-      })
-      .catch(() => {});
+    void rebuildWorkspaceStoresAfterAdopt().catch(() => {});
   });
+}
+
+/** Rebuild ledgers, member directory, and pool from the bins currently in cache. */
+export async function rebuildWorkspaceStoresAfterAdopt(): Promise<void> {
+  const [{ invalidateMemberAccountsCache }, { hydratePoolStateFromStorage }, { syncAllProfilesToMemberRegistry }] =
+    await Promise.all([
+      import("../memberAccounts"),
+      import("../poolState"),
+      import("../profileRegistry"),
+    ]);
+  invalidateMemberAccountsCache();
+  syncAllProfilesToMemberRegistry();
+  hydratePoolStateFromStorage();
 }
 
 async function setCloudPlatformBlank(epoch: string): Promise<void> {
@@ -532,10 +550,8 @@ function mergeProfilesForWorkspace(local: DadProfile[], remote: DadProfile[]): D
   );
 }
 
-/** End client-delivery zero/blank locks so members can appear again.
- * Does NOT clear workspace epoch — epoch must survive login so stale caches stay obsolete.
- */
-export function clearFactoryZeroDeliveryLock(): void {
+/** Clear factory/blank flags without unpausing pushes (login/adopt must stay gated). */
+function clearFactoryZeroFlags(): void {
   try {
     localStorage.removeItem("dollar-a-day-factory-zero");
     localStorage.removeItem(PLATFORM_BLANK_KEY);
@@ -543,19 +559,26 @@ export function clearFactoryZeroDeliveryLock(): void {
     /* ignore */
   }
   blankPlatformCache = { value: false, checkedAt: Date.now() };
-  cloudPushPausedUntil = 0;
   // Also clear the on-disk FACTORY_ZERO.lock (dev) — it was wiping members on every boot.
   void import("../internalDatabase")
     .then(({ clearFactoryZeroDisk }) => clearFactoryZeroDisk())
     .catch(() => {});
 }
 
+/** End client-delivery zero/blank locks so members can appear again.
+ * Does NOT clear workspace epoch — epoch must survive login so stale caches stay obsolete.
+ */
+export function clearFactoryZeroDeliveryLock(): void {
+  clearFactoryZeroFlags();
+  cloudPushPausedUntil = 0;
+}
+
 /**
  * Apply remote open-platform state after cloud directory/bins have been adopted.
- * Safe to call from post-auth boot — never clears workspace epoch.
+ * Does not mark bin-push authority or unpause pushes — caller must adopt bins first.
  */
 export function adoptOpenPlatformFromCloud(remoteEpoch?: string | null): void {
-  clearFactoryZeroDeliveryLock();
+  clearFactoryZeroFlags();
   if (remoteEpoch) {
     try {
       const local = getWorkspaceEpoch();
@@ -566,8 +589,6 @@ export function adoptOpenPlatformFromCloud(remoteEpoch?: string | null): void {
       /* ignore */
     }
   }
-  markCloudAuthorityReady();
-  pauseCloudPushes(0);
 }
 
 /** True after first successful cloud pull/adopt — gates opportunistic bin pushes. */
@@ -876,13 +897,14 @@ async function fetchCloudBins(): Promise<CloudBinRow[]> {
   const { data, error } = await supabase
     .from("dad_bins")
     .select("bin_id, document, updated_at")
-    .eq("workspace_id", DAD_WORKSPACE_ID);
+    .eq("workspace_id", DAD_WORKSPACE_ID)
+    .abortSignal(cloudFetchSignal());
 
   if (error) {
     lastSyncError = error.message;
     notifyCloudStatusListeners();
     console.warn("[cloudSync] Failed to fetch bins:", error.message);
-    return [];
+    throw new Error(error.message || "Failed to fetch bins");
   }
 
   return (data ?? []) as CloudBinRow[];
@@ -895,7 +917,8 @@ async function fetchCloudProfiles(): Promise<DadProfile[]> {
   const { data, error } = await supabase
     .from("dad_profiles")
     .select("*")
-    .eq("workspace_id", DAD_WORKSPACE_ID);
+    .eq("workspace_id", DAD_WORKSPACE_ID)
+    .abortSignal(cloudFetchSignal());
   if (error) {
     lastSyncError = error.message;
     notifyCloudStatusListeners();
@@ -923,6 +946,7 @@ async function fetchCloudProfileByUsername(username: string): Promise<DadProfile
     .eq("workspace_id", DAD_WORKSPACE_ID)
     .ilike("username", pattern)
     .limit(1)
+    .abortSignal(cloudFetchSignal())
     .maybeSingle();
 
   if (error) {
@@ -942,11 +966,14 @@ async function fetchCloudKv(): Promise<CloudKvRow[]> {
   const { data, error } = await supabase
     .from("dad_kv")
     .select("scope_key, kv_key, value, updated_at")
-    .eq("workspace_id", DAD_WORKSPACE_ID);
+    .eq("workspace_id", DAD_WORKSPACE_ID)
+    .abortSignal(cloudFetchSignal());
 
   if (error) {
+    lastSyncError = error.message;
+    notifyCloudStatusListeners();
     console.warn("[cloudSync] Failed to fetch kv:", error.message);
-    return [];
+    throw new Error(error.message || "Failed to fetch kv");
   }
 
   return (data ?? []) as CloudKvRow[];
@@ -1462,7 +1489,6 @@ export async function pullCloudProfilesNow(
 
   const merged = mergeProfilesForWorkspace(localProfiles, remote);
   replaceLocalProfiles(merged);
-  markCloudAuthorityReady();
 
   // Do not upsert the full merged directory after pull — that resurrected stale devices.
   // Only re-publish intentional approval changes from this device.
@@ -1608,6 +1634,7 @@ export async function pushCloudBinsNow(
   if (!isSupabaseConfigured() || !bins.length) return;
   // Master reset wipe uses upsertCloudBin directly; block opportunistic restores.
   if (isFactoryZeroLocked() && !options.force) return;
+  if (!isCloudAuthorityReady() && !options.force) return;
 
   for (const { binId } of bins) {
     const existing = pendingBinPushes.get(binId);
@@ -1689,7 +1716,7 @@ export function scheduleCloudProfilesPush(_profiles?: DadProfile[]): void {
 }
 
 export function scheduleCloudKvPush(kvKey: SyncedKvKey): void {
-  if (!isSupabaseConfigured() || opportunisticCloudPushBlocked()) return;
+  if (!isSupabaseConfigured() || opportunisticCloudPushBlocked() || !isCloudAuthorityReady()) return;
 
   const existing = pendingKvPushes.get(kvKey);
   if (existing) clearTimeout(existing);
@@ -1698,7 +1725,7 @@ export function scheduleCloudKvPush(kvKey: SyncedKvKey): void {
     kvKey,
     setTimeout(() => {
       pendingKvPushes.delete(kvKey);
-      if (opportunisticCloudPushBlocked()) return;
+      if (opportunisticCloudPushBlocked() || !isCloudAuthorityReady()) return;
       void upsertCloudKv(GLOBAL_KV_SCOPE, kvKey, localStorage.getItem(kvKey));
     }, CLOUD_PUSH_DEBOUNCE_MS),
   );
@@ -1708,11 +1735,36 @@ export function isCloudSyncReady(): boolean {
   return cloudInitialized && isSupabaseConfigured();
 }
 
+export async function pullCloudWorkspaceNow(options: {
+  getLocalProfiles: () => DadProfile[];
+  replaceLocalProfiles: (profiles: DadProfile[]) => void;
+}): Promise<"adopted" | "blank" | "empty" | "local-dev"> {
+  if (!isSupabaseConfigured()) {
+    if (import.meta.env.PROD) {
+      throw new Error("SUPABASE_NOT_CONFIGURED");
+    }
+    return "local-dev";
+  }
+
+  pauseCloudPushes(60_000);
+  try {
+    const outcome = await syncCloudWorkspace(options);
+    return outcome;
+  } catch (err) {
+    console.warn("[cloudSync] Workspace pull failed; showing empty bins:", err);
+    applyForcedBlankBins();
+    refreshUiAfterLocalWipe();
+    return "empty";
+  }
+}
+
 export async function syncCloudWorkspace(options: {
   getLocalProfiles: () => DadProfile[];
   replaceLocalProfiles: (profiles: DadProfile[]) => void;
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return;
+}): Promise<"adopted" | "blank"> {
+  if (!isSupabaseConfigured()) {
+    throw new Error("SUPABASE_NOT_CONFIGURED");
+  }
 
   try {
     const [remoteBins, remoteProfiles, remoteKv] = await Promise.all([
@@ -1754,7 +1806,8 @@ export async function syncCloudWorkspace(options: {
       lastSyncAt = new Date().toISOString();
       lastSyncError = null;
       notifyCloudStatusListeners();
-      return;
+      markCloudAuthorityReady();
+      return "blank";
     }
 
     if (adoptCloudWipe && remoteHasMembers) {
@@ -1787,15 +1840,8 @@ export async function syncCloudWorkspace(options: {
           continue;
         }
 
-        // Empty cloud bin — admin may seed from local post-epoch writes only.
-        if (
-          isActiveAdminSession() &&
-          localDoc.updatedAt &&
-          (!localEpoch || localDoc.updatedAt >= localEpoch)
-        ) {
-          applyExternalBinDocument(binId, binKey, localDoc);
-          binUpserts.push(upsertCloudBin(binId, localDoc));
-        }
+        // Missing cloud bin — never seed from stale localStorage.
+        applyExternalBinDocument(binId, binKey, blankDocumentForBin(binKey, new Date().toISOString()));
       }
     } finally {
       endBulkWrite();
@@ -1808,6 +1854,9 @@ export async function syncCloudWorkspace(options: {
     const mergedProfiles = mergeProfilesForWorkspace(localProfiles, remoteProfiles);
     options.replaceLocalProfiles(mergedProfiles);
     markCloudAuthorityReady();
+    if (!isFactoryZeroLocked()) {
+      pauseCloudPushes(0);
+    }
 
     // Never upsert the full union after sync — only intentional admin approval publishes.
     if (isActiveAdminSession()) {
@@ -1835,10 +1884,12 @@ export async function syncCloudWorkspace(options: {
     lastSyncAt = new Date().toISOString();
     lastSyncError = null;
     notifyCloudStatusListeners();
+    return "adopted";
   } catch (err) {
     lastSyncError = err instanceof Error ? err.message : String(err);
     notifyCloudStatusListeners();
     console.warn("[cloudSync] Workspace sync failed:", lastSyncError);
+    throw err;
   }
 }
 
@@ -1933,6 +1984,7 @@ export async function initCloudSync(options: {
   getLocalProfiles: () => DadProfile[];
   replaceLocalProfiles: (profiles: DadProfile[]) => void;
   onProfilesChanged: (profiles: DadProfile[]) => void;
+  skipInitialSync?: boolean;
 }): Promise<() => void> {
   if (!isSupabaseConfigured()) {
     cloudInitialized = false;
@@ -1941,13 +1993,14 @@ export async function initCloudSync(options: {
     return () => {};
   }
 
-  pauseCloudPushes(12_000);
-
   const runSync = () => {
     if (syncInFlight) return syncInFlight;
     syncInFlight = syncCloudWorkspace(options)
       .then(() => {
         lastFullSyncAt = Date.now();
+      })
+      .catch((err) => {
+        console.warn("[cloudSync] Background workspace sync failed:", err);
       })
       .finally(() => {
         syncInFlight = null;
@@ -1955,7 +2008,12 @@ export async function initCloudSync(options: {
     return syncInFlight;
   };
 
-  await runSync();
+  if (!options.skipInitialSync) {
+    pauseCloudPushes(12_000);
+    await runSync();
+  } else {
+    lastFullSyncAt = Date.now();
+  }
   cloudInitialized = true;
   notifyCloudStatusListeners();
 

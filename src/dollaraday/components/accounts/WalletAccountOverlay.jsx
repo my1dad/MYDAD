@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { lockBodyScroll } from "@/lib/modalBodyLock";
 import { useLocale } from "../../i18n/LocaleContext";
+import { useDadAuth } from "../../context/DadAuthContext.jsx";
 import { formatPoolCurrency } from "../../data/mockData";
 import { getMemberWalletBalance, resolveMemberProfileId, useMemberAccounts } from "../../lib/memberAccounts";
 
@@ -11,9 +12,12 @@ const AccountDetailView = lazy(() => import("./AccountDetailView"));
 
 export default function WalletAccountOverlay({ open, accountId = "checking", onClose }) {
   const { t } = useLocale();
+  const { isAdmin } = useDadAuth();
   const profileId = resolveMemberProfileId();
   const ledger = useMemberAccounts(profileId);
-  const balance = getMemberWalletBalance(ledger);
+  const balance = isAdmin
+    ? Number(ledger?.checkingBalance) || 0
+    : getMemberWalletBalance(ledger);
   const [creditFlash, setCreditFlash] = useState(null);
 
   useEffect(() => {
@@ -27,7 +31,10 @@ export default function WalletAccountOverlay({ open, accountId = "checking", onC
       return undefined;
     }
     const onKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      onClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);

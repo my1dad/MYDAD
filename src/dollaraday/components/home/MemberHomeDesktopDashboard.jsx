@@ -35,6 +35,7 @@ function MemberNavTile({ icon: Icon, title, value, meta, tone = "green", onClick
       type="button"
       className={cn("dda-home-desk-tile", "dda-home-desk-tile--member", `dda-home-desk-tile--${tone}`)}
       onClick={onClick}
+      title={meta || title}
     >
       <span className="dda-home-desk-tile__icon" aria-hidden="true">
         <Icon className="h-4 w-4" strokeWidth={2.25} />
@@ -98,9 +99,6 @@ export default function MemberHomeDesktopDashboard({
       </header>
 
       <div className="dda-home-desktop__hero">
-        <div className="dda-home-desktop__hero-equity">
-          <PlatformEquityCard onClick={() => onNavigate?.("accounts")} />
-        </div>
         <div className="dda-home-desktop__hero-pool">
           <PoolDigitalDisplay
             amount={poolTotal}
@@ -111,6 +109,9 @@ export default function MemberHomeDesktopDashboard({
             showSleeveDonuts
             onSleeveClick={() => onNavigate?.("pool")}
           />
+        </div>
+        <div className="dda-home-desktop__hero-equity">
+          <PlatformEquityCard onClick={() => onNavigate?.("accounts")} />
         </div>
       </div>
 
@@ -126,6 +127,8 @@ export default function MemberHomeDesktopDashboard({
         className="dda-home-desktop__widgets dda-home-desktop__widgets--member"
         aria-label={t("pages.dashboard.memberDeskWidgetsLabel")}
       >
+        <div className="dda-accent-bar" />
+        <div className="dda-home-desktop__widgets-track">
         <MemberNavTile
           icon={Wallet}
           title={t("nav.wallet")}
@@ -171,6 +174,7 @@ export default function MemberHomeDesktopDashboard({
           tone="green"
           onClick={() => onNavigate?.("profile")}
         />
+        </div>
       </section>
     </div>
   );

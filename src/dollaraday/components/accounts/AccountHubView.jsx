@@ -10,7 +10,6 @@ const AccountsOverviewInfographic = lazy(() => import("./AccountsOverviewInfogra
 const AccountsLiquidityWidget = lazy(() => import("./AccountsLiquidityWidget"));
 const AdminLiquidityTransferModal = lazy(() => import("./AdminLiquidityTransferModal"));
 const RecurringCashflowPanel = lazy(() => import("./RecurringCashflowPanel"));
-const WalletFundingTabs = lazy(() => import("./WalletFundingTabs"));
 const RedemptionsCard = lazy(() => import("./RedemptionsCard"));
 const WalletAccountOverlay = lazy(() => import("./WalletAccountOverlay"));
 
@@ -46,39 +45,45 @@ export default function AccountHubView({ onNavigate }) {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Same equity card as Home — keeps Donations / wallet totals in sync. */}
-      <PlatformEquityCard
-        wallet
-        onClick={isAdmin ? undefined : () => setWalletOverlayOpen(true)}
-        onTransferClick={isAdmin ? () => openTransfer("to-liquidity") : undefined}
-      />
-
+    <div className="dda-accounts-hub-body space-y-2.5 sm:space-y-3 lg:space-y-6">
       {isAdmin ? (
-        <Suspense fallback={<PanelSlot className="min-h-[160px]" />}>
-          <AccountsLiquidityWidget
-            onNavigate={onNavigate}
-            onTransferClick={() => openTransfer("to-admin")}
+        <div className="dda-accounts-hero dda-accounts-hero--split">
+          <PlatformEquityCard
+            wallet
+            onClick={() => setWalletOverlayOpen(true)}
+            onTransferClick={() => openTransfer("to-liquidity")}
           />
-        </Suspense>
-      ) : null}
+          <Suspense fallback={<PanelSlot className="min-h-[160px] h-full" />}>
+            <AccountsLiquidityWidget
+              onNavigate={onNavigate}
+              onTransferClick={() => openTransfer("to-admin")}
+            />
+          </Suspense>
+        </div>
+      ) : (
+        <PlatformEquityCard
+          wallet
+          onClick={() => setWalletOverlayOpen(true)}
+        />
+      )}
 
-      <Suspense fallback={<PanelSlot className="min-h-[200px]" />}>
-        <AccountsOverviewInfographic />
-      </Suspense>
-      {isAdmin ? (
-        <Suspense fallback={<PanelSlot />}>
-          <RedemptionsCard />
+      <div className="dda-accounts-lower">
+        <Suspense fallback={<PanelSlot className="min-h-[200px] h-full" />}>
+          <AccountsOverviewInfographic />
         </Suspense>
-      ) : null}
-      <Suspense fallback={<PanelSlot className="min-h-[160px]" />}>
-        <RecurringCashflowPanel />
-      </Suspense>
-      <Suspense fallback={<PanelSlot />}>
-        <WalletFundingTabs />
-      </Suspense>
+        <div className="dda-accounts-lower__stack">
+          {isAdmin ? (
+            <Suspense fallback={<PanelSlot className="h-full min-h-[140px]" />}>
+              <RedemptionsCard defaultCollapsed expandAsOverlay />
+            </Suspense>
+          ) : null}
+          <Suspense fallback={<PanelSlot className="h-full min-h-[140px]" />}>
+            <RecurringCashflowPanel defaultCollapsed expandAsOverlay />
+          </Suspense>
+        </div>
+      </div>
 
-      {!isAdmin && walletOverlayOpen ? (
+      {walletOverlayOpen ? (
         <Suspense fallback={null}>
           <WalletAccountOverlay
             open={walletOverlayOpen}

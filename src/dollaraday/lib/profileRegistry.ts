@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { isAdminProfile } from "../../config/admin";
+import { resolveMembershipTier } from "../../config/memberProfile";
 import type { DadProfile } from "./dadProfileStorage";
 import { findDadProfileByProId, getDadProfileRevision, getDadProfiles, subscribeDadProfiles } from "./dadProfileStorage";
 import {
@@ -52,7 +53,7 @@ function toAdminMemberRecord(profile: DadProfile, stored?: Member): AdminMemberR
     username: profile.username,
     name: member.name || profile.displayName,
     handle: member.handle || buildHandle(profile.username),
-    tier: member.tier || profile.role?.trim() || "Member",
+    tier: resolveMembershipTier(profile),
     joinedAt: member.joinedAt || profile.createdAt,
     status: resolveMemberStatus(profile),
     proId: profile.proId ?? "",

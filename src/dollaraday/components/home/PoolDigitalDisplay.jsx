@@ -41,6 +41,37 @@ const SLEEVE_LABEL_KEYS = {
   stocks: "buyStocks",
 };
 
+function SleeveDonuts({ onClick, t }) {
+  const positions = useAllocationPositions();
+  const sleeveSummaries = useMemo(
+    () => summarizeSleeveAllocations(positions),
+    [positions],
+  );
+
+  return (
+    <div
+      className="dda-pool-widget__sleeves"
+      aria-label={t("pages.dashboard.poolSleevesLabel")}
+    >
+      <p className="dda-pool-widget__sleeves-kicker">
+        {t("pages.dashboard.poolSleevesKicker")}
+      </p>
+      <div className="dda-pool-widget__sleeves-grid">
+        {sleeveSummaries.map((sleeve) => (
+          <SleeveDonut
+            key={sleeve.sleeveKey}
+            sleeveKey={sleeve.sleeveKey}
+            principal={sleeve.principal}
+            percent={sleeve.percent}
+            onClick={onClick}
+            t={t}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SleeveDonut({ sleeveKey, principal, percent, onClick, t }) {
   const meta = ALLOCATION_SLEEVE_META[sleeveKey];
   const pct = Math.max(0, Math.min(100, Number(percent) || 0));
@@ -50,7 +81,10 @@ function SleeveDonut({ sleeveKey, principal, percent, onClick, t }) {
     <button
       type="button"
       className="dda-pool-sleeve-donut"
-      onClick={onClick}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick?.(event);
+      }}
       aria-label={t("pages.dashboard.poolSleeveDonutAria", {
         sleeve: label,
         amount: formatCompactMoney(principal),
@@ -88,11 +122,6 @@ export default function PoolDigitalDisplay({
   const members = useMembers();
   const [activeTab, setActiveTab] = useState("overview");
   const formatted = useMemo(() => formatPoolTotal(amount), [amount]);
-  const positions = useAllocationPositions();
-  const sleeveSummaries = useMemo(
-    () => (showSleeveDonuts ? summarizeSleeveAllocations(positions) : []),
-    [showSleeveDonuts, positions],
-  );
 
   // Approved community members only — never trust stale poolSummary (admin was once counted).
   const liveMemberCount = members.length;
@@ -138,15 +167,14 @@ export default function PoolDigitalDisplay({
         <div className="dda-pool-widget__glow" aria-hidden="true" />
 
         <div className="dda-pool-widget__body">
-          <div className="dda-pool-widget__head">
+          <button type="button" onClick={onClick} className="dda-pool-widget__head">
             <div className="dda-nav-icon dda-nav-icon--sm">
               <PiggyBank className="h-4 w-4" strokeWidth={2.25} />
             </div>
             <p className="dda-text-kicker dda-pool-widget__title">
               {t("pages.dashboard.poolScreenTitle")}
             </p>
-            <span className="dda-pool-widget__live">{t("pages.dashboard.poolScreenLive")}</span>
-          </div>
+          </button>
 
           <button type="button" onClick={onClick} className="dda-pool-widget__balance">
             <p className="dda-pool-widget__amount" aria-live="polite">
@@ -154,7 +182,7 @@ export default function PoolDigitalDisplay({
             </p>
             {ytd != null ? (
               <p className="dda-pool-widget__growth">
-                <ArrowUpRight className="h-3 w-3" />
+                <ArrowUpRight className="dda-pool-widget__growth-icon" />
                 {t("pages.dashboard.poolScreenGrowth", { pct: ytd })}
               </p>
             ) : null}
@@ -169,7 +197,10 @@ export default function PoolDigitalDisplay({
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setActiveTab(tab.id);
+                  }}
                   className={cn(
                     "dda-pool-widget__tab",
                     active && "dda-pool-widget__tab--active",
@@ -183,43 +214,70 @@ export default function PoolDigitalDisplay({
 
           <div className="dda-pool-widget__panel" role="tabpanel">
             {activeTab === "overview" ? (
-              <div className="dda-pool-widget__stats">
-                {onMembersClick ? (
-                  <button
-                    type="button"
-                    className="dda-pool-widget__stat dda-pool-widget__stat--link"
-                    onClick={onMembersClick}
-                    aria-label={t("pages.dashboard.poolScreenMembersAria", {
-                      count: liveMemberCount.toLocaleString(),
-                    })}
-                  >
-                    <Users className="h-3.5 w-3.5 shrink-0 text-dda-gold-light" strokeWidth={2.25} />
-                    <div className="min-w-0 text-left">
-                      <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenMembers")}</p>
-                      <p className="dda-pool-widget__stat-value">
-                        {liveMemberCount.toLocaleString()}
-                      </p>
+              <div className="dda-pool-widget__overview">
+                <div className="dda-pool-widget__stats">
+                  {onMembersClick ? (
+                    <button
+                      type="button"
+                      className="dda-pool-widget__stat dda-pool-widget__stat--link"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onMembersClick();
+                      }}
+                      aria-label={t("pages.dashboard.poolScreenMembersAria", {
+                        count: liveMemberCount.toLocaleString(),
+                      })}
+                    >
+                      <Users className="h-3.5 w-3.5 shrink-0 text-dda-gold-light" strokeWidth={2.25} />
+                      <div className="min-w-0 text-left">
+                        <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenMembers")}</p>
+                        <p className="dda-pool-widget__stat-value">
+                          {liveMemberCount.toLocaleString()}
+                        </p>
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="dda-pool-widget__stat">
+                      <Users className="h-3.5 w-3.5 shrink-0 text-dda-gold-light" strokeWidth={2.25} />
+                      <div className="min-w-0">
+                        <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenMembers")}</p>
+                        <p className="dda-pool-widget__stat-value">
+                          {liveMemberCount.toLocaleString()}
+                        </p>
+                      </div>
                     </div>
-                  </button>
-                ) : (
+                  )}
                   <div className="dda-pool-widget__stat">
-                    <Users className="h-3.5 w-3.5 shrink-0 text-dda-gold-light" strokeWidth={2.25} />
+                    <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-dda-green-light" strokeWidth={2.25} />
                     <div className="min-w-0">
-                      <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenMembers")}</p>
-                      <p className="dda-pool-widget__stat-value">
-                        {liveMemberCount.toLocaleString()}
+                      <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenToday")}</p>
+                      <p className="dda-pool-widget__stat-value dda-pool-widget__stat-value--inflow">
+                        +{formatPoolCurrency(dailyInflow ?? 0)}
                       </p>
                     </div>
                   </div>
-                )}
-                <div className="dda-pool-widget__stat">
-                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-dda-green-light" strokeWidth={2.25} />
-                  <div className="min-w-0">
-                    <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolScreenToday")}</p>
-                    <p className="dda-pool-widget__stat-value dda-pool-widget__stat-value--inflow">
-                      +{formatPoolCurrency(dailyInflow ?? 0)}
-                    </p>
+                  <div className="dda-pool-widget__stat">
+                    <Percent className="h-3.5 w-3.5 shrink-0 text-dda-green-light" strokeWidth={2.25} />
+                    <div className="min-w-0">
+                      <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolInterestApy")}</p>
+                      <p className="dda-pool-widget__stat-value">{poolApy.toFixed(2)}%</p>
+                    </div>
                   </div>
+                  <div className="dda-pool-widget__stat">
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-dda-gold-light" strokeWidth={2.25} />
+                    <div className="min-w-0">
+                      <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolInterestDaily")}</p>
+                      <p className="dda-pool-widget__stat-value dda-pool-widget__stat-value--inflow">
+                        +{formatPoolCurrency(interest.daily)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="dda-pool-widget__meter" aria-hidden="true">
+                  <span
+                    className="dda-pool-widget__meter-fill dda-pool-widget__meter-fill--interest"
+                    style={{ width: `${Math.min(100, Math.max(8, poolApy * 8))}%` }}
+                  />
                 </div>
               </div>
             ) : null}
@@ -300,28 +358,7 @@ export default function PoolDigitalDisplay({
             ) : null}
           </div>
 
-          {showSleeveDonuts ? (
-            <div
-              className="dda-pool-widget__sleeves"
-              aria-label={t("pages.dashboard.poolSleevesLabel")}
-            >
-              <p className="dda-pool-widget__sleeves-kicker">
-                {t("pages.dashboard.poolSleevesKicker")}
-              </p>
-              <div className="dda-pool-widget__sleeves-grid">
-                {sleeveSummaries.map((sleeve) => (
-                  <SleeveDonut
-                    key={sleeve.sleeveKey}
-                    sleeveKey={sleeve.sleeveKey}
-                    principal={sleeve.principal}
-                    percent={sleeve.percent}
-                    onClick={openSleeves}
-                    t={t}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
+          {showSleeveDonuts ? <SleeveDonuts onClick={openSleeves} t={t} /> : null}
 
           <button type="button" onClick={onClick} className="dda-pool-widget__footer">
             <span>{t("pages.dashboard.poolScreenHint")}</span>

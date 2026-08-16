@@ -234,8 +234,8 @@ export default function AccountsOverviewInfographic() {
                       data={chartData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={34}
-                      outerRadius={50}
+                      innerRadius={40}
+                      outerRadius={58}
                       paddingAngle={2}
                       dataKey="value"
                       stroke="#071013"
@@ -256,7 +256,7 @@ export default function AccountsOverviewInfographic() {
             <div className="dda-accounts-overview-donut__center dda-donut-chart__center">
               {!chartData.length ? (
                 <CircleDollarSign
-                  className="dda-accounts-overview-donut__empty-icon h-4 w-4 shrink-0 text-gray-600"
+                  className="dda-accounts-overview-donut__empty-icon h-5 w-5 shrink-0 text-gray-500"
                   aria-hidden="true"
                 />
               ) : null}

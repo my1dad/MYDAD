@@ -46,6 +46,8 @@ const pages = {
 
 const warmed = new Set(["dashboard"]);
 
+const MEMBER_FORBIDDEN_PAGES = new Set(["admin", "admin-bins", "investments", "allocations"]);
+
 export function prefetchPage(pageId) {
   const loader = pageLoaders[pageId];
   if (!loader || warmed.has(pageId)) return;
@@ -56,6 +58,12 @@ export function prefetchPage(pageId) {
 function getPageFromHash() {
   const hash = window.location.hash.replace(/^#\/?/, "");
   return pages[hash] ? hash : "dashboard";
+}
+
+function sanitizePage(page, isAdmin) {
+  const nextPage = pages[page] ? page : "dashboard";
+  if (isAdmin || !MEMBER_FORBIDDEN_PAGES.has(nextPage)) return nextPage;
+  return nextPage === "admin" || nextPage === "admin-bins" ? "profile" : "dashboard";
 }
 
 function hashForPage(page) {
@@ -75,7 +83,7 @@ export default function App() {
   const navigatingRef = useRef(false);
 
   const goTo = useCallback((page) => {
-    const nextPage = pages[page] ? page : "dashboard";
+    const nextPage = sanitizePage(page, isAdmin);
     prefetchPage(nextPage);
     navigatingRef.current = true;
     startTransition(() => {
@@ -90,7 +98,7 @@ export default function App() {
     window.setTimeout(() => {
       navigatingRef.current = false;
     }, 50);
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!authEntryTick) return;
@@ -104,7 +112,7 @@ export default function App() {
   useEffect(() => {
     const onHashChange = () => {
       if (navigatingRef.current) return;
-      const nextPage = getPageFromHash();
+      const nextPage = sanitizePage(getPageFromHash(), isAdmin);
       prefetchPage(nextPage);
       startTransition(() => {
         setActivePage(nextPage);
@@ -113,7 +121,7 @@ export default function App() {
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (isAdmin) return;
@@ -130,32 +138,33 @@ export default function App() {
 
   useEffect(() => {
     if (authEntryTick) return;
-    const initialPage = getPageFromHash();
+    const initialPage = sanitizePage(getPageFromHash(), isAdmin);
     setActivePage(initialPage);
     if (window.location.hash.replace(/^#/, "") !== hashForPage(initialPage)) {
       window.location.hash = hashForPage(initialPage);
     }
-  }, [authEntryTick]);
+  }, [authEntryTick, isAdmin]);
 
   // Warm primary destinations only on first intentional nav press (see onPrefetch).
   // Idle prefetch of every page competed with first interactions.
-  const Page = pages[activePage] ?? DashboardPage;
-  const isDashboard = activePage === "dashboard";
+  const safePage = sanitizePage(activePage, isAdmin);
+  const Page = pages[safePage] ?? DashboardPage;
+  const isDashboard = safePage === "dashboard";
 
   return (
     <EasternTimeProvider>
       <AppShell
-        activePage={shellPageId(activePage)}
+        activePage={shellPageId(safePage)}
         scrollKey={scrollKey}
         authEntryTick={authEntryTick}
         onNavigate={goTo}
         onPrefetch={prefetchPage}
       >
         {isDashboard ? (
-          <Page key={`${activePage}-${authEntryTick}`} onNavigate={goTo} />
+          <Page key={`${safePage}-${authEntryTick}`} onNavigate={goTo} />
         ) : (
           <Suspense fallback={null}>
-            <Page key={`${activePage}-${authEntryTick}`} onNavigate={goTo} />
+            <Page key={`${safePage}-${authEntryTick}`} onNavigate={goTo} />
           </Suspense>
         )}
       </AppShell>

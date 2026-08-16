@@ -55,7 +55,7 @@ export function resolveMemberFromDonation(donation, membersList, poolCurrentMemb
     id: `guest-${donation.handle.replace("@", "")}`,
     name: donation.member,
     handle: donation.handle,
-    tier: score >= 90 ? "Founder" : score >= 80 ? "Builder" : "Member",
+    tier: "Investor",
     contributed,
     equity: Math.round(contributed * 1.35),
     days,

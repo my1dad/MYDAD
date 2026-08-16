@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { isAdminProfile } from "../../../config/admin";
+import { resolveMembershipTier } from "../../../config/memberProfile";
 import { lockBodyScroll } from "@/lib/modalBodyLock";
 import { cn } from "@/lib/utils";
 import { MemberAvatar, Badge } from "../layout/DashboardCard";
@@ -17,6 +18,7 @@ import {
   unsuspendDadProfileByAdmin,
 } from "../../lib/profileAdminActions";
 import {
+  findDadProfileById,
   findDadProfileByUsername,
   getDadProfileRevision,
   getDadProfiles,
@@ -25,11 +27,28 @@ import {
   subscribeDadProfiles,
 } from "../../lib/dadProfileStorage";
 import { DATA_BIN_BY_KEY } from "../../lib/dataBins";
-import { getDatabaseRevision, readDataBin, subscribeInternalDatabase } from "../../lib/internalDatabase";
-import { adminSetMemberWalletBalances, useMemberAccounts } from "../../lib/memberAccounts";
-import { adminSetMemberDirectoryBalances } from "../../lib/memberRegistry";
+import {
+  appendDataRecord,
+  getDatabaseRevision,
+  readDataBin,
+  subscribeInternalDatabase,
+} from "../../lib/internalDatabase";
+import {
+  depositToMemberAccount,
+  getMemberAccountLedger,
+  useMemberAccounts,
+} from "../../lib/memberAccounts";
+import {
+  adminSetMemberDirectoryBalances,
+  applyMemberStatsFromContributions,
+} from "../../lib/memberRegistry";
+import { computeMemberStatsFromContributions } from "../../lib/memberContributionStats";
+import { logProfileActivity } from "../../lib/profileActivity";
 import { buildAdminMemberDetail } from "../../lib/profileRegistry";
-import { pushCloudBinsNow } from "../../lib/supabase/cloudSync";
+import { syncMemberEscrowToLiquidityPool, syncPoolInflowMetrics } from "../../lib/poolState";
+
+const ADMIN_DETAIL_DEPOSIT_SOURCE = "admin-member-deposit";
+const ADMIN_DETAIL_DEPOSIT_MEMO = "Admin deposit";
 
 function DetailSection({ title, children, className }) {
   return (
@@ -111,7 +130,9 @@ export default function AdminMemberDetailModal({
   const [actionError, setActionError] = useState("");
   const [balanceError, setBalanceError] = useState("");
   const [balanceSaved, setBalanceSaved] = useState(false);
-  const [checkingInput, setCheckingInput] = useState("0.00");
+  const [checkingInput, setCheckingInput] = useState("");
+  const [balanceSaving, setBalanceSaving] = useState(false);
+  const [lastDeposit, setLastDeposit] = useState(0);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   const [resolvedProfileId, setResolvedProfileId] = useState(profileId || "");
@@ -143,6 +164,10 @@ export default function AdminMemberDetailModal({
     [open, activeProfileId, profileRevision, databaseRevision],
   );
   const wallet = useMemberAccounts(activeProfileId || "");
+  const currentEquity = useMemo(() => {
+    if (!activeProfileId) return 0;
+    return Math.round((Number(computeMemberStatsFromContributions(activeProfileId).equity) || 0) * 100) / 100;
+  }, [activeProfileId, databaseRevision, wallet.checkingBalance, wallet.escrowBalance]);
 
   useEffect(() => {
     if (!open) return;
@@ -209,8 +234,10 @@ export default function AdminMemberDetailModal({
 
   useEffect(() => {
     if (!open || !detail) return;
-    setCheckingInput(formatMoneyAmount(wallet.checkingBalance));
-  }, [open, activeProfileId, wallet.checkingBalance]);
+    setCheckingInput("");
+    setBalanceSaved(false);
+    setBalanceError("");
+  }, [open, activeProfileId, detail]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -421,38 +448,110 @@ export default function AdminMemberDetailModal({
     setBalanceError("");
     setBalanceSaved(false);
 
-    const checking = parseMoneyInput(checkingInput);
-    if (!Number.isFinite(checking) || checking < 0) {
-      setBalanceError(t("pages.admin.memberDetailBalancesInvalid"));
+    const amount = parseMoneyInput(checkingInput);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setBalanceError(t("pages.admin.memberBalanceDepositInvalid"));
       return;
     }
 
+    const targetId = activeProfileId || profileId;
+    if (!targetId) {
+      setBalanceError(t("pages.admin.memberDetailBalancesFailed"));
+      return;
+    }
+
+    setBalanceSaving(true);
     try {
-      const targetId = activeProfileId || profileId;
-      adminSetMemberWalletBalances(targetId, { checking });
-      const directory = adminSetMemberDirectoryBalances(targetId, {
-        contributed: checking,
-        equity: checking,
-      });
-      if (!directory) {
+      const note = ADMIN_DETAIL_DEPOSIT_MEMO;
+      const checkingLedger = depositToMemberAccount(targetId, "checking", amount, note);
+      if (!checkingLedger) {
         setBalanceError(t("pages.admin.memberDetailBalancesFailed"));
         return;
       }
-      setCheckingInput(formatMoneyAmount(checking));
+
+      // Mirror into escrow so community liquidity / pool totals pick up the deposit.
+      const afterChecking = getMemberAccountLedger(targetId);
+      const escrowGap =
+        Math.round(
+          (Math.max(
+            0,
+            (Number(afterChecking.checkingBalance) || 0) - (Number(afterChecking.escrowBalance) || 0),
+          ) +
+            Number.EPSILON) *
+            100,
+        ) / 100;
+      if (escrowGap > 0) {
+        depositToMemberAccount(targetId, "escrow", escrowGap, note);
+      }
+
+      const displayName = record?.name || detail?.name || "Member";
+      const handle =
+        detail?.handle ||
+        (profile?.username ? `@${profile.username}` : "") ||
+        (record?.username ? `@${record.username}` : "");
+
+      appendDataRecord("contributions", "wallet-deposit", {
+        type: "wallet-deposit",
+        source: ADMIN_DETAIL_DEPOSIT_SOURCE,
+        amount,
+        reminderEnabled: false,
+        recurringEnabled: false,
+        profileId: targetId,
+        memberId: targetId,
+        memberName: displayName,
+        handle: handle || "@member",
+        contributedAt: new Date().toISOString(),
+        status: "completed",
+        memo: note,
+      });
+
+      applyMemberStatsFromContributions(targetId);
+      const live = computeMemberStatsFromContributions(targetId);
+      adminSetMemberDirectoryBalances(targetId, {
+        contributed: live.contributed,
+        equity: live.equity,
+      });
+
+      const memberProfile = findDadProfileById(targetId) || profile;
+      if (memberProfile) {
+        logProfileActivity({
+          profileId: memberProfile.id,
+          proId: memberProfile.proId,
+          type: "donation",
+          summary: `Admin deposit of $${amount.toFixed(2)}`,
+          payload: { amount, source: ADMIN_DETAIL_DEPOSIT_SOURCE },
+        });
+      }
+
+      syncPoolInflowMetrics();
+      syncMemberEscrowToLiquidityPool();
+
       try {
-        await pushCloudBinsNow(
+        const { isFactoryZeroLocked, pushCloudBinsNow: pushBins } = await import(
+          "../../lib/supabase/cloudSync"
+        );
+        if (isFactoryZeroLocked()) {
+          /* keep lock; blank-platform bin guard will allow only $0 docs */
+        }
+        await pushBins(
           [
             { binId: DATA_BIN_BY_KEY.members.binId, document: readDataBin("members") },
             { binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") },
+            { binId: DATA_BIN_BY_KEY.contributions.binId, document: readDataBin("contributions") },
           ],
           { force: true },
         );
       } catch {
         // Local save already succeeded; cloud can retry on next sync.
       }
+
+      setCheckingInput("");
+      setLastDeposit(amount);
       setBalanceSaved(true);
     } catch {
       setBalanceError(t("pages.admin.memberDetailBalancesFailed"));
+    } finally {
+      setBalanceSaving(false);
     }
   };
 
@@ -577,6 +676,14 @@ export default function AdminMemberDetailModal({
               <p className="text-[12px] leading-relaxed text-gray-500">
                 {t("pages.admin.memberDetailBalancesNote")}
               </p>
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t("pages.admin.memberBalanceCurrent")}
+                </p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-white">
+                  {formatPoolCurrency(currentEquity)}
+                </p>
+              </div>
               <div className="dda-admin-member-balance-card">
                 <label htmlFor="admin-balance-checking" className="dda-admin-member-balance-card__label">
                   {t("pages.admin.memberDetailBalanceChecking")}
@@ -591,7 +698,12 @@ export default function AdminMemberDetailModal({
                     inputMode="decimal"
                     autoComplete="off"
                     value={checkingInput}
+                    placeholder="0.00"
                     onFocus={(event) => {
+                      if (!checkingInput.trim()) {
+                        setCheckingInput("");
+                        return;
+                      }
                       event.target.select();
                     }}
                     onChange={(event) => {
@@ -600,10 +712,9 @@ export default function AdminMemberDetailModal({
                     }}
                     onBlur={() => {
                       const amount = parseMoneyInput(checkingInput);
+                      if (!checkingInput.trim()) return;
                       if (Number.isFinite(amount) && amount >= 0) {
                         setCheckingInput(formatMoneyAmount(amount));
-                      } else {
-                        setCheckingInput("0.00");
                       }
                     }}
                     className="dda-admin-member-balance-card__input"
@@ -612,10 +723,17 @@ export default function AdminMemberDetailModal({
               </div>
               {balanceError ? <p className="text-sm text-red-400">{balanceError}</p> : null}
               {balanceSaved ? (
-                <p className="text-sm text-dda-green-light">{t("pages.admin.memberDetailBalancesSaved")}</p>
+                <p className="text-sm text-dda-green-light">
+                  {t("pages.admin.memberBalanceDepositSaved", {
+                    amount: formatPoolCurrency(lastDeposit),
+                    balance: formatPoolCurrency(currentEquity),
+                  })}
+                </p>
               ) : null}
-              <button type="submit" className="dda-btn-primary">
-                {t("pages.admin.memberDetailBalancesSave")}
+              <button type="submit" className="dda-btn-primary" disabled={balanceSaving}>
+                {balanceSaving
+                  ? t("pages.admin.memberBalanceSaving")
+                  : t("pages.admin.memberBalanceDepositAction")}
               </button>
             </form>
           </DetailSection>
@@ -623,7 +741,10 @@ export default function AdminMemberDetailModal({
           <DetailSection title={t("pages.admin.memberDetailIdentity")}>
             <div className="dda-admin-member-detail__grid">
               <DetailRow label={t("pages.admin.proId")} value={record.proId} mono />
-              <DetailRow label={t("pages.admin.memberDetailRole")} value={record.tier} />
+              <DetailRow
+                label={t("pages.admin.memberDetailRole")}
+                value={t(`tier.${resolveMembershipTier(profile ?? record.tier)}`)}
+              />
               <DetailRow
                 label={t("pages.admin.memberDetailReferral")}
                 value={
@@ -674,10 +795,10 @@ export default function AdminMemberDetailModal({
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-gray-500">
-                  {t("pages.admin.memberDetailBalanceChecking")}
+                  {t("pages.admin.memberBalanceCurrent")}
                 </p>
                 <p className="mt-1 font-bold tabular-nums text-dda-green-light">
-                  {formatMoneyDisplay(wallet.checkingBalance)}
+                  {formatMoneyDisplay(currentEquity)}
                 </p>
               </div>
               <div>

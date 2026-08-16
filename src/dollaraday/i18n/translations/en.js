@@ -166,9 +166,10 @@ export default {
   },
   tier: {
     "Master Admin": "Master Admin",
-    Founder: "Founder",
-    Builder: "Builder",
-    Member: "Member",
+    Investor: "Investor",
+    Founder: "Investor",
+    Builder: "Investor",
+    Member: "Investor",
   },
   loanStatus: {
     eligible: "Eligible",
@@ -1004,10 +1005,10 @@ export default {
       memberDetailStats: "Activity stats",
       memberDetailBalances: "Member balance",
       memberDetailBalancesNote:
-        "Set this member’s checking balance. Updates their wallet and the Contributed / Equity totals on Members.",
+        "Deposit into the community liquidity pool. Amounts add to this member’s equity/deposits and sync across the platform.",
       memberBalanceKicker: "Member deposit",
       memberBalanceNote:
-        "Enter a deposit amount to add to this member’s account. You can deposit multiple times — each deposit stacks on their current balance.",
+        "Deposit into the community liquidity pool. Amounts add to this member’s equity/deposits and sync across the platform. You can deposit multiple times — each deposit stacks on their current balance.",
       memberBalanceCurrent: "Current balance",
       memberBalanceDepositAmount: "Deposit amount",
       memberBalanceSaving: "Depositing…",
@@ -1017,10 +1018,10 @@ export default {
       memberBalanceDepositLog: "Deposit log",
       memberBalanceDepositLogEmpty: "No deposits from this panel yet.",
       memberBalanceDepositLogTotal: "{{count}} deposits · {{amount}} total",
-      memberDetailBalanceChecking: "Checking",
+      memberDetailBalanceChecking: "Deposit into Liquidity pool",
       memberDetailBalanceEscrow: "Escrow",
-      memberDetailBalancesSave: "Save balance",
-      memberDetailBalancesSaved: "Balance updated.",
+      memberDetailBalancesSave: "Deposit",
+      memberDetailBalancesSaved: "Deposit recorded.",
       memberDetailBalancesInvalid: "Enter a valid amount of $0 or more.",
       memberDetailBalancesFailed: "Could not update this member’s balance.",
       memberDetailMissing:
@@ -1053,7 +1054,7 @@ export default {
       profileEditSave: "Save changes",
       profileEditCancel: "Cancel",
       profileEditPasswordPlaceholder: "Leave blank to keep current password",
-      profileEditRolePlaceholder: "e.g. Member, Builder",
+      profileEditRolePlaceholder: "Investor",
       settings: {
         title: "Settings",
         subtitle: "Device backup, reset, notifications, timezone, and your admin account.",

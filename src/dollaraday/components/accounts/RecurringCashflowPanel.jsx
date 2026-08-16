@@ -51,6 +51,7 @@ const FREQUENCY_OPTIONS = [
 ];
 
 const RECURRING_LIST_PAGE_SIZE = 5;
+const COLLAPSED_PREVIEW_SIZE = 6;
 
 function sanitizeMoneyInput(value) {
   const cleaned = String(value).replace(/[^0-9.]/g, "");
@@ -87,7 +88,11 @@ function handleAmountChange(value, setAmount) {
   setAmount(formatMoneyInput(stripped));
 }
 
-export default function RecurringCashflowPanel({ accountId = null }) {
+export default function RecurringCashflowPanel({
+  accountId = null,
+  defaultCollapsed = true,
+  expandAsOverlay = false,
+}) {
   const { t } = useLocale();
   const { isAdmin, profile } = useDadAuth();
   // Prefer the signed-in profile so member calendars never mix other accounts.
@@ -161,6 +166,18 @@ export default function RecurringCashflowPanel({ accountId = null }) {
     return visibleSchedules.flatMap((schedule) =>
       collectDueDates(schedule, today).map((dayYmd) => ({ schedule, dayYmd })),
     );
+  }, [visibleSchedules]);
+
+  const previewSchedules = useMemo(() => {
+    return [...visibleSchedules]
+      .map((schedule) => ({ schedule, nextDue: getNextDueDate(schedule) }))
+      .sort((a, b) => {
+        if (a.nextDue && b.nextDue) return a.nextDue.localeCompare(b.nextDue);
+        if (a.nextDue) return -1;
+        if (b.nextDue) return 1;
+        return 0;
+      })
+      .slice(0, COLLAPSED_PREVIEW_SIZE);
   }, [visibleSchedules]);
 
   useEffect(() => {
@@ -301,9 +318,75 @@ export default function RecurringCashflowPanel({ accountId = null }) {
         isAdmin ? "pages.accounts.recurringTitle" : "pages.accounts.recurringTitleMember",
       )}
       collapsible
-      defaultCollapsed
+      defaultCollapsed={defaultCollapsed}
+      expandAsOverlay={expandAsOverlay}
       collapseAriaLabel={t("pages.accounts.collapseRecurring")}
       expandAriaLabel={t("pages.accounts.expandRecurring")}
+      collapsedPreview={
+        previewSchedules.length ? (
+          <ul className="dda-bank-ledger">
+            {previewSchedules.map(({ schedule, nextDue }) => {
+              const freqLabel = t(
+                `pages.accounts.${FREQUENCY_OPTIONS.find((item) => item.id === schedule.frequency)?.labelKey ?? "freqMonthly"}`,
+              );
+              const label = isHomeContributionSchedule(schedule)
+                ? t("pages.accounts.recurringDonationLabelWithAmount", {
+                    amount: formatPoolCurrency(schedule.amount),
+                  })
+                : schedule.label || t("pages.accounts.recurringUntitled");
+
+              return (
+                <li key={schedule.id} className="dda-bank-ledger__row">
+                  <span
+                    className={cn(
+                      "dda-bank-ledger__icon",
+                      schedule.type === "income" && "dda-bank-ledger__icon--income",
+                      schedule.type === "expense" && "dda-bank-ledger__icon--expense",
+                      schedule.type === "transfer" && "dda-bank-ledger__icon--transfer",
+                    )}
+                  >
+                    {schedule.type === "income" ? (
+                      <ArrowDownLeft className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    ) : schedule.type === "expense" ? (
+                      <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    ) : (
+                      <ArrowLeftRight className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-medium leading-tight text-white">
+                      {label}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[11px] leading-tight text-gray-500">
+                      {freqLabel}
+                      {nextDue
+                        ? ` · ${t("pages.accounts.recurringNextDue", {
+                            date: formatEasternShortDate(nextDue),
+                          })}`
+                        : ""}
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 text-sm font-semibold tabular-nums",
+                      schedule.type === "income" && "text-dda-green-light",
+                      schedule.type === "expense" && "text-red-400",
+                      schedule.type === "transfer" && "text-sky-300",
+                    )}
+                  >
+                    {schedule.type === "income" ? "+" : schedule.type === "expense" ? "−" : "↔"}
+                    {formatPoolCurrency(schedule.amount)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="dda-card-collapsed-preview__empty">
+            {t("pages.accounts.recurringEmpty")}
+          </p>
+        )
+      }
     >
       {unpaidDue.length ? (
         <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">

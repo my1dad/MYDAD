@@ -17,6 +17,7 @@ import {
 import { listRedemptionRecords, saveAdminRedemption } from "../../lib/redemptions";
 
 const TX_PAGE_SIZE = 5;
+const COLLAPSED_PREVIEW_SIZE = 6;
 
 function sanitizeMoneyInput(value) {
   const cleaned = String(value).replace(/[^0-9.]/g, "");
@@ -53,7 +54,7 @@ function handleAmountChange(value, setAmount) {
   setAmount(formatMoneyInput(stripped));
 }
 
-export default function RedemptionsCard() {
+export default function RedemptionsCard({ defaultCollapsed = true, expandAsOverlay = false }) {
   const { t, locale } = useLocale();
   const fromProfileId = resolveMemberProfileId();
   const savedMembers = useAdminMemberRecords();
@@ -180,9 +181,41 @@ export default function RedemptionsCard() {
       title={t("pages.accounts.redemptionsTitle")}
       subtitle={t("pages.accounts.redemptionsSub")}
       collapsible
-      defaultCollapsed
+      defaultCollapsed={defaultCollapsed}
+      expandAsOverlay={expandAsOverlay}
       collapseAriaLabel={t("pages.accounts.collapseRedemptions")}
       expandAriaLabel={t("pages.accounts.expandRedemptions")}
+      collapsedPreview={
+        redemptionRows.length ? (
+          <ul className="dda-bank-ledger">
+            {redemptionRows.slice(0, COLLAPSED_PREVIEW_SIZE).map((row) => (
+              <li key={row.id} className="dda-bank-ledger__row">
+                <span className="dda-bank-ledger__icon">
+                  <Gift className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium leading-tight text-white">
+                    {row.memberName}
+                    {row.handle ? ` (${row.handle})` : ""}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[11px] leading-tight text-gray-500">
+                    {row.memo?.trim() || t("pages.accounts.redemptionTxDefaultMemo")}
+                    {" · "}
+                    {formatEasternShortDate(row.redeemedAt, locale === "es" ? "es" : "en")}
+                  </span>
+                </span>
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-dda-gold">
+                  −{formatPoolCurrency(row.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="dda-card-collapsed-preview__empty">
+            {t("pages.accounts.overviewNoRedemptions")}
+          </p>
+        )
+      }
     >
       <div className="space-y-5">
         {recipientOptions.length ? (

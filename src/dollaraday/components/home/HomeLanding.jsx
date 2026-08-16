@@ -36,6 +36,7 @@ export default function HomeLanding({
           dailyInflow={poolDailyInflow}
           ytdGrowthPct={poolYtdGrowthPct}
           onClick={onPoolClick}
+          onMembersClick={isAdmin ? () => onNavigate?.("members") : undefined}
         />
 
         <PlatformEquityCard onClick={onWalletClick} collapsible={isAdmin} />

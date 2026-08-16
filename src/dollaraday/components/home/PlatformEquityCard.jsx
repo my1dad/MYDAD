@@ -35,6 +35,7 @@ import {
   maskAccountNumber,
   useMemberAccounts,
   getAdminLiquidityAvailable,
+  getMemberWalletBalance,
 } from "../../lib/memberAccounts";
 import {
   computeMemberStatsFromContributions,
@@ -170,6 +171,7 @@ export default function PlatformEquityCard({
     const checking = Number(ledger?.checkingBalance) || 0;
     const escrow = Number(ledger?.escrowBalance) || 0;
     const cash = profileId ? getMemberCashBalance(profileId) : 0;
+    const wallet = getMemberWalletBalance(ledger);
 
     if (isAdmin) {
       const adminTotal = Math.max(0, checking);
@@ -225,7 +227,7 @@ export default function PlatformEquityCard({
       invested,
       investments,
       cash,
-      wallet: cash,
+      wallet,
       liquidity: 0,
       deployed: 0,
       combined: 0,
@@ -457,10 +459,10 @@ export default function PlatformEquityCard({
                 </div>
               ) : (
                 <>
-              <div
-                className="dda-member-bank__stack"
-                aria-label={t("pages.dashboard.adminAccountMixLabel")}
-              >
+                  <div
+                    className="dda-member-bank__stack"
+                    aria-label={t("pages.dashboard.adminAccountMixLabel")}
+                  >
                 <div className="dda-member-bank__stack-track" aria-hidden="true">
                   <span
                     className="dda-member-bank__stack-seg dda-member-bank__stack-seg--admin"
@@ -508,16 +510,20 @@ export default function PlatformEquityCard({
                 className="dda-member-bank__quick"
                 aria-label={t("pages.dashboard.adminAccountPulse")}
               >
-                <div className="dda-member-bank__quick-item">
-                  <Users className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
-                  <div>
+                <div className="dda-member-bank__quick-item dda-member-bank__quick-item--members">
+                  <span className="dda-member-bank__quick-icon" aria-hidden="true">
+                    <Users className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  </span>
+                  <div className="dda-member-bank__quick-copy">
                     <p className="dda-member-bank__quick-label">{t("common.members")}</p>
                     <p className="dda-member-bank__quick-value">{stats.memberCount}</p>
                   </div>
                 </div>
-                <div className="dda-member-bank__quick-item">
-                  <Landmark className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
-                  <div>
+                <div className="dda-member-bank__quick-item dda-member-bank__quick-item--today">
+                  <span className="dda-member-bank__quick-icon" aria-hidden="true">
+                    <Landmark className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  </span>
+                  <div className="dda-member-bank__quick-copy">
                     <p className="dda-member-bank__quick-label">
                       {t("pages.dashboard.adminAccountToday")}
                     </p>
@@ -526,9 +532,17 @@ export default function PlatformEquityCard({
                     </p>
                   </div>
                 </div>
-                <div className="dda-member-bank__quick-item">
-                  <Droplets className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
-                  <div>
+                <div
+                  className={cn(
+                    "dda-member-bank__quick-item dda-member-bank__quick-item--alerts",
+                    stats.pendingApprovals + stats.pendingPayments > 0 &&
+                      "dda-member-bank__quick-item--alerts-hot",
+                  )}
+                >
+                  <span className="dda-member-bank__quick-icon" aria-hidden="true">
+                    <Droplets className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  </span>
+                  <div className="dda-member-bank__quick-copy">
                     <p className="dda-member-bank__quick-label">
                       {t("pages.dashboard.adminAccountAlerts")}
                     </p>
@@ -537,9 +551,16 @@ export default function PlatformEquityCard({
                     </p>
                   </div>
                 </div>
-                <div className="dda-member-bank__quick-item">
-                  <TrendingUp className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
-                  <div>
+                <div
+                  className={cn(
+                    "dda-member-bank__quick-item dda-member-bank__quick-item--growth",
+                    !roiPositive && "dda-member-bank__quick-item--growth-down",
+                  )}
+                >
+                  <span className="dda-member-bank__quick-icon" aria-hidden="true">
+                    <TrendingUp className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  </span>
+                  <div className="dda-member-bank__quick-copy">
                     <p className="dda-member-bank__quick-label">{t("pages.dashboard.equityGain")}</p>
                     <p
                       className={cn(

@@ -10,13 +10,9 @@ import { useLocalizedData } from "../i18n/localizedData";
 import { useEasternLiveTime, useLiveRelativeTime } from "../context/EasternTimeContext";
 import { getDatabaseRevision, subscribeInternalDatabase } from "../lib/internalDatabase";
 import { syncMemberEscrowToLiquidityPool, usePoolState } from "../lib/poolState";
-import { saveContribution } from "../lib/storageWrites";
 import { formatPoolCurrency } from "../data/mockData";
 
 const MemberDetailModal = lazy(() => import("../components/members/MemberDetailModal"));
-const ContributeOnboardingModal = lazy(() =>
-  import("../components/onboarding/ContributeOnboardingModal"),
-);
 
 const statusStyles = {
   completed: "text-dda-green-light",
@@ -35,12 +31,6 @@ export default function DailyAllocationsPage() {
     () => 0,
   );
   const [selectedMember, setSelectedMember] = useState(null);
-  const [contributeOpen, setContributeOpen] = useState(false);
-  const [contributeSeed, setContributeSeed] = useState({
-    amount: null,
-    custom: false,
-    frequency: "weekly",
-  });
   const completedCount = todaysDonations.filter((d) => d.status === "completed").length;
   const { longDate: todayLabel } = useEasternLiveTime();
   const lastUpdatedLabel = useLiveRelativeTime(dailyAllocationSummary.lastUpdatedAt);
@@ -64,11 +54,6 @@ export default function DailyAllocationsPage() {
 
   const openMemberDetail = (donation) => {
     setSelectedMember(resolveMemberFromDonation(donation, members, currentMember));
-  };
-
-  const openContribute = (amount = null, { custom = false, frequency = "weekly" } = {}) => {
-    setContributeSeed({ amount, custom, frequency });
-    setContributeOpen(true);
   };
 
   return (
@@ -193,29 +178,7 @@ export default function DailyAllocationsPage() {
         </div>
       </DashboardCard>
 
-      <ContributeTodaySection
-        className="mx-auto w-full max-w-lg sm:max-w-xl"
-        onContributeWeekly={() => openContribute(7, { frequency: "weekly" })}
-        onContributeMonthly={() => openContribute(31, { frequency: "monthly" })}
-        onContributeYearly={() => openContribute(365, { frequency: "yearly" })}
-        onContributeOther={() => openContribute(null, { custom: true, frequency: "weekly" })}
-      />
-
-      {contributeOpen ? (
-        <Suspense fallback={null}>
-          <ContributeOnboardingModal
-            open={contributeOpen}
-            onClose={() => setContributeOpen(false)}
-            initialAmount={contributeSeed.amount}
-            startOnCustom={contributeSeed.custom}
-            contributionFrequency={contributeSeed.frequency}
-            onComplete={({ reminderEnabled, recurringEnabled, amount, frequency }) => {
-              saveContribution({ amount, reminderEnabled, recurringEnabled, frequency });
-              setContributeOpen(false);
-            }}
-          />
-        </Suspense>
-      ) : null}
+      <ContributeTodaySection className="mx-auto w-full max-w-lg sm:max-w-xl" />
 
       {selectedMember ? (
         <Suspense fallback={null}>

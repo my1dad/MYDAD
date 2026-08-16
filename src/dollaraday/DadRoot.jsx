@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import DadLoginPage from "./pages/DadLoginPage.jsx";
 import PostAuthWorkspace from "./components/PostAuthWorkspace.jsx";
+import { isSupabaseConfigured } from "./lib/supabase/client";
 
 /**
  * Login stays light. App (dashboard shell) loads only after auth.
@@ -29,6 +30,21 @@ function AuthBootFallback() {
   );
 }
 
+function MissingSupabaseScreen() {
+  return (
+    <div
+      className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[var(--dda-bg,#0b1220)] px-6 text-center"
+      role="alert"
+    >
+      <p className="text-lg font-semibold text-white">Cloud is not configured</p>
+      <p className="max-w-md text-sm text-gray-400">
+        This production build needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.
+        The app will not start from local cache.
+      </p>
+    </div>
+  );
+}
+
 export default function DadRoot() {
   const { isAuthenticated, isAdmin } = useDadAuth();
   const [guestView, setGuestView] = useState(resolveGuestView);
@@ -45,6 +61,14 @@ export default function DadRoot() {
     root.classList.toggle("dda-theme-admin", active);
     return () => root.classList.remove("dda-theme-admin");
   }, [isAuthenticated, isAdmin]);
+
+  if (import.meta.env.PROD && !isSupabaseConfigured()) {
+    return (
+      <div className="dda-app h-full w-full overflow-hidden">
+        <MissingSupabaseScreen />
+      </div>
+    );
+  }
 
   if (isAuthenticated) {
     return (

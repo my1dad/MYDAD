@@ -111,13 +111,13 @@ export default function AccountsLiquidityWidget({ onNavigate, onTransferClick, c
             <p className="dda-liquidity-widget__chip-label">{t("pages.accounts.liquidityDeployed")}</p>
             <p className="dda-liquidity-widget__chip-value">{formatPoolCurrency(metrics.deployed)}</p>
           </div>
-          <div className="dda-liquidity-widget__chip">
+          <div className="dda-liquidity-widget__chip dda-liquidity-widget__chip--in">
             <p className="dda-liquidity-widget__chip-label">{t("pages.accounts.liquidityInflow")}</p>
             <p className="dda-liquidity-widget__chip-value dda-liquidity-widget__chip-value--inflow">
               +{formatPoolCurrency(metrics.dailyInflow)}
             </p>
           </div>
-          <div className="dda-liquidity-widget__chip">
+          <div className="dda-liquidity-widget__chip dda-liquidity-widget__chip--out">
             <p className="dda-liquidity-widget__chip-label">{t("pages.accounts.liquidityRedemptions")}</p>
             <p className="dda-liquidity-widget__chip-value">
               {formatPoolCurrency(metrics.redemptions)}

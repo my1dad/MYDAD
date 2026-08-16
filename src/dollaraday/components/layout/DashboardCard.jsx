@@ -1,6 +1,8 @@
-import { ChevronDown, CircleDollarSign, Lock, Percent } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, CircleDollarSign, Lock, Percent, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import { lockBodyScroll } from "@/lib/modalBodyLock";
 import { useLocale } from "../../i18n/LocaleContext";
 import { DDA_THEME_VARS } from "../../lib/theme";
 
@@ -66,15 +68,49 @@ export default function DashboardCard({
   collapseAriaLabel,
   expandAriaLabel,
   scrollable = false,
+  expandAsOverlay = false,
+  collapsedPreview = null,
 }) {
+  const { t } = useLocale();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const overlayOpen = Boolean(expandAsOverlay && collapsible && !collapsed);
+  const showCollapsedPreview = Boolean(collapsedPreview && (collapsed || overlayOpen));
+
+  useEffect(() => {
+    if (!overlayOpen) return undefined;
+    return lockBodyScroll();
+  }, [overlayOpen]);
+
+  useEffect(() => {
+    if (!overlayOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      setCollapsed(true);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [overlayOpen]);
+
+  const closeOverlay = () => setCollapsed(true);
 
   const headerContent = (
     <div className="min-w-0 flex-1 text-left">
       {title && <h3 className="truncate text-lg font-semibold text-white">{title}</h3>}
-      {subtitle && !collapsed ? (
+      {subtitle && !collapsed && !expandAsOverlay ? (
         <p className="mt-0.5 truncate text-sm text-gray-400">{subtitle}</p>
       ) : null}
+    </div>
+  );
+
+  const body = (
+    <div className={noPadding ? undefined : compact ? "p-4" : "p-5"}>
+      {scrollable ? (
+        <div className="dda-card-scroll">{children}</div>
+      ) : (
+        children
+      )}
     </div>
   );
 
@@ -85,7 +121,7 @@ export default function DashboardCard({
           className={cn(
             "flex items-start justify-between gap-2 border-b border-white/10",
             compact ? "px-4 py-3" : "px-5 py-4",
-            collapsed && "border-b-0",
+            (collapsed || overlayOpen) && !showCollapsedPreview && "border-b-0",
           )}
         >
           {collapsible ? (
@@ -94,13 +130,14 @@ export default function DashboardCard({
               onClick={() => setCollapsed((open) => !open)}
               className="dda-card-collapse-trigger flex min-w-0 flex-1 items-start text-left"
               aria-expanded={!collapsed}
+              aria-haspopup={expandAsOverlay ? "dialog" : undefined}
               aria-label={collapsed ? expandAriaLabel : collapseAriaLabel}
             >
               {headerContent}
               <ChevronDown
                 className={cn(
                   "dda-card-collapse-trigger__chevron mt-1 h-5 w-5 shrink-0 text-gray-500",
-                  !collapsed && "dda-card-collapse-trigger__chevron--open",
+                  !collapsed && !expandAsOverlay && "dda-card-collapse-trigger__chevron--open",
                 )}
                 aria-hidden="true"
               />
@@ -111,15 +148,53 @@ export default function DashboardCard({
           {action}
         </div>
       )}
-      {!collapsed ? (
-        <div className={noPadding ? undefined : compact ? "p-4" : "p-5"}>
-          {scrollable ? (
-            <div className="dda-card-scroll">{children}</div>
-          ) : (
-            children
-          )}
+      {showCollapsedPreview ? (
+        <div className={cn("dda-card-collapsed-preview", compact ? "px-4 pb-3" : "px-5 pb-4")}>
+          {collapsedPreview}
         </div>
       ) : null}
+      {!collapsed && !expandAsOverlay ? body : null}
+      {overlayOpen
+        ? createPortal(
+            <div className="dda-card-expand-overlay">
+              <button
+                type="button"
+                aria-label={t("common.close")}
+                className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+                onClick={closeOverlay}
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={typeof title === "string" ? title : undefined}
+                className="dda-card-expand-overlay__panel"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="dda-accent-bar" />
+                <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
+                  <div className="min-w-0 flex-1">
+                    {title ? (
+                      <h2 className="text-lg font-semibold text-white">{title}</h2>
+                    ) : null}
+                    {subtitle ? (
+                      <p className="mt-0.5 text-sm text-gray-400">{subtitle}</p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeOverlay}
+                    aria-label={t("common.close")}
+                    className="rounded-lg p-2 text-gray-400 transition hover:bg-white/5 hover:text-white"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="dda-scroll min-h-0 flex-1 overflow-y-auto">{body}</div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </section>
   );
 }

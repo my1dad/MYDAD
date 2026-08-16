@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { isAdminProfile } from "../../../config/admin";
+import { MEMBER_ROLE } from "../../../config/memberProfile";
 import { lockBodyScroll } from "@/lib/modalBodyLock";
 import PasswordInput from "../auth/PasswordInput";
 import { useLocale } from "../../i18n/LocaleContext";
@@ -16,6 +18,7 @@ export default function AdminProfileEditModal({ profile, open, onClose, onSaved 
   const [role, setRole] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const editingAdmin = isAdminProfile(profile);
 
   useEffect(() => {
     if (!open || !profile) return;
@@ -23,10 +26,10 @@ export default function AdminProfileEditModal({ profile, open, onClose, onSaved 
     setDisplayName(profile.displayName ?? profile.fullName ?? "");
     setEmail(profile.email ?? "");
     setPhone(profile.phone ?? "");
-    setRole(profile.role ?? "");
+    setRole(editingAdmin ? (profile.role ?? "") : MEMBER_ROLE);
     setPassword("");
     setError("");
-  }, [open, profile]);
+  }, [open, profile, editingAdmin]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -53,7 +56,7 @@ export default function AdminProfileEditModal({ profile, open, onClose, onSaved 
       displayName,
       email,
       phone,
-      role,
+      role: editingAdmin ? role : MEMBER_ROLE,
       password: password || undefined,
     });
 
@@ -166,6 +169,7 @@ export default function AdminProfileEditModal({ profile, open, onClose, onSaved 
               value={role}
               onChange={(event) => setRole(event.target.value)}
               placeholder={t("pages.admin.profileEditRolePlaceholder")}
+              readOnly={!editingAdmin}
               className="dda-input"
             />
           </div>

@@ -56,7 +56,12 @@ function DesktopNavTile({
   onClick,
 }) {
   return (
-    <button type="button" className={cn("dda-home-desk-tile", `dda-home-desk-tile--${tone}`)} onClick={onClick}>
+    <button
+      type="button"
+      className={cn("dda-home-desk-tile", `dda-home-desk-tile--${tone}`)}
+      onClick={onClick}
+      title={meta || title}
+    >
       <span className="dda-home-desk-tile__icon" aria-hidden="true">
         <Icon className="h-4 w-4" strokeWidth={2.25} />
       </span>
@@ -198,9 +203,6 @@ export default function HomeDesktopDashboard({
       </header>
 
       <div className="dda-home-desktop__hero">
-        <div className="dda-home-desktop__hero-equity">
-          <PlatformEquityCard onClick={() => onNavigate?.("accounts")} />
-        </div>
         <div className="dda-home-desktop__hero-pool">
           <PoolDigitalDisplay
             amount={poolTotal}
@@ -213,6 +215,9 @@ export default function HomeDesktopDashboard({
             onSleeveClick={() => onNavigate?.("investments")}
           />
         </div>
+        <div className="dda-home-desktop__hero-equity">
+          <PlatformEquityCard onClick={() => onNavigate?.("accounts")} />
+        </div>
       </div>
 
       <div className="dda-home-desktop__rail">
@@ -223,89 +228,92 @@ export default function HomeDesktopDashboard({
       </div>
 
       <section className="dda-home-desktop__widgets" aria-label={t("pages.dashboard.deskWidgetsLabel")}>
-        <DesktopNavTile
-          icon={Users}
-          title={t("nav.members")}
-          value={String(stats.memberCount)}
-          meta={
-            isAdmin && stats.pendingCount > 0
-              ? t("pages.dashboard.deskMembersPending", { count: stats.pendingCount })
-              : t("pages.dashboard.deskMembersMeta")
-          }
-          tone="green"
-          onClick={() => onNavigate?.("members")}
-        />
-
-        <DesktopNavTile
-          icon={Wallet}
-          title={t("nav.accounts")}
-          value={formatMoney(stats.walletTotal)}
-          meta={
-            isAdmin
-              ? t("pages.dashboard.deskAccountsMetaAdmin", {
-                  admin: formatMoney(stats.adminAccount),
-                  liquidity: formatMoney(stats.communityLiquidity),
-                })
-              : t("pages.dashboard.deskAccountsMeta", {
-                  checking: formatMoney(stats.checking),
-                  escrow: formatMoney(stats.escrow),
-                })
-          }
-          tone="gold"
-          onClick={() => onNavigate?.("accounts")}
-        />
-
-        <DesktopNavTile
-          icon={LineChart}
-          title={t("nav.investments")}
-          value={formatMoney(stats.deployed)}
-          meta={t("pages.dashboard.deskInvestmentsMeta")}
-          tone="emerald"
-          onClick={() => onNavigate?.("investments")}
-        />
-
-        <DesktopNavTile
-          icon={PiggyBank}
-          title={t("nav.pool")}
-          value={formatPoolCurrency(poolTotal)}
-          meta={t("pages.dashboard.deskPoolMeta", {
-            inflow: formatPoolCurrency(poolDailyInflow),
-          })}
-          tone="lime"
-          onClick={() => onNavigate?.("pool")}
-        />
-
-        {isAdmin ? (
+        <div className="dda-accent-bar" />
+        <div className="dda-home-desktop__widgets-track">
           <DesktopNavTile
-            icon={UserPlus}
-            title={t("pages.dashboard.deskApprovalsTitle")}
-            value={String(stats.pendingCount)}
-            meta={t("pages.dashboard.deskApprovalsMeta")}
-            tone="amber"
+            icon={Users}
+            title={t("nav.members")}
+            value={String(stats.memberCount)}
+            meta={
+              isAdmin && stats.pendingCount > 0
+                ? t("pages.dashboard.deskMembersPending", { count: stats.pendingCount })
+                : t("pages.dashboard.deskMembersMeta")
+            }
+            tone="green"
             onClick={() => onNavigate?.("members")}
           />
-        ) : (
-          <DesktopNavTile
-            icon={ClipboardList}
-            title={t("nav.allocations")}
-            value={formatMoney(stats.depositsTotal)}
-            meta={t("pages.dashboard.deskDonationsMeta")}
-            tone="amber"
-            onClick={() => onNavigate?.("allocations")}
-          />
-        )}
 
-        {quickLinks.map((link) => (
           <DesktopNavTile
-            key={link.id}
-            icon={link.icon}
-            title={link.title}
-            value={link.value}
-            meta={link.meta}
-            tone={link.tone}
-            onClick={() => onNavigate?.(link.id)}
+            icon={Wallet}
+            title={t("nav.accounts")}
+            value={formatMoney(stats.walletTotal)}
+            meta={
+              isAdmin
+                ? t("pages.dashboard.deskAccountsMetaAdmin", {
+                    admin: formatMoney(stats.adminAccount),
+                    liquidity: formatMoney(stats.communityLiquidity),
+                  })
+                : t("pages.dashboard.deskAccountsMeta", {
+                    checking: formatMoney(stats.checking),
+                    escrow: formatMoney(stats.escrow),
+                  })
+            }
+            tone="gold"
+            onClick={() => onNavigate?.("accounts")}
           />
-        ))}
+
+          <DesktopNavTile
+            icon={LineChart}
+            title={t("nav.investments")}
+            value={formatMoney(stats.deployed)}
+            meta={t("pages.dashboard.deskInvestmentsMeta")}
+            tone="emerald"
+            onClick={() => onNavigate?.("investments")}
+          />
+
+          <DesktopNavTile
+            icon={PiggyBank}
+            title={t("nav.pool")}
+            value={formatPoolCurrency(poolTotal)}
+            meta={t("pages.dashboard.deskPoolMeta", {
+              inflow: formatPoolCurrency(poolDailyInflow),
+            })}
+            tone="lime"
+            onClick={() => onNavigate?.("pool")}
+          />
+
+          {isAdmin ? (
+            <DesktopNavTile
+              icon={UserPlus}
+              title={t("pages.dashboard.deskApprovalsTitle")}
+              value={String(stats.pendingCount)}
+              meta={t("pages.dashboard.deskApprovalsMeta")}
+              tone="amber"
+              onClick={() => onNavigate?.("members")}
+            />
+          ) : (
+            <DesktopNavTile
+              icon={ClipboardList}
+              title={t("nav.allocations")}
+              value={formatMoney(stats.depositsTotal)}
+              meta={t("pages.dashboard.deskDonationsMeta")}
+              tone="amber"
+              onClick={() => onNavigate?.("allocations")}
+            />
+          )}
+
+          {quickLinks.map((link) => (
+            <DesktopNavTile
+              key={link.id}
+              icon={link.icon}
+              title={link.title}
+              value={link.value}
+              meta={link.meta}
+              tone={link.tone}
+              onClick={() => onNavigate?.(link.id)}
+            />
+          ))}
+        </div>
       </section>
     </div>
   );

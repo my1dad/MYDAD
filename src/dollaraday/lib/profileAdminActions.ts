@@ -1,4 +1,5 @@
 import { isAdminProfile } from "../../config/admin";
+import { MEMBER_ROLE } from "../../config/memberProfile";
 import {
   ensureDadAdminProfile,
   findDadProfileById,
@@ -407,7 +408,9 @@ export async function updateDadProfileByAdmin(
   const username = input.username.trim();
   const displayName = input.displayName.trim();
   const password = input.password?.trim() ?? "";
-  const role = input.role?.trim() || undefined;
+  const role = isAdminProfile(profile)
+    ? input.role?.trim() || undefined
+    : MEMBER_ROLE;
 
   if (!username) return { ok: false, error: "Username is required." };
   if (username.length < 3) return { ok: false, error: "Username must be at least 3 characters." };

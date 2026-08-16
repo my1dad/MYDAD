@@ -166,9 +166,10 @@ export default {
   },
   tier: {
     "Master Admin": "Admin maestro",
-    Founder: "Fundador",
-    Builder: "Constructor",
-    Member: "Miembro",
+    Investor: "Inversionista",
+    Founder: "Inversionista",
+    Builder: "Inversionista",
+    Member: "Inversionista",
   },
   loanStatus: {
     eligible: "Elegible",
@@ -1004,10 +1005,10 @@ export default {
       memberDetailStats: "Estadísticas",
       memberDetailBalances: "Saldo del miembro",
       memberDetailBalancesNote:
-        "Define el saldo de cuenta corriente. Actualiza su billetera y los totales de Contribuido / Equity en Miembros.",
+        "Deposita en el pool de liquidez de la comunidad. El monto se suma al equity/depósitos del miembro y se sincroniza en la plataforma.",
       memberBalanceKicker: "Depósito al miembro",
       memberBalanceNote:
-        "Ingresa un monto para depositar en la cuenta de este miembro. Puedes depositar varias veces: cada depósito se suma al saldo actual.",
+        "Deposita en el pool de liquidez de la comunidad. El monto se suma al equity/depósitos del miembro y se sincroniza en la plataforma. Puedes depositar varias veces: cada depósito se suma al saldo actual.",
       memberBalanceCurrent: "Saldo actual",
       memberBalanceDepositAmount: "Monto del depósito",
       memberBalanceSaving: "Depositando…",
@@ -1017,10 +1018,10 @@ export default {
       memberBalanceDepositLog: "Registro de depósitos",
       memberBalanceDepositLogEmpty: "Aún no hay depósitos desde este panel.",
       memberBalanceDepositLogTotal: "{{count}} depósitos · {{amount}} en total",
-      memberDetailBalanceChecking: "Cuenta corriente",
+      memberDetailBalanceChecking: "Depositar en el pool de liquidez",
       memberDetailBalanceEscrow: "Custodia",
-      memberDetailBalancesSave: "Guardar saldo",
-      memberDetailBalancesSaved: "Saldo actualizado.",
+      memberDetailBalancesSave: "Depositar",
+      memberDetailBalancesSaved: "Depósito registrado.",
       memberDetailBalancesInvalid: "Ingresa un monto válido de $0 o más.",
       memberDetailBalancesFailed: "No se pudo actualizar el saldo de este miembro.",
       memberDetailMissing:
@@ -1053,7 +1054,7 @@ export default {
       profileEditSave: "Guardar cambios",
       profileEditCancel: "Cancelar",
       profileEditPasswordPlaceholder: "Dejar en blanco para mantener la contraseña actual",
-      profileEditRolePlaceholder: "p. ej. Miembro, Constructor",
+      profileEditRolePlaceholder: "Inversionista",
       settings: {
         title: "Configuración",
         subtitle: "Copia de seguridad, restablecimiento, notificaciones, zona horaria y cuenta de administrador.",

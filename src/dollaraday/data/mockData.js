@@ -6,7 +6,7 @@ export const currentMember = {
   name: "Guest",
   handle: "@guest",
   avatarInitials: "?",
-  tier: "Member",
+  tier: "Investor",
   memberSince: "",
   dailyContribution: 0,
   totalContributed: 0,

@@ -74,6 +74,14 @@ function createEmptyBin(key: DataBinKey): DataBinDocument {
   };
 }
 
+/** In-memory $0 bins without reading localStorage — cloud-first boot. */
+export function seedEmptyBinsInMemory(): void {
+  for (const definition of DATA_BIN_DEFINITIONS) {
+    cache[definition.binId] = createEmptyBin(definition.key);
+  }
+  invalidateSnapshot();
+}
+
 function localStorageKey(binId: string): string {
   return `dollar-a-day:${DAD_STORAGE_PROFILE_ID}:${binId}`;
 }
@@ -357,11 +365,12 @@ export function applyExternalBinDocument(
   } catch (err) {
     console.warn(`[internalDatabase] Could not cache remote ${binId}:`, err);
   }
-  notifyListeners();
+  scheduleNotifyListeners();
 
   // Remote contributions/settings: invalidate caches only.
   // Full reconcile was freezing the UI — run it later via explicit hydrate({ reconcile: true }).
-  if (key === "settings" || key === "contributions") {
+  // Bulk adopt already rebuilds once after all bins land — skip per-bin hydrates.
+  if (bulkWriteDepth === 0 && (key === "settings" || key === "contributions")) {
     queueMicrotask(() => {
       void Promise.all([
         import("./memberAccounts"),
@@ -593,6 +602,16 @@ export function ensureLocalBinsHydrated(): void {
 }
 
 export async function initInternalDatabase(): Promise<DatabaseSnapshot> {
+  const { isSupabaseConfigured } = await import("./supabase/client");
+  if (isSupabaseConfigured()) {
+    // Cloud-first: import-time already seeded empty in-memory bins.
+    // Do not re-read localStorage or wipe bins adopted by post-auth pull.
+    initialized = true;
+    const snapshot = getDatabaseSnapshot();
+    notifyListeners();
+    return snapshot;
+  }
+
   // Keep any already-hydrated local bins; never wipe the cache to null before await.
   ensureLocalBinsHydrated();
 
