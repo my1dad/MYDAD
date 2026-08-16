@@ -27,6 +27,7 @@ create table if not exists public.dad_profiles (
   referred_by_pro_id text,
   account_status text,
   approval_status text,
+  workspace_id text not null default 'dollaraday',
   created_at timestamptz not null default now(),
   last_login_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -35,9 +36,12 @@ create table if not exists public.dad_profiles (
 create unique index if not exists dad_profiles_username_lower_idx
   on public.dad_profiles (lower(username));
 
--- Existing projects: add account_number if the table already existed without it
+-- Existing projects: add account_number / workspace_id if the table already existed without them
 alter table public.dad_profiles
   add column if not exists account_number text;
+
+alter table public.dad_profiles
+  add column if not exists workspace_id text not null default 'dollaraday';
 
 create unique index if not exists dad_profiles_account_number_idx
   on public.dad_profiles (account_number)
@@ -77,31 +81,68 @@ begin
 exception when duplicate_object then null;
 end $$;
 
--- Row Level Security
+-- Row Level Security (scoped to workspace dollaraday — not USING (true))
 alter table public.dad_bins enable row level security;
 alter table public.dad_profiles enable row level security;
 alter table public.dad_kv enable row level security;
 
 drop policy if exists "dad_bins_anon_all" on public.dad_bins;
-create policy "dad_bins_anon_all" on public.dad_bins
-  for all to anon, authenticated using (true) with check (true);
-
-drop policy if exists "dad_profiles_anon_all" on public.dad_profiles;
-create policy "dad_profiles_anon_all" on public.dad_profiles
-  for all to anon, authenticated using (true) with check (true);
-
 drop policy if exists "dad_kv_anon_all" on public.dad_kv;
-create policy "dad_kv_anon_all" on public.dad_kv
-  for all to anon, authenticated using (true) with check (true);
+drop policy if exists "dad_profiles_anon_all" on public.dad_profiles;
 
--- Auto-update updated_at
+drop policy if exists "dad_bins_select_workspace" on public.dad_bins;
+drop policy if exists "dad_bins_insert_workspace" on public.dad_bins;
+drop policy if exists "dad_bins_update_workspace" on public.dad_bins;
+drop policy if exists "dad_bins_delete_workspace" on public.dad_bins;
+create policy "dad_bins_select_workspace" on public.dad_bins
+  for select to anon, authenticated using (workspace_id = 'dollaraday');
+create policy "dad_bins_insert_workspace" on public.dad_bins
+  for insert to anon, authenticated with check (workspace_id = 'dollaraday');
+create policy "dad_bins_update_workspace" on public.dad_bins
+  for update to anon, authenticated
+  using (workspace_id = 'dollaraday') with check (workspace_id = 'dollaraday');
+create policy "dad_bins_delete_workspace" on public.dad_bins
+  for delete to anon, authenticated using (workspace_id = 'dollaraday');
+
+drop policy if exists "dad_kv_select_workspace" on public.dad_kv;
+drop policy if exists "dad_kv_insert_workspace" on public.dad_kv;
+drop policy if exists "dad_kv_update_workspace" on public.dad_kv;
+drop policy if exists "dad_kv_delete_workspace" on public.dad_kv;
+create policy "dad_kv_select_workspace" on public.dad_kv
+  for select to anon, authenticated using (workspace_id = 'dollaraday');
+create policy "dad_kv_insert_workspace" on public.dad_kv
+  for insert to anon, authenticated with check (workspace_id = 'dollaraday');
+create policy "dad_kv_update_workspace" on public.dad_kv
+  for update to anon, authenticated
+  using (workspace_id = 'dollaraday') with check (workspace_id = 'dollaraday');
+create policy "dad_kv_delete_workspace" on public.dad_kv
+  for delete to anon, authenticated using (workspace_id = 'dollaraday');
+
+drop policy if exists "dad_profiles_select_workspace" on public.dad_profiles;
+drop policy if exists "dad_profiles_insert_workspace" on public.dad_profiles;
+drop policy if exists "dad_profiles_update_workspace" on public.dad_profiles;
+drop policy if exists "dad_profiles_delete_workspace" on public.dad_profiles;
+create policy "dad_profiles_select_workspace" on public.dad_profiles
+  for select to anon, authenticated using (workspace_id = 'dollaraday');
+create policy "dad_profiles_insert_workspace" on public.dad_profiles
+  for insert to anon, authenticated with check (workspace_id = 'dollaraday');
+create policy "dad_profiles_update_workspace" on public.dad_profiles
+  for update to anon, authenticated
+  using (workspace_id = 'dollaraday') with check (workspace_id = 'dollaraday');
+create policy "dad_profiles_delete_workspace" on public.dad_profiles
+  for delete to anon, authenticated using (workspace_id = 'dollaraday');
+
+-- Auto-update updated_at (search_path pinned for security advisor)
 create or replace function public.set_updated_at()
-returns trigger as $$
+returns trigger
+language plpgsql
+set search_path = public
+as $$
 begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
+$$;
 
 drop trigger if exists dad_bins_updated_at on public.dad_bins;
 create trigger dad_bins_updated_at

@@ -8,7 +8,8 @@ This app syncs all workspace data to Supabase so members and admins see the same
 
 1. Open [Supabase Dashboard](https://supabase.com/dashboard) → your project → **SQL Editor**
 2. Paste and run the full contents of [`schema.sql`](./schema.sql)
-3. Enable **Realtime** for these tables:  
+3. If Security Advisor still warns about old policies / `set_updated_at`, also run [`security_advisor_fixes.sql`](./security_advisor_fixes.sql)
+4. Enable **Realtime** for these tables:  
    **Database → Replication** (or Publications) → add `dad_bins`, `dad_profiles`, `dad_kv`
 
 ## 2. Get API keys
