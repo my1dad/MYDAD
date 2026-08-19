@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { workspaceBinsPlugin } from "./vite-plugin-workspace-bins.js";
 import { massiveApiPlugin } from "./vite-plugin-massive-api.js";
 import { signupNotifyPlugin } from "./vite-plugin-signup-notify.js";
+import { adminAnalyticsPlugin } from "./vite-plugin-admin-analytics.js";
 
 export default defineConfig({
   // Vercel serves from a web root — absolute `/` so SPA rewrites cannot break `./assets/*`.
@@ -16,6 +17,7 @@ export default defineConfig({
     workspaceBinsPlugin(path.resolve(__dirname, "bins")),
     massiveApiPlugin(),
     signupNotifyPlugin(),
+    adminAnalyticsPlugin(),
   ],
   resolve: {
     alias: {

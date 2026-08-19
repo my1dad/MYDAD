@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { useDadAuth } from "./context/DadAuthContext.jsx";
 import DadLoginPage from "./pages/DadLoginPage.jsx";
 import PostAuthWorkspace from "./components/PostAuthWorkspace.jsx";
@@ -45,6 +46,26 @@ function MissingSupabaseScreen() {
   );
 }
 
+function withAnalytics(node) {
+  return (
+    <>
+      <Analytics
+        beforeSend={(event) => {
+          if (event.type !== "pageview" || typeof window === "undefined") return event;
+          try {
+            const url = new URL(event.url, window.location.origin);
+            url.hash = window.location.hash || "";
+            return { ...event, url: url.href };
+          } catch {
+            return event;
+          }
+        }}
+      />
+      {node}
+    </>
+  );
+}
+
 export default function DadRoot() {
   const { isAuthenticated, isAdmin } = useDadAuth();
   const [guestView, setGuestView] = useState(resolveGuestView);
@@ -56,6 +77,17 @@ export default function DadRoot() {
   }, []);
 
   useEffect(() => {
+    const sendHashPageview = () => {
+      window.va?.("pageview", {
+        path: `${window.location.pathname}${window.location.hash || ""}`,
+        route: window.location.hash || "/",
+      });
+    };
+    window.addEventListener("hashchange", sendHashPageview);
+    return () => window.removeEventListener("hashchange", sendHashPageview);
+  }, []);
+
+  useEffect(() => {
     const root = document.documentElement;
     const active = Boolean(isAuthenticated && isAdmin);
     root.classList.toggle("dda-theme-admin", active);
@@ -63,15 +95,15 @@ export default function DadRoot() {
   }, [isAuthenticated, isAdmin]);
 
   if (import.meta.env.PROD && !isSupabaseConfigured()) {
-    return (
+    return withAnalytics(
       <div className="dda-app h-full w-full overflow-hidden">
         <MissingSupabaseScreen />
-      </div>
+      </div>,
     );
   }
 
   if (isAuthenticated) {
-    return (
+    return withAnalytics(
       <div
         className={`dda-app h-full w-full overflow-hidden${isAdmin ? " dda-app--admin" : ""}`}
       >
@@ -80,23 +112,23 @@ export default function DadRoot() {
             <App />
           </Suspense>
         </PostAuthWorkspace>
-      </div>
+      </div>,
     );
   }
 
   if (guestView === "terms") {
-    return (
+    return withAnalytics(
       <div className="dda-app h-full w-full overflow-hidden">
         <Suspense fallback={<AuthBootFallback />}>
           <TermsOfServicePage />
         </Suspense>
-      </div>
+      </div>,
     );
   }
 
-  return (
+  return withAnalytics(
     <div className="dda-app h-full w-full overflow-hidden">
       <DadLoginPage />
-    </div>
+    </div>,
   );
 }

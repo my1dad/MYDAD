@@ -10249,3 +10249,101 @@ select.dda-bank-transfer-route__select {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.dda-analytics__hero {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.1rem 1rem 0.35rem;
+}
+
+@media (min-width: 640px) {
+  .dda-analytics__hero {
+    flex-direction: row;
+    align-items: center;
+    gap: 1.75rem;
+    padding: 1.35rem 1.25rem 0.5rem;
+  }
+}
+
+.dda-analytics__gauge {
+  position: relative;
+  width: 8.5rem;
+  height: 8.5rem;
+  flex-shrink: 0;
+  margin-inline: auto;
+}
+
+.dda-analytics__gauge-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.dda-analytics__gauge-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.dda-analytics__gauge-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.dda-analytics__gauge-label {
+  margin-top: 0.15rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.dda-analytics__eq-bar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 999px 999px 0 0;
+  background: color-mix(in srgb, var(--color-dda-green-light) 35%, transparent);
+}
+
+.dda-analytics__funnel {
+  display: flex;
+  height: 0.7rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.dda-analytics__funnel span {
+  display: block;
+  height: 100%;
+  min-width: 0.35rem;
+}
+
+.dda-analytics__funnel--empty {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0,
+    rgba(255, 255, 255, 0.05) 12px,
+    rgba(255, 255, 255, 0.02) 12px,
+    rgba(255, 255, 255, 0.02) 24px
+  );
+}
+
+.dda-analytics__wave {
+  width: min(18rem, 100%);
+  height: 3.5rem;
+  background:
+    radial-gradient(circle at 20% 70%, color-mix(in srgb, var(--color-dda-green-light) 28%, transparent) 0 18%, transparent 19%),
+    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--color-dda-gold-light) 22%, transparent) 0 16%, transparent 17%),
+    radial-gradient(circle at 78% 62%, color-mix(in srgb, #38bdf8 24%, transparent) 0 14%, transparent 15%);
+  opacity: 0.9;
+}

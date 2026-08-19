@@ -20,6 +20,11 @@ import { formatEasternShortDate } from "../lib/dateTime";
 const MemberDetailModal = lazy(() => import("../components/members/MemberDetailModal"));
 const AdminMemberBalanceModal = lazy(() => import("../components/admin/AdminMemberBalanceModal"));
 
+function asMoney(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function MemberStatCard({ title, value, icon: Icon, accent, bg, bgDeep, border }) {
   return (
     <div
@@ -191,6 +196,14 @@ export default function MembersPage() {
     },
   ];
 
+  if (!isAdmin) {
+    return (
+      <div className="dda-glass rounded-2xl p-6 text-sm text-gray-400">
+        {t("pages.admin.masterOnly")}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <PageHeader
@@ -226,13 +239,13 @@ export default function MembersPage() {
                 {t("memberModal.contributed")}
               </span>
               <span className="font-semibold tabular-nums text-white">
-                ${myMember.contributed.toLocaleString()}
+                ${asMoney(myMember.contributed).toLocaleString()}
               </span>
               <span className="mt-1 block text-[10px] uppercase tracking-wide text-gray-500">
                 {t("common.equity")}
               </span>
               <span className="font-semibold tabular-nums text-dda-green-light">
-                ${myMember.equity.toLocaleString()}
+                ${asMoney(myMember.equity).toLocaleString()}
               </span>
             </span>
           </button>
@@ -365,7 +378,7 @@ export default function MembersPage() {
                   {t("memberModal.contributed")}
                 </span>
                 <span className="font-semibold tabular-nums text-white">
-                  ${member.contributed.toLocaleString()}
+                  ${asMoney(member.contributed).toLocaleString()}
                 </span>
               </span>
 
@@ -374,7 +387,7 @@ export default function MembersPage() {
                   {t("common.equity")}
                 </span>
                 <span className="font-semibold tabular-nums text-dda-green-light">
-                  ${member.equity.toLocaleString()}
+                  ${asMoney(member.equity).toLocaleString()}
                 </span>
               </span>
 
@@ -392,7 +405,7 @@ export default function MembersPage() {
                 <span className="font-semibold tabular-nums text-white">
                   $
                   {member.days
-                    ? (member.contributed / member.days).toFixed(2)
+                    ? (asMoney(member.contributed) / Math.max(1, Number(member.days) || 0)).toFixed(2)
                     : "0.00"}
                 </span>
               </span>
@@ -441,13 +454,13 @@ export default function MembersPage() {
                     {t("memberModal.contributed")}
                   </span>
                   <span className="font-semibold tabular-nums text-white">
-                    ${fullMember.contributed.toLocaleString()}
+                    ${asMoney(fullMember.contributed).toLocaleString()}
                   </span>
                   <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-gray-500">
                     {t("common.equity")}
                   </span>
                   <span className="font-semibold tabular-nums text-dda-green-light">
-                    ${fullMember.equity.toLocaleString()}
+                    ${asMoney(fullMember.equity).toLocaleString()}
                   </span>
                 </span>
               </button>

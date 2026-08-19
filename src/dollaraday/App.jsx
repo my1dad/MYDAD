@@ -17,6 +17,7 @@ const pageLoaders = {
   profile: () => import("./pages/ProfilePage"),
   investments: () => import("./pages/InvestmentsPage"),
   "admin-bins": () => import("./pages/AdminDataBinsPage"),
+  analytics: () => import("./pages/AnalyticsPage"),
 };
 
 const LiquidityPoolPage = lazy(pageLoaders.pool);
@@ -29,6 +30,7 @@ const AdminPage = lazy(pageLoaders.admin);
 const ProfilePage = lazy(pageLoaders.profile);
 const InvestmentsPage = lazy(pageLoaders.investments);
 const AdminDataBinsPage = lazy(pageLoaders["admin-bins"]);
+const AnalyticsPage = lazy(pageLoaders.analytics);
 
 const pages = {
   dashboard: DashboardPage,
@@ -42,11 +44,12 @@ const pages = {
   profile: ProfilePage,
   investments: InvestmentsPage,
   "admin-bins": AdminDataBinsPage,
+  analytics: AnalyticsPage,
 };
 
 const warmed = new Set(["dashboard"]);
 
-const MEMBER_FORBIDDEN_PAGES = new Set(["admin", "admin-bins", "investments", "allocations", "members"]);
+const MEMBER_FORBIDDEN_PAGES = new Set(["admin", "admin-bins", "investments", "allocations", "members", "analytics"]);
 
 export function prefetchPage(pageId) {
   const loader = pageLoaders[pageId];
@@ -131,9 +134,10 @@ export default function App() {
       activePage === "admin-bins" ||
       activePage === "investments" ||
       activePage === "allocations" ||
-      activePage === "members"
+      activePage === "members" ||
+      activePage === "analytics"
     ) {
-      goTo(activePage === "admin" ? "profile" : "dashboard");
+      goTo(activePage === "admin" || activePage === "admin-bins" ? "profile" : "dashboard");
     }
   }, [activePage, isAdmin, goTo]);
 

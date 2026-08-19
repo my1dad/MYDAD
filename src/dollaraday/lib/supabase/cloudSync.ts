@@ -615,10 +615,18 @@ export function applyRemoteWorkspaceEpoch(remoteEpoch: string | null | undefined
   }
 }
 
+function getActiveSessionId(): string | null {
+  try {
+    return sessionStorage.getItem("dollar-a-day-session")
+      ?? localStorage.getItem("dollar-a-day-persistent-session");
+  } catch {
+    return null;
+  }
+}
+
 function isActiveAdminSession(): boolean {
   try {
-    const raw = localStorage.getItem("dollar-a-day-session")
-      ?? localStorage.getItem("dollar-a-day-persistent-session");
+    const raw = getActiveSessionId();
     if (!raw) return false;
     // Session stores profile id; resolve via profiles cache when possible.
     const profilesRaw = localStorage.getItem("dollar-a-day-profiles");
@@ -1656,9 +1664,7 @@ function resolveProfilesForCloudPush(profiles: DadProfile[]): DadProfile[] {
     (profile) => isAdminProfile(profile) || !epoch || profileTimestamp(profile) >= epoch,
   );
   if (!isActiveAdminSession()) {
-    const sessionId =
-      localStorage.getItem("dollar-a-day-session") ??
-      localStorage.getItem("dollar-a-day-persistent-session");
+    const sessionId = getActiveSessionId();
     list = list.filter((profile) => profile.id === sessionId);
   }
   return list;
@@ -1747,15 +1753,7 @@ export async function pullCloudWorkspaceNow(options: {
   }
 
   pauseCloudPushes(60_000);
-  try {
-    const outcome = await syncCloudWorkspace(options);
-    return outcome;
-  } catch (err) {
-    console.warn("[cloudSync] Workspace pull failed; showing empty bins:", err);
-    applyForcedBlankBins();
-    refreshUiAfterLocalWipe();
-    return "empty";
-  }
+  return syncCloudWorkspace(options);
 }
 
 export async function syncCloudWorkspace(options: {
@@ -1778,12 +1776,6 @@ export async function syncCloudWorkspace(options: {
     const localEpoch = getWorkspaceEpoch();
     const adoptCloudWipe = Boolean(remoteEpoch && (!localEpoch || remoteEpoch > localEpoch));
     const remoteHasMembers = remoteProfiles.some((profile) => !isAdminProfile(profile));
-    // Never push fat local bins over a blank admin-only cloud.
-    const honorLocalReset =
-      Boolean(localEpoch) &&
-      (!remoteEpoch || localEpoch! >= remoteEpoch) &&
-      !adoptCloudWipe &&
-      remoteHasMembers;
 
     const binUpserts: Promise<unknown>[] = [];
 
@@ -1810,8 +1802,8 @@ export async function syncCloudWorkspace(options: {
       return "blank";
     }
 
-    if (adoptCloudWipe && remoteHasMembers) {
-      // Cloud already has a live member directory — unlock local blank filter and adopt it.
+    if (remoteHasMembers || adoptCloudWipe) {
+      // Live members or a newer cloud epoch — never keep a local factory-zero wipe.
       adoptOpenPlatformFromCloud(remoteEpoch);
     }
 
@@ -1826,7 +1818,8 @@ export async function syncCloudWorkspace(options: {
         const factoryZero = isFactoryZeroLocked();
 
         // This device just wiped and cloud is still empty/admin-only — push wiped bins.
-        if (factoryZero && (!remoteHasMembers || honorLocalReset)) {
+        // Never skip-adopt or push blanks when live members already exist in cloud.
+        if (factoryZero && !remoteHasMembers) {
           applyExternalBinDocument(binId, binKey, localDoc);
           if (isActiveAdminSession()) {
             binUpserts.push(upsertCloudBin(binId, localDoc, { blankWrite: true }));
@@ -2010,7 +2003,15 @@ export async function initCloudSync(options: {
 
   if (!options.skipInitialSync) {
     pauseCloudPushes(12_000);
-    await runSync();
+    try {
+      await syncCloudWorkspace(options);
+      lastFullSyncAt = Date.now();
+    } catch (err) {
+      console.warn("[cloudSync] Initial workspace sync failed:", err);
+      lastSyncError = err instanceof Error ? err.message : "Cloud sync failed";
+      notifyCloudStatusListeners();
+      throw err;
+    }
   } else {
     lastFullSyncAt = Date.now();
   }

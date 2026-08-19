@@ -419,7 +419,7 @@ function buildNotifications(profileId: string | undefined, isAdmin: boolean): Dd
         donationAmount: redemption.amount,
         occurredAt: redemption.redeemedAt,
         unread: !readIds.has(id),
-        targetPage: isAdmin ? "accounts" : "members",
+        targetPage: "accounts",
         targetProfileId: redemption.profileId,
       });
     });

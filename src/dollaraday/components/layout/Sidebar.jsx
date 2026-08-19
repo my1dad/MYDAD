@@ -9,6 +9,7 @@ import {
   Shield,
   Settings,
   TrendingUp,
+  Activity,
   Users,
   Wallet,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const navItemById = {
   investments: { id: "investments", icon: TrendingUp },
   accounts: { id: "accounts", icon: Wallet },
   community: { id: "community", icon: MessageSquare },
+  analytics: { id: "analytics", icon: Activity },
   admin: { id: "admin", icon: Shield },
   loans: { id: "loans", icon: Banknote },
 };
@@ -38,6 +40,7 @@ export const navItems = [
   navItemById.accounts,
   navItemById.loans,
   navItemById.community,
+  navItemById.analytics,
   navItemById.admin,
 ];
 
@@ -53,14 +56,15 @@ export const mobileMoreItems = [
   navItemById.members,
   navItemById.loans,
   navItemById.community,
+  navItemById.analytics,
   navItemById.admin,
 ];
 
-const ADMIN_NAV_IDS = ["dashboard", "allocations", "members", "pool", "investments", "accounts", "loans", "community", "admin"];
+const ADMIN_NAV_IDS = ["dashboard", "allocations", "members", "pool", "investments", "accounts", "loans", "community", "analytics", "admin"];
 const MEMBER_NAV_IDS = ["dashboard", "pool", "accounts", "loans", "community"];
 const ADMIN_MOBILE_NAV_IDS = ["dashboard", "pool", "investments", "accounts"];
 const MEMBER_MOBILE_NAV_IDS = ["dashboard", "pool", "accounts", "community"];
-const ADMIN_MOBILE_MORE_IDS = ["allocations", "members", "loans", "community", "admin"];
+const ADMIN_MOBILE_MORE_IDS = ["allocations", "members", "loans", "community", "analytics", "admin"];
 const MEMBER_MOBILE_MORE_IDS = ["loans"];
 
 const mobileNavLabels = {

@@ -71,7 +71,9 @@ function getNotificationTitle(item, t, isAdmin) {
 }
 
 function getNotificationBody(item, t, isAdmin) {
-  const amount = (item.donationAmount ?? 0).toFixed(2);
+  const amount = Number.isFinite(Number(item.donationAmount))
+    ? Number(item.donationAmount).toFixed(2)
+    : "0.00";
   switch (item.kind) {
     case "community_dm":
       return item.messageBody ?? "";

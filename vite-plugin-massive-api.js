@@ -29,11 +29,11 @@ export function massiveApiPlugin() {
     name: "massive-api",
     configureServer(server) {
       const env = loadEnv(server.config.mode, server.config.root, "");
-      attachMarketMiddleware(server, env);
+      attachMarketMiddleware(server, { ...process.env, ...env });
     },
     configurePreviewServer(server) {
       const env = loadEnv(server.config.mode, server.config.root, "");
-      attachMarketMiddleware(server, env);
+      attachMarketMiddleware(server, { ...process.env, ...env });
     },
   };
 }

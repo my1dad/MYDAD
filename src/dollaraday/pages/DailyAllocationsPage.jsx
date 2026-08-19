@@ -4,6 +4,7 @@ import PageHeader from "../components/layout/PageHeader";
 import DashboardCard from "../components/layout/DashboardCard";
 import { useMembers, withLiveMemberBalances } from "../lib/memberRegistry";
 import { getMemberInitials, resolveMemberFromDonation } from "../lib/memberDetails";
+import { useDadAuth } from "../context/DadAuthContext";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
 import { useEasternLiveTime, useLiveRelativeTime } from "../context/EasternTimeContext";
@@ -38,6 +39,7 @@ function formatComparisonValue(item) {
 
 export default function DailyAllocationsPage() {
   const { t } = useLocale();
+  const { isAdmin } = useDadAuth();
   const { translateStatus } = useLocalizedData();
   const { todaysDonations, dailyAllocationSummary, allocationComparisons, currentMember } =
     usePoolState();
@@ -98,6 +100,14 @@ export default function DailyAllocationsPage() {
   const openMemberDetail = (donation) => {
     setSelectedMember(resolveMemberFromDonation(donation, members, currentMember));
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="dda-glass rounded-2xl p-6 text-sm text-gray-400">
+        {t("pages.admin.masterOnly")}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">

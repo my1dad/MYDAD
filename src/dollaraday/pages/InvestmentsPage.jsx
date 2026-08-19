@@ -4,6 +4,7 @@ import PageHeader from "../components/layout/PageHeader";
 import InvestmentHighlights from "../components/investments/InvestmentHighlights";
 import DashboardCard from "../components/layout/DashboardCard";
 import { formatPoolCurrency } from "../data/mockData";
+import { useDadAuth } from "../context/DadAuthContext";
 import { useLocale } from "../i18n/LocaleContext";
 import { useLocalizedData } from "../i18n/localizedData";
 import {
@@ -59,6 +60,7 @@ function InvestmentSheetStats({ rows, metricLabel, valueLabel }) {
 
 export default function InvestmentsPage() {
   const { t } = useLocale();
+  const { isAdmin } = useDadAuth();
   const { investments, investmentHighlights } = useLocalizedData();
   const {
     positions,
@@ -113,6 +115,14 @@ export default function InvestmentsPage() {
     () => buildLiveInvestmentHighlights(investmentHighlights, sleeveSummaries),
     [investmentHighlights, sleeveSummaries],
   );
+
+  if (!isAdmin) {
+    return (
+      <div className="dda-glass rounded-2xl p-6 text-sm text-gray-400">
+        {t("pages.admin.masterOnly")}
+      </div>
+    );
+  }
 
   const heroStats = [
     {
