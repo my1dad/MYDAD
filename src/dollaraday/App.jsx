@@ -46,7 +46,7 @@ const pages = {
 
 const warmed = new Set(["dashboard"]);
 
-const MEMBER_FORBIDDEN_PAGES = new Set(["admin", "admin-bins", "investments", "allocations"]);
+const MEMBER_FORBIDDEN_PAGES = new Set(["admin", "admin-bins", "investments", "allocations", "members"]);
 
 export function prefetchPage(pageId) {
   const loader = pageLoaders[pageId];
@@ -130,7 +130,8 @@ export default function App() {
       activePage === "admin" ||
       activePage === "admin-bins" ||
       activePage === "investments" ||
-      activePage === "allocations"
+      activePage === "allocations" ||
+      activePage === "members"
     ) {
       goTo(activePage === "admin" ? "profile" : "dashboard");
     }

@@ -47,7 +47,7 @@ function ActivityTime({ occurredAt }) {
 }
 
 function resolveTargetPage(type, isAdmin) {
-  if (type === "redemption") return isAdmin ? "accounts" : "members";
+  if (type === "redemption") return "accounts";
   if (type === "donation" || type === "loan_request") return isAdmin ? "admin" : "accounts";
   if (type === "register" || type === "profile_approve" || type === "profile_deny") {
     return isAdmin ? "members" : "dashboard";

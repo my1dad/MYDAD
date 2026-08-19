@@ -32,14 +32,16 @@ MASSIVE_API_KEY=your_massive_key_if_used
 
 Restart the dev server after changing env vars.
 
-## 4. Vercel (`my1dad`)
+## 4. Vercel (`dad` / `my-dollar-a-day-server`)
 
-1. Import/connect the GitHub repo `my1dad`
+1. Import/connect the GitHub repo [`my1dad/MYDAD`](https://github.com/my1dad/MYDAD.git) to Vercel team `my-dollar-a-day-server`, project `dad`
 2. **Project Settings → Environment Variables** — add for **Production** and **Preview**:
    - `VITE_SUPABASE_URL` = `https://payamrkwesnejaruenhm.supabase.co`
    - `VITE_SUPABASE_ANON_KEY` = (anon key from Supabase)
    - `MASSIVE_API_KEY` = (if using live stock quotes)
 3. Redeploy after saving env vars
+
+Production aliases: `https://my1dad.com` and `https://dad-my-dollar-a-day-server.vercel.app`. Unique `*.vercel.app` hosts with a hash in the name are deployment snapshots, not the stable production URL.
 
 ## What syncs to the cloud
 
@@ -55,7 +57,7 @@ Restart the dev server after changing env vars.
 
 ## GitHub
 
-Push this repo to `github.com/your-org/my1dad`. Vercel will build from the connected branch.
+Push this repo to [`github.com/my1dad/MYDAD`](https://github.com/my1dad/MYDAD.git) (`git push my1dad main`). Vercel project `dad` (team `my-dollar-a-day-server`) builds from the connected `main` branch.
 
 ## Security note
 

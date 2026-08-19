@@ -1,0 +1,33 @@
+---
+description: Lock GitHub, Vercel, and Supabase push targets for My Dollar A Day
+alwaysApply: true
+---
+
+# Deploy destinations (My Dollar A Day only)
+
+Canonical targets. Do not push, deploy, or run schema/SQL against any other GitHub remote, Vercel project, or Supabase project.
+
+## GitHub
+
+- Repo: `https://github.com/my1dad/MYDAD.git`
+- Remotes that point here: `my1dad` and `origin`
+- Prefer `git push my1dad main` (branch `main` tracks `my1dad`)
+- Never `git push dad` — remote `dad` is leftover Over Drive (`Over-Drive0s/DAD`)
+- Never push to `Over-Drive0s/roadmappv2` or any Over Drive org repo
+
+## Vercel
+
+- Team: `my-dollar-a-day-server`
+- Project: `dad`
+- Production: `https://my1dad.com` and `https://dad-my-dollar-a-day-server.vercel.app`
+- Unique hosts like `https://dad-lksdx7yjx-my-dollar-a-day-server.vercel.app` are deployment snapshots, not the production URL
+- Prefer GitHub auto-deploy from `main`; otherwise `vercel --prod` from `dad-code`
+- Do not deploy to any other Vercel team or project
+
+## Supabase
+
+- Project URL: `https://payamrkwesnejaruenhm.supabase.co`
+- Project ref: `payamrkwesnejaruenhm`
+- Local env: `VITE_SUPABASE_URL` must match that URL
+- Never Titanos / `xrwvaelhmibhslmfvxrs` / Over Drive org
+- Before any MCP SQL, migration, or schema change: `get_project_url` must return `https://payamrkwesnejaruenhm.supabase.co`. If it does not, stop and reconnect MCP — do not run SQL

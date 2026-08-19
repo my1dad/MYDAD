@@ -1,0 +1,14 @@
+---
+description: Scope work to members/dashboard — not master admin
+alwaysApply: true
+---
+
+# Member / dashboard scope (not master admin)
+
+Unless the user explicitly asks to change master admin:
+
+- Focus on **member** flows: create profile, admin approve member, member login, member settings/password, Members dashboard/UI.
+- Prefer member paths: `MemberSettingsCard`, `memberProfileActions`, Members page/modals, member auth register/login.
+- Do **not** treat master admin as the primary target (`admin` user, Admin settings account card, `updateMasterAdminOwnProfile`, admin-only tooling).
+- Shared auth/cloud code may be touched **only** when required for member create → approve → login or Members dashboard to work.
+- When fixing bugs, verify against a **member** account — not the master admin account — unless told otherwise.

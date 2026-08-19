@@ -437,6 +437,10 @@ export default function CommunityChat() {
   }, [profileId]);
 
   useEffect(() => {
+    if (!isAdmin && activeTab === "members") setActiveTab("room");
+  }, [isAdmin, activeTab]);
+
+  useEffect(() => {
     const pendingPartnerId = consumePendingDmPartnerId();
     if (pendingPartnerId) {
       setDmPartnerId(pendingPartnerId);
@@ -475,19 +479,21 @@ export default function CommunityChat() {
             label={t("pages.community.tabPrivate")}
             alertCount={totalUnread}
           />
-          <ChatTabButton
-            active={activeTab === "members"}
-            onClick={() => setActiveTab("members")}
-            icon={UserRound}
-            label={t("pages.community.tabMembers")}
-            alertCount={totalUnread}
-          />
+          {isAdmin ? (
+            <ChatTabButton
+              active={activeTab === "members"}
+              onClick={() => setActiveTab("members")}
+              icon={UserRound}
+              label={t("pages.community.tabMembers")}
+              alertCount={totalUnread}
+            />
+          ) : null}
         </div>
 
         <div className="dda-community-chat__body">
           {activeTab === "room" ? (
             <CommunityRoomPanel profileId={profileId} />
-          ) : activeTab === "members" ? (
+          ) : isAdmin && activeTab === "members" ? (
             <MembersPanel
               profileId={profileId}
               onMessage={openPrivateChat}
