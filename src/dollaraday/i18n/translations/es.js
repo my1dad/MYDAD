@@ -1014,7 +1014,7 @@ export default {
       memberBalanceCurrent: "Saldo actual",
       memberYieldKicker: "Tasa de rendimiento",
       memberYieldNote:
-        "Porcentaje que este miembro gana en cada intervalo, aplicado a su saldo actual.",
+        "Cada miembro tiene su propio porcentaje. Este miembro permanece en 0% hasta que lo cambies, y la tasa se aplica solo a sus depósitos.",
       memberYieldPercent: "Porcentaje",
       memberYieldInterval: "Intervalo",
       memberYieldIntervals: {
@@ -1035,6 +1035,7 @@ export default {
       memberBalanceDepositLog: "Registro de depósitos",
       memberBalanceDepositLogEmpty: "Aún no hay depósitos desde este panel.",
       memberBalanceDepositLogTotal: "{{count}} depósitos · {{amount}} en total",
+      memberBalanceDepositYield: "{{percent}}% {{interval}} · {{amount}}",
       memberDetailBalanceChecking: "Depositar en el pool de liquidez",
       memberDetailBalanceEscrow: "Custodia",
       memberDetailBalancesSave: "Depositar",

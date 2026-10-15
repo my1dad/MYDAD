@@ -68,6 +68,26 @@ function roundMoney(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
+function formatYieldMoney(value) {
+  const amount = roundMoney(value);
+  const body = Math.abs(amount).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  if (amount < 0) return `−${body}`;
+  return `+${body}`;
+}
+
+function parseYieldPercent(value) {
+  const cleaned = String(value ?? "").replace(/,/g, "").trim();
+  if (!cleaned) return null;
+  const percent = Number(cleaned);
+  if (!Number.isFinite(percent) || percent < 0) return null;
+  return percent;
+}
+
 /** Current investment balance — same equity figure as Members list / equity card. */
 function readCurrentBalance(profileId) {
   if (!profileId) return 0;
@@ -119,8 +139,7 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastDeposit, setLastDeposit] = useState(0);
-  const [yieldPercent, setYieldPercent] = useState("");
-  const [yieldInterval, setYieldInterval] = useState("monthly");
+  const [yieldDraft, setYieldDraft] = useState(null);
   const [yieldError, setYieldError] = useState("");
   const [yieldSaved, setYieldSaved] = useState(false);
   const [yieldSaving, setYieldSaving] = useState(false);
@@ -142,6 +161,18 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
     [depositLog],
   );
 
+  const savedSchedule = useMemo(() => {
+    void dbRevision;
+    if (!open || !profileId) return null;
+    return getMemberYieldSchedule(profileId);
+  }, [dbRevision, open, profileId]);
+
+  const standingPercent = savedSchedule ? String(savedSchedule.percent) : "0";
+  const standingInterval = savedSchedule?.interval ?? "monthly";
+  const draftForMember = yieldDraft?.profileId === profileId ? yieldDraft : null;
+  const yieldPercent = draftForMember ? draftForMember.percent : standingPercent;
+  const yieldInterval = draftForMember ? draftForMember.interval : standingInterval;
+
   useEffect(() => {
     if (!open || !profileId) return;
 
@@ -151,9 +182,7 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
     setSaved(false);
     setSaving(false);
     setLastDeposit(0);
-    const schedule = getMemberYieldSchedule(profileId);
-    setYieldPercent(schedule ? String(schedule.percent) : "");
-    setYieldInterval(schedule?.interval ?? "monthly");
+    setYieldDraft(null);
     setYieldError("");
     setYieldSaved(false);
     setYieldSaving(false);
@@ -172,11 +201,11 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
   useEffect(() => {
     if (!open) return undefined;
     const onKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeSheet();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, yieldPercent, yieldInterval]);
 
   if (!open || !member || !profileId) return null;
 
@@ -284,41 +313,62 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
     }
   };
 
-  const handleSaveYield = async () => {
-    setYieldError("");
-    setYieldSaved(false);
-
-    const percent = Number(String(yieldPercent).replace(/,/g, "").trim());
-    if (!Number.isFinite(percent) || percent < 0) {
-      setYieldError(t("pages.admin.memberYieldInvalid"));
-      return;
+  const commitYield = async (percentRaw, interval, { announce = true } = {}) => {
+    const percent = parseYieldPercent(percentRaw);
+    if (percent == null || !isYieldInterval(interval)) {
+      if (announce) setYieldError(t("pages.admin.memberYieldInvalid"));
+      return false;
     }
 
-    setYieldSaving(true);
+    const existing = getMemberYieldSchedule(profileId);
+    const rounded = Math.round(percent * 10000) / 10000;
+    if (existing && existing.percent === rounded && existing.interval === interval) {
+      setYieldDraft(null);
+      if (announce) setYieldSaved(true);
+      return true;
+    }
+
+    if (announce) setYieldSaving(true);
+    setYieldError("");
+    setYieldSaved(false);
     try {
-      const result = saveMemberYieldSchedule(profileId, percent, yieldInterval);
+      const result = saveMemberYieldSchedule(profileId, percent, interval);
       if (!result.ok) {
         setYieldError(t("pages.admin.memberYieldFailed"));
-        return;
+        return false;
       }
-      setYieldSaved(true);
+      setYieldDraft(null);
+      if (announce) setYieldSaved(true);
       try {
-        const { pushCloudBinsNow } = await import("../../lib/supabase/cloudSync");
-        await pushCloudBinsNow(
-          [{ binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") }],
-          { force: true },
-        );
+        const { pushSavedYieldSchedules } = await import("../../lib/supabase/cloudSync");
+        await pushSavedYieldSchedules();
       } catch {
         // Local rate already saved; cloud push can retry later.
       }
+      return true;
     } catch {
       setYieldError(t("pages.admin.memberYieldFailed"));
+      return false;
     } finally {
-      setYieldSaving(false);
+      if (announce) setYieldSaving(false);
     }
   };
 
+  const handleSaveYield = () => commitYield(yieldPercent, yieldInterval);
+
+  const closeSheet = () => {
+    if (draftForMember && String(draftForMember.percent).trim()) {
+      void commitYield(draftForMember.percent, draftForMember.interval, { announce: false });
+    }
+    onClose();
+  };
+
+  const restoreStandingYield = () => {
+    setYieldDraft(null);
+  };
+
   const yieldIntervalLabel = t(`pages.admin.memberYieldIntervals.${yieldInterval}`);
+  const appliedPercent = parseYieldPercent(yieldPercent) ?? 0;
 
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -326,7 +376,7 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
         type="button"
         aria-label={t("common.close")}
         className="absolute inset-0 bg-black/75 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={closeSheet}
       />
 
       <div
@@ -348,7 +398,7 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeSheet}
             aria-label={t("common.close")}
             className="dda-admin-member-sheet__close"
           >
@@ -393,8 +443,19 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
                     value={yieldPercent}
                     placeholder="0"
                     onChange={(event) => {
-                      setYieldPercent(sanitizeMoneyTyping(event.target.value));
+                      setYieldDraft({
+                        profileId,
+                        percent: sanitizeMoneyTyping(event.target.value),
+                        interval: yieldInterval,
+                      });
                       setYieldSaved(false);
+                    }}
+                    onBlur={() => {
+                      if (!String(yieldPercent).trim()) {
+                        restoreStandingYield();
+                        return;
+                      }
+                      void commitYield(yieldPercent, yieldInterval, { announce: false });
                     }}
                     className="dda-admin-member-balance-card__input dda-admin-member-yield__input"
                     onKeyDown={(event) => {
@@ -419,8 +480,10 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
                   onChange={(event) => {
                     const next = event.target.value;
                     if (!isYieldInterval(next)) return;
-                    setYieldInterval(next);
+                    setYieldDraft({ profileId, percent: yieldPercent, interval: next });
                     setYieldSaved(false);
+                    if (!String(yieldPercent).trim()) return;
+                    void commitYield(yieldPercent, next, { announce: false });
                   }}
                   className="dda-member-yield-interval"
                 >
@@ -528,6 +591,13 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
                           ? formatEasternDateTime(entry.contributedAt, locale)
                           : "—"}
                       </p>
+                      <p className="truncate text-[11px] tabular-nums text-dda-green-light">
+                        {t("pages.admin.memberBalanceDepositYield", {
+                          percent: String(appliedPercent),
+                          interval: yieldIntervalLabel,
+                          amount: formatYieldMoney(entry.amount * appliedPercent / 100),
+                        })}
+                      </p>
                     </div>
                     <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-dda-green-light">
                       {t("pages.admin.memberBalanceDepositAction")}
@@ -541,7 +611,7 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
           <div className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={closeSheet}
               className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-gray-300 transition hover:bg-white/5 hover:text-white sm:flex-none"
             >
               {t("pages.admin.profileEditCancel")}

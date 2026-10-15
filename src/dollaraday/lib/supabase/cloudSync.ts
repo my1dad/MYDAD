@@ -9,6 +9,7 @@ import {
   readDataBin,
   type DataBinDocument,
 } from "../internalDatabase";
+import { mergeYieldIntoSettingsDocument } from "../memberYield";
 import { DAD_WORKSPACE_ID, getSupabaseClient, isSupabaseConfigured } from "./client";
 
 const CLOUD_PUSH_DEBOUNCE_MS = 2500;
@@ -1828,8 +1829,15 @@ export async function syncCloudWorkspace(options: {
         }
 
         // Cloud-authoritative: adopt remote document wholesale when present.
+        // Yield rates survive an older settings copy so a saved percentage stays.
         if (remoteRow?.document) {
-          applyExternalBinDocument(binId, binKey, remoteRow.document);
+          const remoteDocument = remoteRow.document as DataBinDocument;
+          const document =
+            binKey === "settings" ? mergeYieldIntoSettingsDocument(remoteDocument) : remoteDocument;
+          applyExternalBinDocument(binId, binKey, document);
+          if (binKey === "settings" && document !== remoteDocument && isActiveAdminSession()) {
+            binUpserts.push(upsertCloudBin(binId, document));
+          }
           continue;
         }
 
@@ -1890,7 +1898,35 @@ function handleRemoteBinChange(binId: string, document: DataBinDocument): void {
   const binKey = binKeyForBinId(binId);
   if (!binKey) return;
   // Cloud-authoritative realtime: replace local bin — do not union-merge exclusives.
-  applyExternalBinDocument(binId, binKey, document);
+  // A saved return rate stays when an older settings document arrives.
+  const next = binKey === "settings" ? mergeYieldIntoSettingsDocument(document) : document;
+  applyExternalBinDocument(binId, binKey, next);
+}
+
+/** Write saved yield rates into the latest cloud settings document. */
+export async function pushSavedYieldSchedules(): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const binId = "dollar-a-day-settings";
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+
+  const { data, error } = await supabase
+    .from("dad_bins")
+    .select("document")
+    .eq("workspace_id", DAD_WORKSPACE_ID)
+    .eq("bin_id", binId)
+    .maybeSingle();
+
+  if (error || !data?.document) {
+    await pushCloudBinsNow([{ binId, document: readDataBin("settings") }], { force: true });
+    return;
+  }
+
+  const remote = data.document as DataBinDocument;
+  const merged = mergeYieldIntoSettingsDocument(remote);
+  if (merged !== remote) {
+    await upsertCloudBin(binId, merged);
+  }
 }
 
 export function startCloudRealtime(options: {

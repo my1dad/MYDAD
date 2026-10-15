@@ -1013,7 +1013,7 @@ export default {
       memberBalanceCurrent: "Current balance",
       memberYieldKicker: "Return rate",
       memberYieldNote:
-        "Percentage this member earns each interval, applied to their current balance.",
+        "Each member has their own percentage. This member stays at 0% until you change it, and the rate applies only to their deposits.",
       memberYieldPercent: "Percentage",
       memberYieldInterval: "Interval",
       memberYieldIntervals: {
@@ -1034,6 +1034,7 @@ export default {
       memberBalanceDepositLog: "Deposit log",
       memberBalanceDepositLogEmpty: "No deposits from this panel yet.",
       memberBalanceDepositLogTotal: "{{count}} deposits · {{amount}} total",
+      memberBalanceDepositYield: "{{percent}}% {{interval}} · {{amount}}",
       memberDetailBalanceChecking: "Deposit into Liquidity pool",
       memberDetailBalanceEscrow: "Escrow",
       memberDetailBalancesSave: "Deposit",

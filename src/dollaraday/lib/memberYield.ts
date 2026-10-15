@@ -7,6 +7,8 @@ import {
   readDataBin,
   subscribeInternalDatabase,
   upsertDataRecord,
+  type DataBinDocument,
+  type StoredRecord,
 } from "./internalDatabase";
 import { computeMemberStatsFromContributions } from "./memberContributionStats";
 import { getRegisteredMembers } from "./memberRegistry";
@@ -85,9 +87,9 @@ function parseSchedule(value: unknown): MemberYieldSchedule | null {
   return { percent, interval: record.interval, setAt };
 }
 
-function readSchedules(): Record<string, MemberYieldSchedule> {
-  const record = readDataBin("settings").records.find((item) => item.id === YIELD_RECORD_ID);
-  const raw = record?.payload?.schedules;
+function schedulesFromPayload(payload: unknown): Record<string, MemberYieldSchedule> {
+  if (!payload || typeof payload !== "object") return {};
+  const raw = (payload as Record<string, unknown>).schedules;
   if (!raw || typeof raw !== "object") return {};
 
   const schedules: Record<string, MemberYieldSchedule> = {};
@@ -97,6 +99,72 @@ function readSchedules(): Record<string, MemberYieldSchedule> {
     schedules[profileId] = schedule;
   }
   return schedules;
+}
+
+function readSchedules(): Record<string, MemberYieldSchedule> {
+  const record = readDataBin("settings").records.find((item) => item.id === YIELD_RECORD_ID);
+  return schedulesFromPayload(record?.payload);
+}
+
+function schedulesEqual(
+  left: Record<string, MemberYieldSchedule>,
+  right: Record<string, MemberYieldSchedule>,
+): boolean {
+  const leftIds = Object.keys(left);
+  if (leftIds.length !== Object.keys(right).length) return false;
+  return leftIds.every((profileId) => {
+    const other = right[profileId];
+    const schedule = left[profileId];
+    return (
+      other != null &&
+      schedule.percent === other.percent &&
+      schedule.interval === other.interval &&
+      schedule.setAt === other.setAt
+    );
+  });
+}
+
+/**
+ * Keep each member's newer saved rate when a cloud settings document arrives.
+ * The settings bin is replaced as a whole, so an older copy would otherwise
+ * clear a rate the admin just saved.
+ */
+export function mergeYieldIntoSettingsDocument(remote: DataBinDocument): DataBinDocument {
+  const localSchedules = readSchedules();
+  const records = Array.isArray(remote?.records) ? remote.records : [];
+  const remoteRecord = records.find((item) => item.id === YIELD_RECORD_ID);
+  const remoteSchedules = schedulesFromPayload(remoteRecord?.payload);
+  if (schedulesEqual(localSchedules, remoteSchedules)) return remote;
+
+  const merged: Record<string, MemberYieldSchedule> = { ...remoteSchedules };
+  for (const [profileId, local] of Object.entries(localSchedules)) {
+    const remoteSchedule = remoteSchedules[profileId];
+    const localMs = Date.parse(local.setAt);
+    const remoteMs = remoteSchedule ? Date.parse(remoteSchedule.setAt) : Number.NaN;
+    if (
+      !remoteSchedule ||
+      (Number.isFinite(localMs) && (!Number.isFinite(remoteMs) || localMs >= remoteMs))
+    ) {
+      merged[profileId] = local;
+    }
+  }
+  if (schedulesEqual(merged, remoteSchedules)) return remote;
+
+  const now = new Date().toISOString();
+  const payload = { ...(remoteRecord?.payload ?? {}), schedules: merged };
+  const nextRecord: StoredRecord = remoteRecord
+    ? { ...remoteRecord, source: YIELD_RECORD_SOURCE, payload, updatedAt: now }
+    : {
+        id: YIELD_RECORD_ID,
+        createdAt: now,
+        updatedAt: now,
+        source: YIELD_RECORD_SOURCE,
+        payload,
+      };
+  const nextRecords = remoteRecord
+    ? records.map((item) => (item.id === YIELD_RECORD_ID ? nextRecord : item))
+    : [nextRecord, ...records];
+  return { ...remote, records: nextRecords, updatedAt: now };
 }
 
 export function getMemberYieldSchedule(profileId: string): MemberYieldSchedule | null {
