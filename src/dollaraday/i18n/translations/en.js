@@ -1011,6 +1011,21 @@ export default {
       memberBalanceNote:
         "Deposit into the community liquidity pool. Amounts add to this member’s equity/deposits and sync across the platform. You can deposit multiple times — each deposit stacks on their current balance.",
       memberBalanceCurrent: "Current balance",
+      memberYieldKicker: "Return rate",
+      memberYieldNote:
+        "Percentage this member earns each interval, applied to their current balance.",
+      memberYieldPercent: "Percentage",
+      memberYieldInterval: "Interval",
+      memberYieldIntervals: {
+        daily: "Daily",
+        weekly: "Weekly",
+        monthly: "Monthly",
+      },
+      memberYieldSave: "Save rate",
+      memberYieldSaving: "Saving…",
+      memberYieldSaved: "Saved {{percent}}% {{interval}}.",
+      memberYieldInvalid: "Enter a percentage of 0 or more.",
+      memberYieldFailed: "Could not save this return rate.",
       memberBalanceDepositAmount: "Deposit amount",
       memberBalanceSaving: "Depositing…",
       memberBalanceDepositAction: "Deposit",

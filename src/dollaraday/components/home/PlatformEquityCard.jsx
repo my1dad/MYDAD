@@ -46,11 +46,19 @@ import { findStoredMemberByProfileId } from "../../lib/memberRegistry";
 import { countPlatformMembers, usePoolState } from "../../lib/poolState";
 import { getProfileMemberRoi } from "../../lib/profileRegistry";
 import { getMemberCashBalance } from "../../lib/cashReinvest";
+import { useMemberYieldQuote } from "../../lib/memberYield";
 import MemberRedemptionRequestModal from "./MemberRedemptionRequestModal";
 
 function getProfileFullName(profile) {
   if (!profile) return "";
   return profile.fullName?.trim() || profile.displayName?.trim() || "";
+}
+
+function formatYieldPercent(pct) {
+  const rounded = Math.round((Number(pct) || 0) * 100) / 100;
+  if (rounded === 0) return "0%";
+  const sign = rounded > 0 ? "+" : "−";
+  return `${sign}${Math.abs(rounded).toFixed(2)}%`;
 }
 
 function formatBankCurrency(amount) {
@@ -128,6 +136,7 @@ export default function PlatformEquityCard({
   const canCollapse = Boolean(collapsible && isAdmin);
   const showDense = !canCollapse || !collapsed;
   const profileId = profile?.id ?? currentMember?.id;
+  const yieldQuote = useMemberYieldQuote(isAdmin ? undefined : profileId);
   const positions = useAllocationPositions(isAdmin ? undefined : profileId);
   const ledger = useMemberAccounts(profileId);
   const profileRevision = useSyncExternalStore(
@@ -588,6 +597,13 @@ export default function PlatformEquityCard({
                   </p>
                   <p className="dda-member-bank__balance" aria-live="polite">
                     {formatBankCurrency(stats.investments)}
+                  </p>
+                  <p className="dda-member-bank__yield">
+                    <span>{formatYieldPercent(yieldQuote.ytdPct)}</span>
+                    <span>
+                      {yieldQuote.ytdGain < 0 ? "−" : "+"}
+                      {formatBankCurrency(Math.abs(yieldQuote.ytdGain))}
+                    </span>
                   </p>
                 </div>
                 <div className="dda-member-bank__balance-col dda-member-bank__balance-col--cash">

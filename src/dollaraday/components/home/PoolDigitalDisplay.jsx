@@ -10,6 +10,7 @@ import {
   summarizeSleeveAllocations,
 } from "../../lib/allocationSleeves";
 import { useAllocationPositions } from "../../lib/allocationPositions";
+import { usePlatformYieldTotals } from "../../lib/memberYield";
 
 function formatPoolTotal(amount) {
   return new Intl.NumberFormat("en-US", {
@@ -128,15 +129,7 @@ export default function PoolDigitalDisplay({
   const poolApy = Number(poolSummary?.poolApy) || 0;
   const ytd = ytdGrowthPct ?? poolSummary?.ytdGrowthPct ?? 0;
   const balance = Number(amount) || 0;
-
-  const interest = useMemo(() => {
-    const annual = balance * (poolApy / 100);
-    return {
-      annual,
-      monthly: annual / 12,
-      daily: annual / 365,
-    };
-  }, [balance, poolApy]);
+  const yieldTotals = usePlatformYieldTotals();
 
   const compound = useMemo(() => {
     const growthPct = Math.max(0, Number(ytd) || 0);
@@ -144,8 +137,6 @@ export default function PoolDigitalDisplay({
     const principal = Math.max(0, balance - gain);
     const principalPct = balance > 0 ? Math.round((principal / balance) * 100) : 100;
     return {
-      growthPct,
-      gain: Math.max(0, gain),
       principal,
       principalPct,
       interestPct: Math.max(0, 100 - principalPct),
@@ -268,7 +259,7 @@ export default function PoolDigitalDisplay({
                     <div className="min-w-0">
                       <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolInterestDaily")}</p>
                       <p className="dda-pool-widget__stat-value dda-pool-widget__stat-value--inflow">
-                        +{formatPoolCurrency(interest.daily)}
+                        +{formatPoolTotal(yieldTotals.daily)}
                       </p>
                     </div>
                   </div>
@@ -296,7 +287,7 @@ export default function PoolDigitalDisplay({
                     <div className="min-w-0">
                       <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolInterestDaily")}</p>
                       <p className="dda-pool-widget__stat-value dda-pool-widget__stat-value--inflow">
-                        +{formatPoolCurrency(interest.daily)}
+                        +{formatPoolTotal(yieldTotals.daily)}
                       </p>
                     </div>
                   </div>
@@ -304,7 +295,7 @@ export default function PoolDigitalDisplay({
                     <div className="min-w-0">
                       <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolInterestMonthly")}</p>
                       <p className="dda-pool-widget__stat-value dda-pool-widget__stat-value--inflow">
-                        +{formatPoolCurrency(interest.monthly)}
+                        +{formatPoolTotal(yieldTotals.monthly)}
                       </p>
                     </div>
                   </div>
@@ -349,7 +340,7 @@ export default function PoolDigitalDisplay({
                     <div className="min-w-0">
                       <p className="dda-pool-widget__stat-label">{t("pages.dashboard.poolCompoundGain")}</p>
                       <p className="dda-pool-widget__stat-value dda-pool-widget__stat-value--inflow">
-                        +{formatPoolCurrency(compound.gain)}
+                        +{formatPoolTotal(yieldTotals.ytdGain)}
                       </p>
                     </div>
                   </div>

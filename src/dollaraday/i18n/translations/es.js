@@ -1012,6 +1012,21 @@ export default {
       memberBalanceNote:
         "Deposita en el pool de liquidez de la comunidad. El monto se suma al equity/depósitos del miembro y se sincroniza en la plataforma. Puedes depositar varias veces: cada depósito se suma al saldo actual.",
       memberBalanceCurrent: "Saldo actual",
+      memberYieldKicker: "Tasa de rendimiento",
+      memberYieldNote:
+        "Porcentaje que este miembro gana en cada intervalo, aplicado a su saldo actual.",
+      memberYieldPercent: "Porcentaje",
+      memberYieldInterval: "Intervalo",
+      memberYieldIntervals: {
+        daily: "Diario",
+        weekly: "Semanal",
+        monthly: "Mensual",
+      },
+      memberYieldSave: "Guardar tasa",
+      memberYieldSaving: "Guardando…",
+      memberYieldSaved: "Se guardó {{percent}}% {{interval}}.",
+      memberYieldInvalid: "Ingresa un porcentaje de 0 o más.",
+      memberYieldFailed: "No se pudo guardar esta tasa de rendimiento.",
       memberBalanceDepositAmount: "Monto del depósito",
       memberBalanceSaving: "Depositando…",
       memberBalanceDepositAction: "Depositar",

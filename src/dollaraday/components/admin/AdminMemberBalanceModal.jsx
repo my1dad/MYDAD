@@ -22,6 +22,11 @@ import {
 } from "../../lib/memberRegistry";
 import { computeMemberStatsFromContributions } from "../../lib/memberContributionStats";
 import { findDadProfileById, getDadProfiles } from "../../lib/dadProfileStorage";
+import {
+  getMemberYieldSchedule,
+  isYieldInterval,
+  saveMemberYieldSchedule,
+} from "../../lib/memberYield";
 import { logProfileActivity } from "../../lib/profileActivity";
 import { syncMemberEscrowToLiquidityPool, syncPoolInflowMetrics } from "../../lib/poolState";
 
@@ -114,6 +119,11 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastDeposit, setLastDeposit] = useState(0);
+  const [yieldPercent, setYieldPercent] = useState("");
+  const [yieldInterval, setYieldInterval] = useState("monthly");
+  const [yieldError, setYieldError] = useState("");
+  const [yieldSaved, setYieldSaved] = useState(false);
+  const [yieldSaving, setYieldSaving] = useState(false);
 
   const dbRevision = useSyncExternalStore(
     subscribeInternalDatabase,
@@ -141,6 +151,12 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
     setSaved(false);
     setSaving(false);
     setLastDeposit(0);
+    const schedule = getMemberYieldSchedule(profileId);
+    setYieldPercent(schedule ? String(schedule.percent) : "");
+    setYieldInterval(schedule?.interval ?? "monthly");
+    setYieldError("");
+    setYieldSaved(false);
+    setYieldSaving(false);
   }, [open, profileId]);
 
   useEffect(() => {
@@ -268,6 +284,42 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
     }
   };
 
+  const handleSaveYield = async () => {
+    setYieldError("");
+    setYieldSaved(false);
+
+    const percent = Number(String(yieldPercent).replace(/,/g, "").trim());
+    if (!Number.isFinite(percent) || percent < 0) {
+      setYieldError(t("pages.admin.memberYieldInvalid"));
+      return;
+    }
+
+    setYieldSaving(true);
+    try {
+      const result = saveMemberYieldSchedule(profileId, percent, yieldInterval);
+      if (!result.ok) {
+        setYieldError(t("pages.admin.memberYieldFailed"));
+        return;
+      }
+      setYieldSaved(true);
+      try {
+        const { pushCloudBinsNow } = await import("../../lib/supabase/cloudSync");
+        await pushCloudBinsNow(
+          [{ binId: DATA_BIN_BY_KEY.settings.binId, document: readDataBin("settings") }],
+          { force: true },
+        );
+      } catch {
+        // Local rate already saved; cloud push can retry later.
+      }
+    } catch {
+      setYieldError(t("pages.admin.memberYieldFailed"));
+    } finally {
+      setYieldSaving(false);
+    }
+  };
+
+  const yieldIntervalLabel = t(`pages.admin.memberYieldIntervals.${yieldInterval}`);
+
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <button
@@ -304,7 +356,7 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="dda-scroll space-y-5 overflow-y-auto px-5 py-5">
+        <div className="dda-scroll space-y-5 overflow-y-auto px-5 py-5">
           <p className="text-[12px] leading-relaxed text-gray-500">
             {t("pages.admin.memberBalanceNote")}
           </p>
@@ -318,6 +370,86 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
             </p>
           </div>
 
+          <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                {t("pages.admin.memberYieldKicker")}
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-gray-500">
+                {t("pages.admin.memberYieldNote")}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block" htmlFor="member-yield-percent">
+                <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t("pages.admin.memberYieldPercent")}
+                </span>
+                <span className="dda-admin-member-balance-card__field">
+                  <input
+                    id="member-yield-percent"
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={yieldPercent}
+                    placeholder="0"
+                    onChange={(event) => {
+                      setYieldPercent(sanitizeMoneyTyping(event.target.value));
+                      setYieldSaved(false);
+                    }}
+                    className="dda-admin-member-balance-card__input dda-admin-member-yield__input"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleSaveYield();
+                      }
+                    }}
+                  />
+                  <span className="dda-admin-member-balance-card__currency" aria-hidden="true">
+                    %
+                  </span>
+                </span>
+              </label>
+              <label className="block" htmlFor="member-yield-interval">
+                <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  {t("pages.admin.memberYieldInterval")}
+                </span>
+                <select
+                  id="member-yield-interval"
+                  value={yieldInterval}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    if (!isYieldInterval(next)) return;
+                    setYieldInterval(next);
+                    setYieldSaved(false);
+                  }}
+                  className="dda-member-yield-interval"
+                >
+                  <option value="daily">{t("pages.admin.memberYieldIntervals.daily")}</option>
+                  <option value="weekly">{t("pages.admin.memberYieldIntervals.weekly")}</option>
+                  <option value="monthly">{t("pages.admin.memberYieldIntervals.monthly")}</option>
+                </select>
+              </label>
+            </div>
+            {yieldError ? <p className="text-sm text-red-400">{yieldError}</p> : null}
+            {yieldSaved ? (
+              <p className="text-sm text-dda-green-light">
+                {t("pages.admin.memberYieldSaved", {
+                  percent: yieldPercent,
+                  interval: yieldIntervalLabel,
+                })}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleSaveYield}
+              disabled={yieldSaving}
+              className="dda-btn-primary w-full sm:w-auto"
+            >
+              {yieldSaving ? t("pages.admin.memberYieldSaving") : t("pages.admin.memberYieldSave")}
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
           <div className="dda-admin-member-balance-card">
             <label htmlFor="member-balance-checking" className="dda-admin-member-balance-card__label">
               {t("pages.admin.memberDetailBalanceChecking")}
@@ -419,6 +551,7 @@ export default function AdminMemberBalanceModal({ member, open, onClose }) {
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>,
     document.body,
